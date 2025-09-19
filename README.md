@@ -16,8 +16,6 @@ Remember to change the following constants in the VMRunner.cpp file:
 
 To your own constants!
 
-
-
 ## License
 
 MIT

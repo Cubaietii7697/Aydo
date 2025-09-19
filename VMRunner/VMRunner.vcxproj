@@ -129,6 +129,9 @@
   <ItemGroup>
     <ClCompile Include="VMRunner.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Constants.hpp" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

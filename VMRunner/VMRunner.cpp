@@ -3,42 +3,12 @@
 #include <random>
 #include <sstream>
 #include <string>
-#include <string_view>
 #include <vector>
 #include <windows.h>
+#include <format>
+#include <string_view>
 
-constexpr std::string_view BANNER = R"(
-                                                                                         
-                                                            dddddddd                 
-               AAA                                          d::::::d                 
-              A:::A                                         d::::::d                 
-             A:::::A                                        d::::::d                 
-            A:::::::A                                       d:::::d                  
-           A:::::::::A    yyyyyyy           yyyyyyy ddddddddd:::::d    ooooooooooo   
-          A:::::A:::::A    y:::::y         y:::::ydd::::::::::::::d  oo:::::::::::oo 
-         A:::::A A:::::A    y:::::y       y:::::yd::::::::::::::::d o:::::::::::::::o
-        A:::::A   A:::::A    y:::::y     y:::::yd:::::::ddddd:::::d o:::::ooooo:::::o
-       A:::::A     A:::::A    y:::::y   y:::::y d::::::d    d:::::d o::::o     o::::o
-      A:::::AAAAAAAAA:::::A    y:::::y y:::::y  d:::::d     d:::::d o::::o     o::::o
-     A:::::::::::::::::::::A    y:::::y:::::y   d:::::d     d:::::d o::::o     o::::o
-    A:::::AAAAAAAAAAAAA:::::A    y:::::::::y    d:::::d     d:::::d o::::o     o::::o
-   A:::::A             A:::::A    y:::::::y     d::::::ddddd::::::ddo:::::ooooo:::::o
-  A:::::A               A:::::A    y:::::y       d:::::::::::::::::do:::::::::::::::o
- A:::::A                 A:::::A  y:::::y         d:::::::::ddd::::d oo:::::::::::oo 
-AAAAAAA                   AAAAAAAy:::::y           ddddddddd   ddddd   ooooooooooo   
-                                y:::::y                                              
-                               y:::::y                                               
-                              y:::::y                                                
-                             y:::::y                                                 
-                            yyyyyyy                                                  
-                                                                                     
-                                                                                     
-)";
-
-constexpr std::string_view VM_RUN_PATH = R"("C:\Program Files (x86)\VMware\VMware Workstation\vmrun.exe")";
-constexpr std::string_view ANALYSIS_VM_PATH = R"("D:\veeeertoooaaalll\SANDBOX1\SANDBOX1.vmx")";
-constexpr std::string_view SANDBOXES_DIRECTORY_PATH = R"(D:\veeeertoooaaalll\copy.me.here.plz)";
-constexpr unsigned int ID_LENGTH = 10;
+#include "Constants.hpp"
 
 static void printBanner(bool isClosing = false) {
     std::string bannerStr(BANNER);
@@ -114,27 +84,39 @@ static std::string generateId(const std::string &prefix, const unsigned int leng
     return prefix + id;
 }
 
-int main() {
-    // Important
+int main(int argc, char *argv[]) {
+    if (argc < 2) {
+        std::cerr << "Usage: " << argv[0] << " <sandbox_id>" << std::endl;
+        return EXIT_FAILURE;
+    }
+
+    std::string sandboxId(argv[1]);
+
     printBanner();
 
-    std::string analysisVmPath = std::string(ANALYSIS_VM_PATH);
-    std::string sandboxesDirectoryPath = std::string(SANDBOXES_DIRECTORY_PATH);
-    std::string vmRunPath = std::string(VM_RUN_PATH);
+    std::string analysisVmPath(ANALYSIS_VM_PATH);
+    std::string sandboxesDirectoryPath(SANDBOXES_DIRECTORY_PATH);
+    std::string vmRunPath(VM_RUN_PATH);
 
-    std::string id = generateId("sandbox_", ID_LENGTH);
+    std::string sandboxPath = std::format("{}\\{}\\{}.vmx",
+                                           sandboxesDirectoryPath,
+                                           sandboxId,
+                                           sandboxId);
 
-    std::cout << "Generated ID: " << id << std::endl;
-
-    std::string sandboxPath = sandboxesDirectoryPath + "\\" + id + "\\" + id + ".vmx";
-
-    std::string vmRunCommand = vmRunPath + " clone " + analysisVmPath + " " + sandboxPath + " linked -cloneName=" + id;
+    std::string vmRunCommand = std::format("{}{} clone {} {} linked -cloneName={}",
+                                           vmRunPath,
+                                           " ",
+                                           analysisVmPath,
+                                           sandboxPath,
+                                           sandboxId);
     executeAndWait(vmRunCommand);
 
-    std::string vmRunCommand2 = vmRunPath + " start " + sandboxPath;
+    std::string vmRunCommand2 = std::format("{}{} start {}",
+                                            vmRunPath,
+                                            " ",
+                                            sandboxPath);
     executeAndWait(vmRunCommand2);
 
-    // Important
     printBanner(true);
 
     return EXIT_SUCCESS;
