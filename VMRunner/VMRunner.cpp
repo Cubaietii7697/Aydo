@@ -1,12 +1,10 @@
 #include <cstdlib>
+#include <format>
 #include <iostream>
-#include <random>
 #include <sstream>
 #include <string>
 #include <vector>
 #include <windows.h>
-#include <format>
-#include <string_view>
 
 #include "Constants.hpp"
 
@@ -28,7 +26,7 @@ static void printBanner(bool isClosing = false) {
                 std::cout << lines[j] << std::endl;
             }
 
-            Sleep(50);
+            Sleep(ANIMATION_SLEEP_TIME_MS);
         }
         system("cls");
     } else {
@@ -39,7 +37,7 @@ static void printBanner(bool isClosing = false) {
                 std::cout << lines[j] << std::endl;
             }
 
-            Sleep(50);
+            Sleep(ANIMATION_SLEEP_TIME_MS);
         }
     }
 }
@@ -51,16 +49,16 @@ static void executeAndWait(const std::string &command) {
     std::string cmdCopy = command;
 
     if (CreateProcessA(
-            nullptr,
-            &cmdCopy[0],
-            nullptr,
-            nullptr,
-            FALSE,
-            0,
-            nullptr,
-            nullptr,
-            &si,
-            &pi)) {
+            nullptr,     // Application name
+            &cmdCopy[0], // Command line
+            nullptr,     // Process handle not inheritable
+            nullptr,     // Thread handle not inheritable
+            FALSE,       // Set handle inheritance to FALSE
+            0,           // No creation flags
+            nullptr,     // Use parent's environment block
+            nullptr,     // Use parent's starting directory
+            &si,         // Pointer to STARTUPINFO structure
+            &pi)) {      // Pointer to PROCESS_INFORMATION structure
         WaitForSingleObject(pi.hProcess, INFINITE);
 
         CloseHandle(pi.hProcess);
@@ -71,20 +69,10 @@ static void executeAndWait(const std::string &command) {
     }
 }
 
-static std::string generateId(const std::string &prefix, const unsigned int length) {
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_int_distribution<> dis(0, 9);
-
-    std::string id;
-    for (int i = 0; i < length; i++) {
-        id += std::to_string(dis(gen));
-    }
-
-    return prefix + id;
-}
-
 int main(int argc, char *argv[]) {
+    // We expect args to be: <executable path> <sandbox_id>.
+    // argv[0] is the executable path.
+    // argv[1] is the sandbox id.
     if (argc < 2) {
         std::cerr << "Usage: " << argv[0] << " <sandbox_id>" << std::endl;
         return EXIT_FAILURE;
@@ -99,9 +87,9 @@ int main(int argc, char *argv[]) {
     std::string vmRunPath(VM_RUN_PATH);
 
     std::string sandboxPath = std::format("{}\\{}\\{}.vmx",
-                                           sandboxesDirectoryPath,
-                                           sandboxId,
-                                           sandboxId);
+                                          sandboxesDirectoryPath,
+                                          sandboxId,
+                                          sandboxId);
 
     std::string vmRunCommand = std::format("{}{} clone {} {} linked -cloneName={}",
                                            vmRunPath,
