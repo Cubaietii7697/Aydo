@@ -12,8 +12,8 @@ int wmain(int argc, wchar_t *argv[]) {
       (argc > 1) ? std::wstring(argv[1]) : L"chrome.exe";
 
   std::wcout << L"Looking for process: " << targetExe << std::endl;
-  DWORD pid = monitor.FindPidByName(targetExe);
-  if (pid == 0) {
+  std::set<DWORD> pids = monitor.FindPidByName(targetExe);
+  if (pids.empty()) {
     std::wcerr << L"Could not find process: " << targetExe << L"\n";
     std::wcout << L"Available processes with 'chrome' in name:" << std::endl;
 
@@ -34,19 +34,18 @@ int wmain(int argc, wchar_t *argv[]) {
       CloseHandle(snap);
     }
 
-    std::wcout << L"\nFor testing, try running: notepad.exe" << std::endl;
-    std::wcout << L"Then run this program with: readFromVm.exe notepad.exe"
-               << std::endl;
     std::wcout << L"Press Enter to exit...\n";
     std::wstring dummy;
     std::getline(std::wcin, dummy);
     return 1;
   }
 
-  g_targetPid = pid;
-  std::wcout << L"Target PID: " << g_targetPid << L" (" << targetExe << L")"
-             << std::endl;
-
+  g_targetPids = pids;
+  std::wcout << L"Found " << pids.size() << L" chrome.exe processes:\n";
+  for (DWORD pid : pids) {
+    std::wcout << L"  PID: " << pid << std::endl;
+    g_targetPids.insert(pid);
+  }
   // Use the standard kernel logger session name
   const std::wstring sessionName = L"NT Kernel Logger";
   std::wcout << L"Using session name: " << sessionName << std::endl;
@@ -85,8 +84,12 @@ int wmain(int argc, wchar_t *argv[]) {
   }
 
   std::wcout << L"\n=== ETW Monitor Active ===" << std::endl;
-  std::wcout << L"Monitoring PID " << g_targetPid << L" (" << targetExe << L")"
-             << std::endl;
+  std::wcout << L"Monitoring PIDs: [ ";
+  for (DWORD pid : pids) {
+    std::wcout << L"  PID: " << pid << std::endl;
+    g_targetPids.insert(pid);
+  }
+  std::wcout << L"] (" << targetExe << L")" << std::endl;
   std::wcout << L"You should see events within 15 seconds..." << std::endl;
   std::wcout << L"If you don't see any events, try:" << std::endl;
   std::wcout << L"1. Run as Administrator" << std::endl;

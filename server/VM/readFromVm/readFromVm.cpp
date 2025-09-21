@@ -2,30 +2,33 @@
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <set>
 #include <sstream>
 #include <vector>
 
-ULONG64 g_targetPid = 0;
+std::set<DWORD> g_targetPids;
 TRACEHANDLE g_hTrace = 0;
 TRACEHANDLE g_hSession = 0;
 
-DWORD readFromVm::FindPidByName(const std::wstring &exeName) {
-  DWORD pid = 0;
+std::set<DWORD> readFromVm::FindPidByName(const std::wstring &exeName) {
+  std::set<DWORD> pids;
   HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
   if (snap == INVALID_HANDLE_VALUE)
-    return 0;
+    return pids;
+
   PROCESSENTRY32W pe;
   pe.dwSize = sizeof(pe);
+
   if (Process32FirstW(snap, &pe)) {
     do {
       if (_wcsicmp(pe.szExeFile, exeName.c_str()) == 0) {
-        pid = pe.th32ProcessID;
-        break;
+        pids.insert(pe.th32ProcessID);
       }
     } while (Process32NextW(snap, &pe));
   }
+
   CloseHandle(snap);
-  return pid;
+  return pids;
 }
 
 void WINAPI readFromVm::StaticEventRecordCallback(PEVENT_RECORD pEvent) {
@@ -35,69 +38,39 @@ void WINAPI readFromVm::StaticEventRecordCallback(PEVENT_RECORD pEvent) {
   static int totalEvents = 0;
   static int targetEvents = 0;
   static DWORD startTime = GetTickCount();
-
+  const int SEC = 1000;
+  const int FIRST_15SEC = 15 * SEC;
+  const int EVENTS = 50;
   totalEvents++;
-  DWORD pid = pEvent->EventHeader.ProcessId; // Remove cast to see raw value
+  DWORD pid = pEvent->EventHeader.ProcessId;
   DWORD tid = pEvent->EventHeader.ThreadId;
   DWORD currentTime = GetTickCount();
-  bool debugMode = (currentTime - startTime) < 15000; // First 15 seconds
+  bool debugMode = (currentTime - startTime) < FIRST_15SEC; // First 15 seconds
 
-  // Show statistics every 50 events
-  if (totalEvents % 50 == 0) {
+  // Show statistics every EVENTS events
+  if (totalEvents % EVENTS == 0) {
     std::wcout << L"[STATS] Total events: " << totalEvents
                << L" Target events: " << targetEvents << L" Time: "
-               << (currentTime - startTime) / 1000 << L"s" << std::endl;
+               << (currentTime - startTime) / SEC << L"s\n";
   }
 
-  // In debug mode, show all events for first few seconds
-  if (debugMode && totalEvents <= 100) {
+  // Debug mode: show first EVENTS events
+  if (debugMode && totalEvents <= EVENTS) {
     std::wcout << L"[DEBUG] Event #" << totalEvents << L" PID: " << pid
                << L" (hex: 0x" << std::hex << pid << std::dec << L")"
-               << L" TID: " << tid << L" Target: " << g_targetPid
-               << L" Provider: 0x" << std::hex
+               << L" TID: " << tid << L" Provider: 0x" << std::hex
                << pEvent->EventHeader.ProviderId.Data1 << std::dec
                << L" EventID: " << pEvent->EventHeader.EventDescriptor.Id
                << L" Opcode: " << pEvent->EventHeader.EventDescriptor.Opcode
                << std::endl;
   }
 
-  // Handle invalid PIDs (kernel events often have PID 0 or -1)
+  // Handle invalid PIDs (kernel/system events)
   if (pid == 0xFFFFFFFF || pid == 0) {
-    if (debugMode && totalEvents <= 20) {
-      // Check if this is actually a process event by looking at the provider
-      // and event ID
-      GUID processProviderGuid = {
-          0x22fb2cd6,
-          0x0e7b,
-          0x422b,
-          {0xa0, 0xc7, 0x2f, 0xad, 0x1f, 0xd0, 0xe7, 0x16}};
-      bool isProcessEvent = (memcmp(&pEvent->EventHeader.ProviderId,
-                                    &processProviderGuid, sizeof(GUID)) == 0);
-
-      std::wcout << L"[KERNEL] " << (isProcessEvent ? L"PROCESS" : L"OTHER")
-                 << L" event - EventID: "
-                 << pEvent->EventHeader.EventDescriptor.Id << L" Opcode: "
-                 << pEvent->EventHeader.EventDescriptor.Opcode;
-
-      // For process events, try to extract process info from UserData
-      if (isProcessEvent && pEvent->UserData &&
-          pEvent->UserDataLength >= sizeof(DWORD)) {
-        DWORD *pProcessId = (DWORD *)pEvent->UserData;
-        std::wcout << L" ProcessID from UserData: " << *pProcessId;
-
-        // If this matches our target, show it!
-        if (*pProcessId == (DWORD)g_targetPid) {
-          std::wcout << L" *** TARGET PROCESS EVENT! ***";
-          PrintEventDetailed(pEvent);
-        }
-      }
-      std::wcout << std::endl;
-    }
-    return; // Skip kernel events for now, unless they match our target
+    return;
   }
 
-  // Check if this is our target process
-  if (g_targetPid != 0 && pid == (DWORD)g_targetPid) {
+  if (!g_targetPids.empty() && g_targetPids.count(pid) > 0) {
     targetEvents++;
     std::wcout << L"[TARGET] Event #" << targetEvents << L" from PID " << pid
                << L" EventID: " << pEvent->EventHeader.EventDescriptor.Id
@@ -108,7 +81,7 @@ void WINAPI readFromVm::StaticEventRecordCallback(PEVENT_RECORD pEvent) {
     return;
   }
 
-  // Show some non-target events to verify ETW is working
+  // Optionally show some other events in debug mode
   if (debugMode && totalEvents <= 20) {
     std::wcout << L"[OTHER] PID " << pid << L" EventID: "
                << pEvent->EventHeader.EventDescriptor.Id << L" Provider: 0x"

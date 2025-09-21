@@ -8,16 +8,18 @@
 #include <string>
 #include <thread>
 #include <atomic>
+#include <set>
+
 
 extern "C" const GUID KERNEL_LOGGER_GUID;
 
-extern ULONG64 g_targetPid;
+extern std::set<DWORD> g_targetPids;
 extern TRACEHANDLE g_hTrace;
 extern TRACEHANDLE g_hSession;
 
 class readFromVm {
 public:
-	DWORD FindPidByName(const std::wstring& exeName);
+	std::set<DWORD> FindPidByName(const std::wstring& exeName);
 	static void WINAPI StaticEventRecordCallback(PEVENT_RECORD pEvent);
 	bool StartKernelSession(const std::wstring& sessionName, ULONG& outStatus);
 	void StopKernelSession(const std::wstring& sessionName);
