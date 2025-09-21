@@ -39,13 +39,12 @@ void WINAPI readFromVm::StaticEventRecordCallback(PEVENT_RECORD pEvent) {
   static int targetEvents = 0;
   static DWORD startTime = GetTickCount();
   const int SEC = 1000;
-  const int FIRST_15SEC = 15 * SEC;
   const int EVENTS = 50;
   totalEvents++;
+
   DWORD pid = pEvent->EventHeader.ProcessId;
   DWORD tid = pEvent->EventHeader.ThreadId;
   DWORD currentTime = GetTickCount();
-  bool debugMode = (currentTime - startTime) < FIRST_15SEC; // First 15 seconds
 
   // Show statistics every EVENTS events
   if (totalEvents % EVENTS == 0) {
@@ -54,16 +53,15 @@ void WINAPI readFromVm::StaticEventRecordCallback(PEVENT_RECORD pEvent) {
                << (currentTime - startTime) / SEC << L"s\n";
   }
 
-  // Debug mode: show first EVENTS events
-  if (debugMode && totalEvents <= EVENTS) {
-    std::wcout << L"[DEBUG] Event #" << totalEvents << L" PID: " << pid
-               << L" (hex: 0x" << std::hex << pid << std::dec << L")"
-               << L" TID: " << tid << L" Provider: 0x" << std::hex
-               << pEvent->EventHeader.ProviderId.Data1 << std::dec
-               << L" EventID: " << pEvent->EventHeader.EventDescriptor.Id
-               << L" Opcode: " << pEvent->EventHeader.EventDescriptor.Opcode
-               << std::endl;
-  }
+#if !defined(NDEBUG) // DEBUG build
+  std::wcout << L"[DEBUG] Event #" << totalEvents << L" PID: " << pid
+             << L" (hex: 0x" << std::hex << pid << std::dec << L")" << L" TID: "
+             << tid << L" Provider: 0x" << std::hex
+             << pEvent->EventHeader.ProviderId.Data1 << std::dec
+             << L" EventID: " << pEvent->EventHeader.EventDescriptor.Id
+             << L" Opcode: " << pEvent->EventHeader.EventDescriptor.Opcode
+             << std::endl;
+#endif
 
   // Handle invalid PIDs (kernel/system events)
   if (pid == 0xFFFFFFFF || pid == 0) {
@@ -81,17 +79,38 @@ void WINAPI readFromVm::StaticEventRecordCallback(PEVENT_RECORD pEvent) {
     return;
   }
 
-  // Optionally show some other events in debug mode
-  if (debugMode && totalEvents <= 20) {
-    std::wcout << L"[OTHER] PID " << pid << L" EventID: "
-               << pEvent->EventHeader.EventDescriptor.Id << L" Provider: 0x"
-               << std::hex << pEvent->EventHeader.ProviderId.Data1 << std::dec
-               << std::endl;
+#if !defined(NDEBUG)
+  std::wcout << L"[OTHER] PID " << pid << L" EventID: "
+             << pEvent->EventHeader.EventDescriptor.Id << L" Provider: 0x"
+             << std::hex << pEvent->EventHeader.ProviderId.Data1 << std::dec
+             << std::endl;
+#endif
+}
+
+std::wstring readFromVm::TraceStatusToString(ULONG status) {
+  switch (status) {
+  case ERROR_SUCCESS:
+    return L"Success";
+  case ERROR_ACCESS_DENIED:
+    return L"Access Denied - Run as Administrator";
+  case ERROR_ALREADY_EXISTS:
+    return L"Session Already Exists";
+  case ERROR_BAD_LENGTH:
+    return L"Bad Length";
+  case ERROR_INVALID_PARAMETER:
+    return L"Invalid Parameter";
+  default: {
+    // fallback: format the numeric code
+    return L"Unknown error (" + std::to_wstring(status) + L")";
+  }
   }
 }
 
 bool readFromVm::StartKernelSession(const std::wstring &sessionName,
                                     ULONG &outStatus) {
+  const ULONG FLAGS = EVENT_TRACE_FLAG_PROCESS | EVENT_TRACE_FLAG_THREAD |
+                      EVENT_TRACE_FLAG_IMAGE_LOAD | EVENT_TRACE_FLAG_DISK_IO |
+                      EVENT_TRACE_FLAG_NETWORK_TCPIP;
   const size_t propsSize =
       sizeof(EVENT_TRACE_PROPERTIES) + (MAX_PATH * sizeof(wchar_t)) * 2;
   EVENT_TRACE_PROPERTIES *pProps = (EVENT_TRACE_PROPERTIES *)malloc(propsSize);
@@ -111,9 +130,7 @@ bool readFromVm::StartKernelSession(const std::wstring &sessionName,
   pProps->LoggerNameOffset = sizeof(EVENT_TRACE_PROPERTIES);
 
   // Add more flags to get more events for debugging
-  pProps->EnableFlags = EVENT_TRACE_FLAG_PROCESS | EVENT_TRACE_FLAG_THREAD |
-                        EVENT_TRACE_FLAG_IMAGE_LOAD | EVENT_TRACE_FLAG_DISK_IO |
-                        EVENT_TRACE_FLAG_NETWORK_TCPIP;
+  pProps->EnableFlags = FLAGS;
 
   std::wcout << L"[DEBUG] EnableFlags set to: 0x" << std::hex
              << pProps->EnableFlags << std::dec << std::endl;
@@ -128,24 +145,8 @@ bool readFromVm::StartKernelSession(const std::wstring &sessionName,
   std::wcout << L"[DBG] StartTraceW returned: " << outStatus << L"\n";
 
   if (outStatus != ERROR_SUCCESS) {
-    std::wcerr << L"[ERROR] StartTraceW failed: " << outStatus;
-    switch (outStatus) {
-    case ERROR_ACCESS_DENIED:
-      std::wcerr << L" (Access Denied - Run as Administrator)";
-      break;
-    case ERROR_ALREADY_EXISTS:
-      std::wcerr << L" (Session Already Exists)";
-      break;
-    case ERROR_BAD_LENGTH:
-      std::wcerr << L" (Bad Length)";
-      break;
-    case ERROR_INVALID_PARAMETER:
-      std::wcerr << L" (Invalid Parameter)";
-      break;
-    default:
-      break;
-    }
-    std::wcerr << L"\n";
+    std::wcerr << L"[ERROR] StartTraceW failed: "
+               << TraceStatusToString(outStatus) << std::endl;
     free(pProps);
     return false;
   }
@@ -205,7 +206,7 @@ bool readFromVm::OpenAndProcessRealTime(const std::wstring &sessionName) {
   return false;
 }
 
-// helpers
+// === HELPERS === //
 
 std::wstring readFromVm::GetStringFromInfo(PTRACE_EVENT_INFO pInfo,
                                            ULONG offset) {

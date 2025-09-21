@@ -28,4 +28,5 @@ private:
 	static std::wstring GetStringFromInfo(PTRACE_EVENT_INFO pInfo, ULONG offset);
 	static std::wstring FormatProperty(PTRACE_EVENT_INFO pInfo, PEVENT_RECORD pEvent, USHORT propertyIndex);
 	static void PrintEventDetailed(PEVENT_RECORD pEvent);
+	static std::wstring TraceStatusToString(ULONG status);
 };
