@@ -2,6 +2,7 @@
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <sstream>
 #include <vector>
 
 ULONG64 g_targetPid = 0;
@@ -247,13 +248,69 @@ std::wstring readFromVm::FormatProperty(PTRACE_EVENT_INFO pInfo,
   if (!pInfo)
     return L"<no-info>";
 
-  // get property info
   if (propertyIndex >= pInfo->TopLevelPropertyCount)
     return L"<bad-index>";
 
-  // For now, just return a simple placeholder
-  // Property parsing with TDH is complex and requires careful handling
-  return L"<property-data>";
+  // Prepare descriptor for this property
+  PROPERTY_DATA_DESCRIPTOR desc;
+  desc.PropertyName =
+      (ULONGLONG)(ULONG_PTR)pInfo->EventPropertyInfoArray[propertyIndex]
+              .NameOffset
+          ? (ULONGLONG)((PBYTE)pInfo +
+                        pInfo->EventPropertyInfoArray[propertyIndex].NameOffset)
+          : 0;
+  desc.ArrayIndex = ULONG_MAX; // default: get all items
+
+  ULONG size = 0;
+  DWORD status = TdhGetPropertySize(pEvent, 0, nullptr, 1, &desc, &size);
+  if (status != ERROR_SUCCESS)
+    return L"<size-fail>";
+
+  std::vector<BYTE> buffer(size);
+  status = TdhGetProperty(pEvent, 0, nullptr, 1, &desc, (ULONG)buffer.size(),
+                          buffer.data());
+  if (status != ERROR_SUCCESS)
+    return L"<prop-fail>";
+
+  EVENT_PROPERTY_INFO &propInfo = pInfo->EventPropertyInfoArray[propertyIndex];
+  USHORT inType = propInfo.nonStructType.InType;
+
+  // Format based on type
+  switch (inType) {
+  case TDH_INTYPE_UNICODESTRING:
+    return std::wstring((PWSTR)buffer.data());
+  case TDH_INTYPE_ANSISTRING: {
+    std::string tmp((PCHAR)buffer.data());
+    return std::wstring(tmp.begin(), tmp.end());
+  }
+  case TDH_INTYPE_UINT32: {
+    DWORD val = *(DWORD *)buffer.data();
+    return std::to_wstring(val);
+  }
+  case TDH_INTYPE_INT32: {
+    LONG val = *(LONG *)buffer.data();
+    return std::to_wstring(val);
+  }
+  case TDH_INTYPE_UINT64: {
+    ULONGLONG val = *(ULONGLONG *)buffer.data();
+    return std::to_wstring(val);
+  }
+  case TDH_INTYPE_INT64: {
+    LONGLONG val = *(LONGLONG *)buffer.data();
+    return std::to_wstring(val);
+  }
+  case TDH_INTYPE_BOOLEAN: {
+    BOOL val = *(BOOL *)buffer.data();
+    return val ? L"true" : L"false";
+  }
+  default:
+    // given as his
+    std::wstringstream ss;
+    ss << L"0x";
+    for (size_t i = 0; i < buffer.size(); ++i)
+      ss << std::hex << (int)buffer[i];
+    return ss.str();
+  }
 }
 
 // BIG helper: print an entire event in a readable way.
