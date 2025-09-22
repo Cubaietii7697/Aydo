@@ -1,0 +1,28 @@
+# base style
+BasedOnStyle: LLVM
+
+# indent
+IndentWidth: 2
+TabWidth: 2
+UseTab: Never
+
+# header/using sort
+IncludeBlocks: Regroup
+SortIncludes: CaseInsensitive
+IncludeCategories:
+  - Regex: '^<windows.h>'
+    Priority: 1
+  - Regex: '^<.*>'
+    Priority: 2
+  - Regex: '.*'
+    Priority: 3
+SortUsingDeclarations: true
+
+# constructor initializer settings
+PackConstructorInitializers: Never
+BreakConstructorInitializersBeforeComma: true
+
+# line length settings
+ColumnLimit: 0
+
+# for more options, type ctrl + space to bring up the auto-completion list

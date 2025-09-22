@@ -1,12 +1,13 @@
 #pragma once
 
 #include <windows.h>
-#include <TlHelp32.h>
+
 #include <evntcons.h>
 #include <evntrace.h>
 #include <set>
 #include <string>
 #include <tdh.h>
+#include <TlHelp32.h>
 
 extern "C" const GUID KERNEL_LOGGER_GUID;
 

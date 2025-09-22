@@ -1,4 +1,7 @@
 ﻿#include "readFromVm.hpp"
+
+#include <windows.h>
+
 #include <algorithm>
 #include <cstring>
 #include <evntcons.h>
@@ -9,7 +12,6 @@
 #include <tdh.h>
 #include <tlhelp32.h>
 #include <vector>
-#include <windows.h>
 
 std::set<DWORD> g_targetPids;
 TRACEHANDLE g_hTrace = 0;
@@ -116,11 +118,13 @@ bool readFromVm::StartKernelSession(const std::wstring &sessionName,
   const ULONG FLAGS = EVENT_TRACE_FLAG_PROCESS | EVENT_TRACE_FLAG_THREAD |
                       EVENT_TRACE_FLAG_IMAGE_LOAD | EVENT_TRACE_FLAG_DISK_IO |
                       EVENT_TRACE_FLAG_NETWORK_TCPIP;
+  const unsigned int WAIT_FOR_SESSION_STOP_MS = 200;
 
   const size_t propsSize =
       sizeof(EVENT_TRACE_PROPERTIES) + (MAX_PATH * sizeof(wchar_t)) * 2;
   auto pProps = (EVENT_TRACE_PROPERTIES *)malloc(propsSize);
   if (!pProps) {
+    outStatus = ERROR_OUTOFMEMORY;
     std::wcerr << L"[ERROR] malloc EVENT_TRACE_PROPERTIES failed\n";
     return false;
   }
@@ -145,7 +149,7 @@ bool readFromVm::StartKernelSession(const std::wstring &sessionName,
       std::wcerr << L"[WARN] StartTrace: session already exists, attempting stop/retry\n";
       ULONG ctrl = ControlTraceW(0, sessionName.c_str(), nullptr, EVENT_TRACE_CONTROL_STOP);
       std::wcout << L"[DEBUG] ControlTrace stop returned " << ctrl << std::endl;
-      Sleep(200);
+      Sleep(WAIT_FOR_SESSION_STOP_MS); // Wait for the session to be stopped
       outStatus = StartTraceW(&g_hSession, sessionName.c_str(), pProps);
     }
     if (outStatus != ERROR_SUCCESS) {
