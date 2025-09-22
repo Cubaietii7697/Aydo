@@ -56,12 +56,12 @@ void WINAPI readFromVm::StaticEventRecordCallback(PEVENT_RECORD pEvent) {
   DWORD pid = pEvent->EventHeader.ProcessId;
 
   // If the PID is not in the set of PIDs we are interested in, skip it
-  if (g_targetPids.find(pid) == g_targetPids.end()) {
+  if (!g_targetPids.contains(pid)) {
     return;
   }
 
   // Skip noisy opcodes
-  int opcode = (int)pEvent->EventHeader.EventDescriptor.Opcode;
+  auto opcode = (int)pEvent->EventHeader.EventDescriptor.Opcode;
   if (std::find(OPCODES_TO_SKIP.begin(), OPCODES_TO_SKIP.end(), opcode) != OPCODES_TO_SKIP.end()) {
     return;
   }
@@ -97,8 +97,8 @@ void WINAPI readFromVm::StaticEventRecordCallback(PEVENT_RECORD pEvent) {
 
   // Print only matching properties
   if (pInfo->TopLevelPropertyCount > 0) {
-    for (ULONG i = 0; i < pInfo->TopLevelPropertyCount; ++i) {
-      EVENT_PROPERTY_INFO &prop = pInfo->EventPropertyInfoArray[i];
+    for (USHORT i = 0; i < pInfo->TopLevelPropertyCount; ++i) {
+      EVENT_PROPERTY_INFO const &prop = pInfo->EventPropertyInfoArray[i];
       std::wstring propName = prop.NameOffset ? GetStringFromInfo(pInfo, prop.NameOffset) : L"<prop>";
 
       std::wstring val = FormatProperty(pInfo, pEvent, i);
@@ -253,7 +253,7 @@ std::wstring readFromVm::FormatBasicProperty(USHORT inType, PBYTE propertyData, 
   case TDH_INTYPE_INT8:
     return std::to_wstring(*((INT8 *)propertyData));
   case TDH_INTYPE_UINT8:
-    return std::to_wstring(*((UINT8 *)propertyData));
+    return std::to_wstring(*(propertyData));
   case TDH_INTYPE_INT16:
     return std::to_wstring(*((INT16 *)propertyData));
   case TDH_INTYPE_UINT16:
@@ -337,7 +337,7 @@ std::wstring readFromVm::FormatProperty(PTRACE_EVENT_INFO pInfo,
   if (!pInfo || !pEvent)
     return L"";
 
-  EVENT_PROPERTY_INFO *propInfo = &pInfo->EventPropertyInfoArray[propertyIndex];
+  EVENT_PROPERTY_INFO const *propInfo = &pInfo->EventPropertyInfoArray[propertyIndex];
 
   // Build a PROPERTY_DATA_DESCRIPTOR that points to the property's name string inside pInfo.
   PROPERTY_DATA_DESCRIPTOR pdd = {};
@@ -365,7 +365,7 @@ std::wstring readFromVm::FormatProperty(PTRACE_EVENT_INFO pInfo,
   // First attempt: format what we just fetched (if any)
   USHORT inType = propInfo->nonStructType.InType;
   if (!data.empty()) {
-    std::wstring formatted = FormatBasicProperty(inType, data.data(), data.size());
+    std::wstring formatted = FormatBasicProperty(inType, data.data(), USHORT(data.size()));
     if (!formatted.empty())
       return formatted;
   }
@@ -390,11 +390,11 @@ std::wstring readFromVm::FormatProperty(PTRACE_EVENT_INFO pInfo,
     rc = TdhGetProperty(pEvent, 0, nullptr, 1, &altPdd, altSize, altData.data());
     if (rc == ERROR_SUCCESS && !altData.empty()) {
       // Try to format as Unicode string first, then fall back
-      std::wstring out = FormatBasicProperty(TDH_INTYPE_UNICODESTRING, altData.data(), altData.size());
+      std::wstring out = FormatBasicProperty(TDH_INTYPE_UNICODESTRING, altData.data(), USHORT(altData.size()));
       if (!out.empty())
         return out;
       // Try as ANSI
-      out = FormatBasicProperty(TDH_INTYPE_ANSISTRING, altData.data(), altData.size());
+      out = FormatBasicProperty(TDH_INTYPE_ANSISTRING, altData.data(), USHORT(altData.size()));
       if (!out.empty())
         return out;
       // General fallback
@@ -467,8 +467,8 @@ void readFromVm::PrintEventDetailed(PEVENT_RECORD pEvent) {
 
   // print properties if any
   if (pInfo->TopLevelPropertyCount > 0) {
-    for (ULONG i = 0; i < pInfo->TopLevelPropertyCount; ++i) {
-      EVENT_PROPERTY_INFO &prop = pInfo->EventPropertyInfoArray[i];
+    for (USHORT i = 0; i < pInfo->TopLevelPropertyCount; ++i) {
+      EVENT_PROPERTY_INFO const &prop = pInfo->EventPropertyInfoArray[i];
       std::wstring propName;
       if (prop.NameOffset) {
         propName = (PWSTR)((PBYTE)pInfo + prop.NameOffset);

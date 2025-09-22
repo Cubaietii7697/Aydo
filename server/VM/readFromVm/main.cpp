@@ -1,10 +1,12 @@
-#include "readFromVm.hpp"
+#include <windows.h>
+
 #include <atomic>
 #include <evntrace.h>
 #include <iostream>
 #include <string>
 #include <thread>
-#include <windows.h>
+
+#include "readFromVm.hpp"
 
 static std::string narrow(const std::wstring &w) {
   if (w.empty())
@@ -28,7 +30,7 @@ int wmain(int argc, wchar_t *argv[]) {
 
   std::cout << "Starting ETW Monitor..." << std::endl;
 
-  const std::wstring targetExe = std::wstring(argv[1]);
+  const auto targetExe = std::wstring(argv[1]);
 
   std::cout << "Looking for process: " << narrow(targetExe) << std::endl;
   std::set<DWORD> pids = readFromVm::FindPidByName(targetExe);
@@ -48,8 +50,7 @@ int wmain(int argc, wchar_t *argv[]) {
   const std::wstring sessionName = L"NTKernelLogger";
   std::cout << "Using session name: " << narrow(sessionName) << std::endl;
 
-  ULONG status = 0;
-  if (!readFromVm::StartKernelSession(sessionName, status)) {
+  if (ULONG status = 0; !readFromVm::StartKernelSession(sessionName, status)) {
     std::wcerr << "[ERROR] StartKernelSession failed: " << status << std::endl;
     std::cout << "Press Enter to exit..." << std::endl;
     std::wstring dummy;
@@ -64,7 +65,7 @@ int wmain(int argc, wchar_t *argv[]) {
   std::atomic<bool> workerResult{false};
 
   std::cout << "Starting worker thread..." << std::endl;
-  std::thread worker([&sessionName, &workerStarted, &workerResult]() {
+  std::jthread worker([&sessionName, &workerStarted, &workerResult]() {
     std::cout << "[WORKER] Thread started" << std::endl;
     workerStarted = true;
     workerResult = readFromVm::OpenAndProcessRealTime(sessionName);
@@ -104,9 +105,8 @@ int wmain(int argc, wchar_t *argv[]) {
   // Stop tracing
   if (g_hTrace != 0 && g_hTrace != INVALID_PROCESSTRACE_HANDLE) {
     std::cout << "Closing trace handle..." << std::endl;
-    ULONG closeStatus = CloseTrace(g_hTrace);
-    if (closeStatus != ERROR_SUCCESS &&
-        closeStatus != ERROR_CTX_CLOSE_PENDING) {
+    if (ULONG closeStatus = CloseTrace(g_hTrace); closeStatus != ERROR_SUCCESS &&
+                                                  closeStatus != ERROR_CTX_CLOSE_PENDING) {
       std::wcerr << "CloseTrace failed: " << closeStatus << std::endl;
     } else {
       std::cout << "Trace handle closed successfully" << std::endl;
@@ -123,7 +123,6 @@ int wmain(int argc, wchar_t *argv[]) {
   if (workerResult != 0) {
     std::wcerr << "Worker reported failure (code=" << (int)workerResult.load()
                << std::endl;
-    ;
   } else {
     std::cout << "Worker completed successfully" << std::endl;
   }
