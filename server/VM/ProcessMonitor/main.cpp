@@ -6,7 +6,7 @@
 #include <string>
 #include <thread>
 
-#include "readFromVm.hpp"
+#include "processMonitor.hpp"
 
 static std::string narrow(const std::wstring &w) {
   if (w.empty())
@@ -33,7 +33,7 @@ int wmain(int argc, wchar_t *argv[]) {
   const auto targetExe = std::wstring(argv[1]);
 
   std::cout << "Looking for process: " << narrow(targetExe) << std::endl;
-  std::set<DWORD> pids = readFromVm::FindPidByName(targetExe);
+  std::set<DWORD> pids = processMonitor::FindPidByName(targetExe);
   if (pids.empty()) {
     std::wcerr << "Could not find process: " << targetExe << std::endl;
     return FAILURE_VAL;
@@ -50,7 +50,7 @@ int wmain(int argc, wchar_t *argv[]) {
   const std::wstring sessionName = L"NTKernelLogger";
   std::cout << "Using session name: " << narrow(sessionName) << std::endl;
 
-  if (ULONG status = 0; !readFromVm::StartKernelSession(sessionName, status)) {
+  if (ULONG status = 0; !processMonitor::StartKernelSession(sessionName, status)) {
     std::wcerr << "[ERROR] StartKernelSession failed: " << status << std::endl;
     std::cout << "Press Enter to exit..." << std::endl;
     std::wstring dummy;
@@ -68,7 +68,7 @@ int wmain(int argc, wchar_t *argv[]) {
   std::jthread worker([&sessionName, &workerStarted, &workerResult]() {
     std::cout << "[WORKER] Thread started" << std::endl;
     workerStarted = true;
-    workerResult = readFromVm::OpenAndProcessRealTime(sessionName);
+    workerResult = processMonitor::OpenAndProcessRealTime(sessionName);
     std::cout << "[WORKER] Thread finished with result: "
               << (workerResult ? "SUCCESS" : "FAILURE") << std::endl;
   });
@@ -114,7 +114,7 @@ int wmain(int argc, wchar_t *argv[]) {
     g_hTrace = 0;
   }
 
-  readFromVm::StopKernelSession(sessionName);
+  processMonitor::StopKernelSession(sessionName);
 
   std::cout << "Waiting for worker thread to finish..." << std::endl;
   if (worker.joinable())

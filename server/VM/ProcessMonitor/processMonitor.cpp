@@ -1,4 +1,4 @@
-﻿#include "readFromVm.hpp"
+﻿#include "processMonitor.hpp"
 
 #include <windows.h>
 
@@ -18,7 +18,7 @@ TRACEHANDLE g_hTrace = 0;
 TRACEHANDLE g_hSession = 0;
 
 // Find PIDs by process name
-std::set<DWORD> readFromVm::FindPidByName(const std::wstring &exeName) {
+std::set<DWORD> processMonitor::FindPidByName(const std::wstring &exeName) {
   std::set<DWORD> pids;
   HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
   if (snap == INVALID_HANDLE_VALUE)
@@ -43,7 +43,7 @@ std::set<DWORD> readFromVm::FindPidByName(const std::wstring &exeName) {
 // which then filters it based on the PIDs we are interested in and
 // by the opcodes we are interested in. If the event is not filtered out,
 // it is then printed.
-void WINAPI readFromVm::StaticEventRecordCallback(PEVENT_RECORD pEvent) {
+void WINAPI processMonitor::StaticEventRecordCallback(PEVENT_RECORD pEvent) {
   // 33 = PhaseStart events (e.g. Kernel-Power, Resume/Suspend phases) – very frequent, low diagnostic value
   // 38 = Internal phase/telemetry events (provider-defined) – high volume, not tied to actionable operations
   // 44 = Provider-specific state/phase change events – noisy background activity with little forensic use
@@ -115,8 +115,8 @@ void WINAPI readFromVm::StaticEventRecordCallback(PEVENT_RECORD pEvent) {
 }
 
 // Starts a kernel logging session
-bool readFromVm::StartKernelSession(const std::wstring &sessionName,
-                                    ULONG &outStatus) {
+bool processMonitor::StartKernelSession(const std::wstring &sessionName,
+                                        ULONG &outStatus) {
   const ULONG FLAGS = EVENT_TRACE_FLAG_PROCESS | EVENT_TRACE_FLAG_THREAD |
                       EVENT_TRACE_FLAG_IMAGE_LOAD | EVENT_TRACE_FLAG_DISK_IO |
                       EVENT_TRACE_FLAG_NETWORK_TCPIP;
@@ -183,7 +183,7 @@ bool readFromVm::StartKernelSession(const std::wstring &sessionName,
 }
 
 // Stops the kernel session
-void readFromVm::StopKernelSession(const std::wstring &sessionName) {
+void processMonitor::StopKernelSession(const std::wstring &sessionName) {
   std::wcout << L"[DEBUG] Stopping kernel session..." << std::endl;
   if (g_hTrace != 0 && g_hTrace != INVALID_PROCESSTRACE_HANDLE) {
     CloseTrace(g_hTrace);
@@ -196,7 +196,7 @@ void readFromVm::StopKernelSession(const std::wstring &sessionName) {
 }
 
 // Starts logging events
-bool readFromVm::OpenAndProcessRealTime(const std::wstring &sessionName) {
+bool processMonitor::OpenAndProcessRealTime(const std::wstring &sessionName) {
   std::wcout << L"[DEBUG] Opening real-time trace..." << std::endl;
 
   EVENT_TRACE_LOGFILEW log = {};
@@ -206,7 +206,7 @@ bool readFromVm::OpenAndProcessRealTime(const std::wstring &sessionName) {
   log.ProcessTraceMode =
       PROCESS_TRACE_MODE_REAL_TIME | PROCESS_TRACE_MODE_EVENT_RECORD;
   log.EventRecordCallback =
-      (PEVENT_RECORD_CALLBACK)readFromVm::StaticEventRecordCallback;
+      (PEVENT_RECORD_CALLBACK)processMonitor::StaticEventRecordCallback;
 
   std::wcout << L"[DEBUG] Calling OpenTraceW..." << std::endl;
   g_hTrace = OpenTraceW(&log);
@@ -243,7 +243,7 @@ bool readFromVm::OpenAndProcessRealTime(const std::wstring &sessionName) {
 
 // Formats basic property types (string, int, bool, etc)
 // If the type is unknown, returns it as a hex string (up to MAX_HEX_BYTES_FOR_UNKOWN_TYPE bytes)
-std::wstring readFromVm::FormatBasicProperty(USHORT inType, PBYTE propertyData, USHORT propertyLength) {
+std::wstring processMonitor::FormatBasicProperty(USHORT inType, PBYTE propertyData, USHORT propertyLength) {
   const unsigned int MAX_HEX_BYTES_FOR_UNKOWN_TYPE = 8;
 
   if (!propertyData || propertyLength == 0)
@@ -300,8 +300,8 @@ std::wstring readFromVm::FormatBasicProperty(USHORT inType, PBYTE propertyData, 
 }
 
 // Gets a string from a event info memory with an offset
-std::wstring readFromVm::GetStringFromInfo(PTRACE_EVENT_INFO pInfo,
-                                           ULONG offset) {
+std::wstring processMonitor::GetStringFromInfo(PTRACE_EVENT_INFO pInfo,
+                                               ULONG offset) {
   if (!pInfo || offset == 0)
     return L"";
   auto p = (PWSTR)((PBYTE)pInfo + offset);
@@ -310,7 +310,7 @@ std::wstring readFromVm::GetStringFromInfo(PTRACE_EVENT_INFO pInfo,
 }
 
 // Formats bytes as a hex string
-std::wstring readFromVm::BytesToHex(const BYTE *data, ULONG size, ULONG maxBytes) {
+std::wstring processMonitor::BytesToHex(const BYTE *data, ULONG size, ULONG maxBytes) {
   if (!data || size == 0)
     return L"";
 
@@ -331,9 +331,9 @@ std::wstring readFromVm::BytesToHex(const BYTE *data, ULONG size, ULONG maxBytes
 }
 
 // Formats a property from an event record
-std::wstring readFromVm::FormatProperty(PTRACE_EVENT_INFO pInfo,
-                                        PEVENT_RECORD pEvent,
-                                        USHORT propertyIndex) {
+std::wstring processMonitor::FormatProperty(PTRACE_EVENT_INFO pInfo,
+                                            PEVENT_RECORD pEvent,
+                                            USHORT propertyIndex) {
   if (!pInfo || !pEvent)
     return L"";
 
@@ -412,7 +412,7 @@ std::wstring readFromVm::FormatProperty(PTRACE_EVENT_INFO pInfo,
 // BIG helper: print an entire event in a readable way.
 // Call this from StaticEventRecordCallback (it is safe-ish to call from
 // callback; keep output minimal)
-void readFromVm::PrintEventDetailed(PEVENT_RECORD pEvent) {
+void processMonitor::PrintEventDetailed(PEVENT_RECORD pEvent) {
   if (!pEvent)
     return;
 
@@ -488,7 +488,7 @@ void readFromVm::PrintEventDetailed(PEVENT_RECORD pEvent) {
 }
 
 // Formats a timestamp from an event record
-std::wstring readFromVm::FormatTimestamp(PEVENT_RECORD pEvent) {
+std::wstring processMonitor::FormatTimestamp(PEVENT_RECORD pEvent) {
   const unsigned int MAX_TIME_BUF_SIZE = 100;
 
   SYSTEMTIME st;
@@ -501,7 +501,7 @@ std::wstring readFromVm::FormatTimestamp(PEVENT_RECORD pEvent) {
 }
 
 // Converts a wstring to lowercase
-std::wstring readFromVm::ToLowerW(const std::wstring &s) {
+std::wstring processMonitor::ToLowerW(const std::wstring &s) {
   std::wstring t = s;
   std::transform(t.begin(), t.end(), t.begin(), ::towlower);
 

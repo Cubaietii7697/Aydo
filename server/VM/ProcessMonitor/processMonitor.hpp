@@ -20,7 +20,7 @@ extern std::set<DWORD> g_targetPids;
 extern TRACEHANDLE g_hTrace;
 extern TRACEHANDLE g_hSession;
 
-class readFromVm {
+class processMonitor {
 public:
   static void WINAPI StaticEventRecordCallback(PEVENT_RECORD pEvent);
   static bool StartKernelSession(const std::wstring &sessionName, ULONG &outStatus);
