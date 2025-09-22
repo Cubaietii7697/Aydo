@@ -44,7 +44,9 @@ std::set<DWORD> readFromVm::FindPidByName(const std::wstring &exeName) {
 // by the opcodes we are interested in. If the event is not filtered out,
 // it is then printed.
 void WINAPI readFromVm::StaticEventRecordCallback(PEVENT_RECORD pEvent) {
-  // These opcodes aren't needed because they are logging and telemetry events (they happen all the time, and do not show any useful information)
+  // 33 = PhaseStart events (e.g. Kernel-Power, Resume/Suspend phases) – very frequent, low diagnostic value
+  // 38 = Internal phase/telemetry events (provider-defined) – high volume, not tied to actionable operations
+  // 44 = Provider-specific state/phase change events – noisy background activity with little forensic use
   const std::vector<int> OPCODES_TO_SKIP = {38, 33, 44};
 
   // Shouldn't happen, just a failsafe to make sure we don't print something that doesn't exist in memory
