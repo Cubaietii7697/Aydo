@@ -1,9 +1,9 @@
 #include "readFromVm.hpp"
-#include <codecvt>
+#include <atomic>
 #include <evntrace.h>
 #include <iostream>
-#include <locale>
 #include <string>
+#include <thread>
 #include <windows.h>
 
 static std::string narrow(const std::wstring &w) {
@@ -28,11 +28,10 @@ int wmain(int argc, wchar_t *argv[]) {
 
   std::cout << "Starting ETW Monitor..." << std::endl;
 
-  readFromVm monitor;
   const std::wstring targetExe = std::wstring(argv[1]);
 
   std::cout << "Looking for process: " << narrow(targetExe) << std::endl;
-  std::set<DWORD> pids = monitor.FindPidByName(targetExe);
+  std::set<DWORD> pids = readFromVm::FindPidByName(targetExe);
   if (pids.empty()) {
     std::wcerr << "Could not find process: " << targetExe << std::endl;
     return FAILURE_VAL;
@@ -50,7 +49,7 @@ int wmain(int argc, wchar_t *argv[]) {
   std::cout << "Using session name: " << narrow(sessionName) << std::endl;
 
   ULONG status = 0;
-  if (!monitor.StartKernelSession(sessionName, status)) {
+  if (!readFromVm::StartKernelSession(sessionName, status)) {
     std::wcerr << "[ERROR] StartKernelSession failed: " << status << std::endl;
     std::cout << "Press Enter to exit..." << std::endl;
     std::wstring dummy;
@@ -65,10 +64,10 @@ int wmain(int argc, wchar_t *argv[]) {
   std::atomic<bool> workerResult{false};
 
   std::cout << "Starting worker thread..." << std::endl;
-  std::thread worker([&monitor, &sessionName, &workerStarted, &workerResult]() {
+  std::thread worker([&sessionName, &workerStarted, &workerResult]() {
     std::cout << "[WORKER] Thread started" << std::endl;
     workerStarted = true;
-    workerResult = monitor.OpenAndProcessRealTime(sessionName);
+    workerResult = readFromVm::OpenAndProcessRealTime(sessionName);
     std::cout << "[WORKER] Thread finished with result: "
               << (workerResult ? "SUCCESS" : "FAILURE") << std::endl;
   });
@@ -81,7 +80,8 @@ int wmain(int argc, wchar_t *argv[]) {
     std::cout << "Worker thread started successfully!" << std::endl;
   }
 
-  std::cout << std::endl << "=== ETW Monitor Active ===" << std::endl;
+  std::cout << std::endl
+            << "=== ETW Monitor Active ===" << std::endl;
   std::cout << "Monitoring PIDs: [ ";
   for (DWORD pid : pids) {
     std::cout << "  PID: " << pid << std::endl;
@@ -93,7 +93,8 @@ int wmain(int argc, wchar_t *argv[]) {
   std::cout << "1. Run as Administrator" << std::endl;
   std::cout << "2. Try with notepad.exe instead" << std::endl;
   std::cout << "3. Create some activity in the target process" << std::endl;
-  std::cout << std::endl << "Press Enter to stop monitoring..." << std::endl;
+  std::cout << std::endl
+            << "Press Enter to stop monitoring..." << std::endl;
 
   std::wstring dummy;
   std::getline(std::wcin, dummy);
@@ -113,7 +114,7 @@ int wmain(int argc, wchar_t *argv[]) {
     g_hTrace = 0;
   }
 
-  monitor.StopKernelSession(sessionName);
+  readFromVm::StopKernelSession(sessionName);
 
   std::cout << "Waiting for worker thread to finish..." << std::endl;
   if (worker.joinable())
