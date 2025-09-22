@@ -24,7 +24,7 @@
     <ProjectGuid>{a4506197-64a5-47f0-89cd-f5e9b27abc3e}</ProjectGuid>
     <RootNamespace>readFromVm</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
-    <ProjectName>processMonitor</ProjectName>
+    <ProjectName>ProcessMonitor</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -132,10 +132,10 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="processMonitor.cpp" />
+    <ClCompile Include="ProcessMonitor.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="processMonitor.hpp" />
+    <ClInclude Include="ProcessMonitor.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
