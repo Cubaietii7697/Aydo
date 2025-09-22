@@ -5,6 +5,7 @@
 
 **/vcpkg_installed
 .clang*
+!.clang-format
 
 # User-specific files
 *.rsuser
