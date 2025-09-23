@@ -6,6 +6,13 @@
 **/vcpkg_installed
 .clang*
 !.clang-format
+*.csv
+*.zip
+*.db
+*.yar
+*.cvd
+data/*
+!.gitkeep
 
 # User-specific files
 *.rsuser
