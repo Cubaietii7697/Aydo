@@ -46,7 +46,7 @@ def main():
             return
 
 
-def extract_database(database_file, output_path):
+def extract_database(database_file: str, output_path: str):
     """Extract the database file using sigtool"""
     
     print(f"Extracting database from {database_file} to {output_path}...")
@@ -62,7 +62,7 @@ def extract_database(database_file, output_path):
 
     print(f"Database extracted successfully to {output_path}")
 
-def parse_database(database_file, output_file_path):
+def parse_database(database_file: str, output_file_path: str):
     """Parse the database file and extract the signatures"""
     
     print(f"Parsing database from {database_file}...")
@@ -86,7 +86,7 @@ def parse_database(database_file, output_file_path):
 
     print(f"Database parsed successfully to {output_file_path}")
 
-def parse_line(line):
+def parse_line(line: str):
     parts = line.split(SEPERATOR)
 
     name = parts[NAME_INDEX]
