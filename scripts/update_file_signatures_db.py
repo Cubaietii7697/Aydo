@@ -58,10 +58,7 @@ def extract_database(database_file, output_path):
     if not os.path.exists(output_path):
         os.makedirs(output_path)
 
-    curr_dir = os.getcwd()
-    os.chdir(output_path)
-    subprocess.run([SIGTOOL_PATH, "--unpack", database_file])
-    os.chdir(curr_dir)
+    subprocess.run([SIGTOOL_PATH, "--unpack", database_file], cwd=output_path)
 
     print(f"Database extracted successfully to {output_path}")
 
