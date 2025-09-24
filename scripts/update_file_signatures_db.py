@@ -14,7 +14,7 @@ DATABASE_FILE = "main.ndb"
 OUTPUT_FILE = "../data/file_signatures.json"
 
 
-def extract_database(database_file: str, output_path: str):
+def extract_database(database_file: str, output_path: str) -> None:
     """Extract the database file using sigtool"""
     
     print(f"Extracting database from {database_file} to {output_path}...")
@@ -31,7 +31,7 @@ def extract_database(database_file: str, output_path: str):
     print(f"Database extracted successfully to {output_path}")
 
 
-def parse_database(database_file: str, output_file_path: str):
+def parse_database(database_file: str, output_file_path: str) -> None:
     """Parse the database file and extract the signatures"""
     
     print(f"Parsing database from {database_file}...")
@@ -56,7 +56,7 @@ def parse_database(database_file: str, output_file_path: str):
     print(f"Database parsed successfully to {output_file_path}")
 
 
-def parse_line(line: str):
+def parse_line(line: str) -> tuple[str, str]:
     parts = line.split(SEPERATOR)
 
     name = parts[NAME_INDEX]
@@ -65,7 +65,7 @@ def parse_line(line: str):
     return name, signature
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description='Update signatures database (signatures)')
     parser.add_argument('-d', '--download', action='store_true', help='Download new database from URL')
     parser.add_argument('-e', '--extract', action='store_true', help='Extract the database file')

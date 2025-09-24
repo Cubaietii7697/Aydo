@@ -16,7 +16,7 @@ RENAME_FILES = {
 GENERIC_MALWARE_SIGNATURE = "GenericMalware"
 
 
-def remove_files(database_file: str, csv_file:str):
+def remove_files(database_file: str, csv_file:str) -> None:
     """Remove the leftover files (if exists) (zip, csv)"""
     
     try:
@@ -36,7 +36,7 @@ def remove_files(database_file: str, csv_file:str):
         return
 
 
-def download_database_from_url(url: str, output_file: str):
+def download_database_from_url(url: str, output_file: str) -> None:
     """Download the CSV database from the specified URL"""
 
     print(f"Downloading database from {url}...")
@@ -110,7 +110,7 @@ def parse_csv_to_sqlite(csv_file: str, db_file: str):
     print("SQLite database created successfully")
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description='Update hashes database (hashes)')
     parser.add_argument('-d', '--download', action='store_true', help='Download new database from URL')
     parser.add_argument('-e', '--extract', action='store_true', help='Extract the database file')
