@@ -27,6 +27,18 @@ python scripts/update_file_hashes_db.py -d -e -p
 python scripts/update_file_signatures_db.py -d -e -p
 ```
 
+### Script Arguments
+
+| Script | Argument | Short | Long | Description |
+|--------|----------|-------|------|-------------|
+| Both | Download | `-d` | `--download` | Download new database from URL |
+| Both | Extract | `-e` | `--extract` | Extract the database file |
+| Both | Parse | `-p` | `--parse` | Parse CSV to SQLite database |
+| Both | Remove files | `-r` | `--remove_files` | Remove the leftover files (if exists) (zip, csv) |
+| update_file_hashes_db.py | Custom CSV | | `--csv` | Custom CSV file name (default: file_hashes.csv) |
+| update_file_hashes_db.py | Custom ZIP | | `--zip` | Custom ZIP file name (default: file_hashes.zip) |
+| update_file_hashes_db.py | Custom DB | | `--db` | Custom SQLite database file name (default: file_hashes.db) |
+
 ### Data formats
 
 #### File hashes

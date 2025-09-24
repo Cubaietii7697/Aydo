@@ -13,38 +13,6 @@ SIGTOOL_PATH = "%USERPROFILE%\\Downloads\\clamav-1.4.3.win.x64\\clamav-1.4.3.win
 DATABASE_FILE = "main.ndb"
 OUTPUT_FILE = "../data/file_signatures.json"
 
-def main():
-    parser = argparse.ArgumentParser(description='Update signatures database (signatures)')
-    parser.add_argument('-d', '--download', action='store_true', help='Download new database from URL')
-    parser.add_argument('-e', '--extract', action='store_true', help='Extract the database file')
-    parser.add_argument('-p', '--parse', action='store_true', help='Parse CSV to SQLite database')
-    parser.add_argument('-r', '--remove_files', action='store_true', help='Remove the leftover files (if exists) (zip, csv)')
-    args = parser.parse_args()
-
-    if args.download:
-        print("\n\n=======================================")
-        print("CAN NO LONGER DOWNLOAD THE DATABASE!")
-        print("CalmAV has blocked the option to download")
-        print("the database using a script. Please download")
-        print("the database manually from the following URL:")
-        print(DATABASE_FILE_URL)
-        print("=======================================\n\n")
-
-
-    if args.extract:
-        try:
-            extract_database(os.path.abspath(DATABASE_FILE_NAME), os.path.abspath(EXTRACT_DATABASE_FILE_TO))
-        except Exception as e:
-            print(f"Error extracting database: {e}")
-            return
-
-    if args.parse:
-        try:
-            parse_database(os.path.join(EXTRACT_DATABASE_FILE_TO, DATABASE_FILE), OUTPUT_FILE)
-        except Exception as e:
-            print(f"Error parsing database: {e}")
-            return
-
 
 def extract_database(database_file: str, output_path: str):
     """Extract the database file using sigtool"""
@@ -61,6 +29,7 @@ def extract_database(database_file: str, output_path: str):
     subprocess.run([SIGTOOL_PATH, "--unpack", database_file], cwd=output_path)
 
     print(f"Database extracted successfully to {output_path}")
+
 
 def parse_database(database_file: str, output_file_path: str):
     """Parse the database file and extract the signatures"""
@@ -86,6 +55,7 @@ def parse_database(database_file: str, output_file_path: str):
 
     print(f"Database parsed successfully to {output_file_path}")
 
+
 def parse_line(line: str):
     parts = line.split(SEPERATOR)
 
@@ -93,6 +63,39 @@ def parse_line(line: str):
     signature = parts[SIGNATURE_INDEX]
 
     return name, signature
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Update signatures database (signatures)')
+    parser.add_argument('-d', '--download', action='store_true', help='Download new database from URL')
+    parser.add_argument('-e', '--extract', action='store_true', help='Extract the database file')
+    parser.add_argument('-p', '--parse', action='store_true', help='Parse CSV to SQLite database')
+    parser.add_argument('-r', '--remove_files', action='store_true', help='Remove the leftover files (if exists) (zip, csv)')
+    args = parser.parse_args()
+
+    if args.download:
+        print("\n\n=======================================")
+        print("CAN NO LONGER DOWNLOAD THE DATABASE!")
+        print("CalmAV has blocked the option to download")
+        print("the database using a script. Please download")
+        print("the database manually from the following URL:")
+        print(DATABASE_FILE_URL)
+        print("=======================================\n\n")
+
+    if args.extract:
+        try:
+            extract_database(os.path.abspath(DATABASE_FILE_NAME), os.path.abspath(EXTRACT_DATABASE_FILE_TO))
+        except Exception as e:
+            print(f"Error extracting database: {e}")
+            return
+
+    if args.parse:
+        try:
+            parse_database(os.path.join(EXTRACT_DATABASE_FILE_TO, DATABASE_FILE), OUTPUT_FILE)
+        except Exception as e:
+            print(f"Error parsing database: {e}")
+            return
+
 
 if __name__ == '__main__':
   main()
