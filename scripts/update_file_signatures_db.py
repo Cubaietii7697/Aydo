@@ -51,6 +51,10 @@ def extract_database(database_file, output_path):
     
     print(f"Extracting database from {database_file} to {output_path}...")
     
+    if not os.path.exists(database_file):
+        print("Error: database file not found. Please download it first using -d flag.")
+        raise Exception("Database file not found")
+
     if not os.path.exists(output_path):
         os.makedirs(output_path)
 
@@ -65,6 +69,10 @@ def parse_database(database_file, output_file_path):
     """Parse the database file and extract the signatures"""
     
     print(f"Parsing database from {database_file}...")
+    
+    if not os.path.exists(database_file):
+        print("Error: database file not found. Please extract it first using -e flag.")
+        raise Exception("Database file not found")
     
     signature_name_map = {}
     
