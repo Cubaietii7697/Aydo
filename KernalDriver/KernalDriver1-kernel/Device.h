@@ -1,46 +1,27 @@
-/*++
+#pragma once
 
-Module Name:
+#include <ntddk.h>
+#include <wdf.h>
 
-    device.h
-
-Abstract:
-
-    This file contains the device definitions.
-
-Environment:
-
-    Kernel-mode Driver Framework
-
---*/
-
-#include "public.h"
+#include "public.h" // GUID_DEVINTERFACE_KernalDriver1 (interface GUID)
 
 EXTERN_C_START
 
-//
-// The device context performs the same job as
-// a WDM device extension in the driver frameworks
-//
-typedef struct _DEVICE_CONTEXT
-{
-    ULONG PrivateDeviceData;  // just a placeholder
-
+// Per-device context (similar to a WDM device extension)
+typedef struct _DEVICE_CONTEXT {
+  ULONG PrivateDeviceData; // placeholder for future state
 } DEVICE_CONTEXT, *PDEVICE_CONTEXT;
 
-//
-// This macro will generate an inline function called DeviceGetContext
-// which will be used to get a pointer to the device context memory
-// in a type safe manner.
-//
+// Generates inline DeviceGetContext(WDFDEVICE)
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DEVICE_CONTEXT, DeviceGetContext)
 
-//
-// Function to initialize the device and its callbacks
-//
+// Creates the WDFDEVICE and configures interfaces/queues (implemented in Device.c)
 NTSTATUS
 KernalDriver1CreateDevice(
-    _Inout_ PWDFDEVICE_INIT DeviceInit
-    );
+    _Inout_ PWDFDEVICE_INIT DeviceInit);
+
+// Initializes default I/O queue (implemented in Queue.c)
+NTSTATUS
+KernalDriver1QueueInitialize(_In_ WDFDEVICE Device);
 
 EXTERN_C_END

@@ -18,6 +18,45 @@ void Utils::PrintError(const std::wstring &custom) {
   std::wcerr << custom << L", error " << err << std::endl;
 }
 
+static bool SendKill(HANDLE hDev, DWORD pid) {
+  DWORD bytes = 0;
+  BOOL ok = DeviceIoControl(hDev,
+                            IOCTL_KILL_PROCESS,
+                            &pid, sizeof(pid),
+                            nullptr, 0,
+                            &bytes,
+                            nullptr);
+  if (!ok) {
+    std::cerr << "[kernel] DeviceIoControl(IOCTL_KILL_PROCESS, pid=" << pid
+              << ") failed, winerr=" << GetLastError() << "\n";
+    return false;
+  }
+  return true;
+}
+
+bool Utils::UseKernelMode(const std::set<DWORD> &pids) {
+  // Must match the symbolic link you created in Device.c:
+  // RtlInitUnicodeString(&sym, L"\\DosDevices\\KernalDriver1");
+  HANDLE hDev = CreateFileW(L"\\\\.\\KernalDriver1",
+                            GENERIC_READ | GENERIC_WRITE,
+                            0, nullptr, OPEN_EXISTING,
+                            FILE_ATTRIBUTE_NORMAL, nullptr);
+  if (hDev == INVALID_HANDLE_VALUE) {
+    std::wcerr << L"[kernel] CreateFile(\\\\.\\KernalDriver1) failed, winerr="
+               << GetLastError() << L"\n";
+    return false;
+  }
+
+  bool allOk = true;
+  for (DWORD pid : pids) {
+    if (!SendKill(hDev, pid))
+      allOk = false;
+  }
+
+  CloseHandle(hDev);
+  return allOk;
+}
+
 bool Utils::KillProcess(DWORD pid) {
   HANDLE handle = OpenProcess(PROCESS_TERMINATE, FALSE, pid);
   if (!handle) {

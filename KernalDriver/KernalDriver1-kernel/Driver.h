@@ -1,36 +1,16 @@
-/*++
+#pragma once
 
-Module Name:
-
-    driver.h
-
-Abstract:
-
-    This file contains the driver definitions.
-
-Environment:
-
-    Kernel-mode Driver Framework
-
---*/
-
-#include <initguid.h>
 #include <ntddk.h>
 #include <wdf.h>
 
-#include "device.h"
-#include "queue.h"
-#include "trace.h"
-
 EXTERN_C_START
 
-//
-// WDFDRIVER Events
-//
-
+// KMDF driver entry points
 DRIVER_INITIALIZE DriverEntry;
 EVT_WDF_DRIVER_DEVICE_ADD KernalDriver1EvtDeviceAdd;
-EVT_WDF_OBJECT_CONTEXT_CLEANUP KernalDriver1EvtDriverContextCleanup;
+DRIVER_UNLOAD DriverUnload;
+
+// Kernel termination primitive (called from Queue.c)
 NTSTATUS KernelKillProcess(_In_ HANDLE TargetPid);
 
 EXTERN_C_END
