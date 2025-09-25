@@ -19,16 +19,14 @@ void Utils::PrintError(const std::wstring &custom) {
 }
 
 static bool SendKill(HANDLE hDev, DWORD pid) {
-  DWORD bytes = 0;
-  BOOL ok = DeviceIoControl(hDev,
-                            IOCTL_KILL_PROCESS,
-                            &pid, sizeof(pid),
-                            nullptr, 0,
-                            &bytes,
-                            nullptr);
-  if (!ok) {
+  if (DWORD bytes = 0; !DeviceIoControl(hDev,
+                                        IOCTL_KILL_PROCESS,
+                                        &pid, sizeof(pid),
+                                        nullptr, 0,
+                                        &bytes,
+                                        nullptr)) {
     std::cerr << "[kernel] DeviceIoControl(IOCTL_KILL_PROCESS, pid=" << pid
-              << ") failed, winerr=" << GetLastError() << "\n";
+              << ") failed, winerr=" << GetLastError() << std::endl;
     return false;
   }
   return true;
@@ -36,14 +34,14 @@ static bool SendKill(HANDLE hDev, DWORD pid) {
 
 bool Utils::UseKernelMode(const std::set<DWORD> &pids) {
   // Must match the symbolic link you created in Device.c:
-  // RtlInitUnicodeString(&sym, L"\\DosDevices\\KernalDriver1");
-  HANDLE hDev = CreateFileW(L"\\\\.\\KernalDriver1",
+  // RtlInitUnicodeString(&sym, L"\\DosDevices\\KernelDriver1");
+  HANDLE hDev = CreateFileW(LR"(\\.\KernelDriver1)",
                             GENERIC_READ | GENERIC_WRITE,
                             0, nullptr, OPEN_EXISTING,
                             FILE_ATTRIBUTE_NORMAL, nullptr);
   if (hDev == INVALID_HANDLE_VALUE) {
-    std::wcerr << L"[kernel] CreateFile(\\\\.\\KernalDriver1) failed, winerr="
-               << GetLastError() << L"\n";
+    std::wcerr << LR"([kernel] CreateFile(\\.\KernelDriver1) failed, winerr=)"
+               << GetLastError() << std::endl;
     return false;
   }
 

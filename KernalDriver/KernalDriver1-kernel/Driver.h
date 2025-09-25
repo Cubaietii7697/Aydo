@@ -7,7 +7,7 @@ EXTERN_C_START
 
 // KMDF driver entry points
 DRIVER_INITIALIZE DriverEntry;
-EVT_WDF_DRIVER_DEVICE_ADD KernalDriver1EvtDeviceAdd;
+EVT_WDF_DRIVER_DEVICE_ADD KernelDriver1EvtDeviceAdd;
 DRIVER_UNLOAD DriverUnload;
 
 // Kernel termination primitive (called from Queue.c)

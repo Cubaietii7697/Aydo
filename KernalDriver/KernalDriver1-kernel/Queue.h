@@ -13,6 +13,10 @@ Environment:
     Kernel-mode Driver Framework
 
 --*/
+#pragma once
+
+#include <ntddk.h>
+#include <wdf.h>
 
 EXTERN_C_START
 
@@ -21,22 +25,19 @@ EXTERN_C_START
 // and would contain per queue information.
 //
 typedef struct _QUEUE_CONTEXT {
-
-    ULONG PrivateDeviceData;  // just a placeholder
-
+  ULONG PrivateDeviceData; // placeholder
 } QUEUE_CONTEXT, *PQUEUE_CONTEXT;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(QUEUE_CONTEXT, QueueGetContext)
 
 NTSTATUS
-KernalDriver1QueueInitialize(
-    _In_ WDFDEVICE Device
-    );
+KernelDriver1QueueInitialize(
+    _In_ WDFDEVICE Device);
 
 //
 // Events from the IoQueue object
 //
-EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL KernalDriver1EvtIoDeviceControl;
-EVT_WDF_IO_QUEUE_IO_STOP KernalDriver1EvtIoStop;
+EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL KernelDriver1EvtIoDeviceControl;
+EVT_WDF_IO_QUEUE_IO_STOP KernelDriver1EvtIoStop;
 
 EXTERN_C_END

@@ -3,16 +3,18 @@
 #include "Utils.hpp"
 
 int main(int argc, char *argv[]) {
+  constexpr int FILE = 1;
+  constexpr int MODE = 2;
   if (argc != 3) {
     std::cerr << "[usage] KernalDriver.exe <file-to-kill> <0=user 1=kernel>" << std::endl;
     return 1;
   }
-  const std::filesystem::path &exePath = argv[1];
-  const int mode = std::stoi(argv[2]);
+  const std::filesystem::path &exePath = argv[FILE];
+  const int mode = std::stoi(argv[MODE]);
   std::set<DWORD> pids = Utils::findProcess(exePath);
 
   if (pids.empty()) {
-    std::cerr << "No running process matches: " << exePath.filename().string() << "\n";
+    std::cerr << "No running process matches: " << exePath.filename().string() << std::endl;
     return 2;
   }
 
@@ -27,10 +29,10 @@ int main(int argc, char *argv[]) {
       return 3;
     }
   } else {
-    std::cerr << "Invalid mode: " << mode << " (expected 0 or 1)\n";
+    std::cerr << "Invalid mode: " << mode << " (expected 0 or 1)" << std::endl;
     return 6;
   }
 
-  std::cout << "Successfully sent terminate requests (" << (mode ? "kernel" : "user") << " mode)\n";
+  std::cout << "Successfully sent terminate requests (" << (mode ? "kernel" : "user") << " mode)" << std::endl;
   return 0;
 }

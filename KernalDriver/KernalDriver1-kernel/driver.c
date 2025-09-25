@@ -18,7 +18,7 @@ DriverEntry(_In_ PDRIVER_OBJECT DriverObject, _In_ PUNICODE_STRING RegistryPath)
   NTSTATUS status;
   WDF_DRIVER_CONFIG config;
 
-  WDF_DRIVER_CONFIG_INIT(&config, KernalDriver1EvtDeviceAdd);
+  WDF_DRIVER_CONFIG_INIT(&config, KernelDriver1EvtDeviceAdd);
 
   status = WdfDriverCreate(DriverObject,
                            RegistryPath,
@@ -26,24 +26,24 @@ DriverEntry(_In_ PDRIVER_OBJECT DriverObject, _In_ PUNICODE_STRING RegistryPath)
                            &config,
                            WDF_NO_HANDLE);
   if (!NT_SUCCESS(status)) {
-    KdPrint(("KernalDriver1: WdfDriverCreate failed 0x%X\n", status));
+    KdPrint(("KernelDriver1: WdfDriverCreate failed 0x%X\n", status));
     return status;
   }
 
   DriverObject->DriverUnload = DriverUnload;
-  KdPrint(("KernalDriver1: DriverEntry OK (no notify)\n"));
+  KdPrint(("KernelDriver1: DriverEntry OK (no notify)\n"));
   return STATUS_SUCCESS;
 }
 
 NTSTATUS
-KernalDriver1EvtDeviceAdd(_In_ WDFDRIVER Driver, _Inout_ PWDFDEVICE_INIT DeviceInit) {
+KernelDriver1EvtDeviceAdd(_In_ WDFDRIVER Driver, _Inout_ PWDFDEVICE_INIT DeviceInit) {
   UNREFERENCED_PARAMETER(Driver);
-  return KernalDriver1CreateDevice(DeviceInit); // implemented in Device.c
+  return KernelDriver1CreateDevice(DeviceInit); // implemented in Device.c
 }
 
 VOID DriverUnload(_In_ PDRIVER_OBJECT DriverObject) {
   UNREFERENCED_PARAMETER(DriverObject);
-  KdPrint(("KernalDriver1: DriverUnload\n"));
+  KdPrint(("KernelDriver1: DriverUnload\n"));
 }
 
 // Kernel-side terminate primitive (used by IOCTL handler in Queue.c)
@@ -57,7 +57,7 @@ KernelKillProcess(_In_ HANDLE TargetPid) {
   PEPROCESS proc = NULL;
   NTSTATUS status = PsLookupProcessByProcessId(TargetPid, &proc);
   if (!NT_SUCCESS(status)) {
-    KdPrint(("KernalDriver1: PsLookupProcessByProcessId(%u) -> 0x%X\n",
+    KdPrint(("KernelDriver1: PsLookupProcessByProcessId(%u) -> 0x%X\n",
              (ULONG)(ULONG_PTR)TargetPid, status));
     return status;
   }
@@ -71,14 +71,14 @@ KernelKillProcess(_In_ HANDLE TargetPid) {
                                  KernelMode,
                                  &hProc);
   if (!NT_SUCCESS(status)) {
-    KdPrint(("KernalDriver1: ObOpenObjectByPointer -> 0x%X\n", status));
+    KdPrint(("KernelDriver1: ObOpenObjectByPointer -> 0x%X\n", status));
     ObDereferenceObject(proc);
     return status;
   }
 
   status = ZwTerminateProcess(hProc, STATUS_SUCCESS);
   if (!NT_SUCCESS(status)) {
-    KdPrint(("KernalDriver1: ZwTerminateProcess -> 0x%X\n", status));
+    KdPrint(("KernelDriver1: ZwTerminateProcess -> 0x%X\n", status));
   }
 
   ZwClose(hProc);
