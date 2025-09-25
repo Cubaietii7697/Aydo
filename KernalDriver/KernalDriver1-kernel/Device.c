@@ -3,15 +3,15 @@
 #include <ntddk.h>
 #include <wdf.h>
 
-#include "Public.h" // GUID_DEVINTERFACE_KernelDriver1
-#include "Queue.h"  // KernelDriver1QueueInitialize
+#include "Public.h"
+#include "Queue.h"
 
 #ifdef ALLOC_PRAGMA
-#pragma alloc_text(PAGE, KernelDriver1CreateDevice)
+#pragma alloc_text(PAGE, AydoKernelDriverCreateDevice)
 #endif
 
 NTSTATUS
-KernelDriver1CreateDevice(_Inout_ PWDFDEVICE_INIT DeviceInit) {
+AydoKernelDriverCreateDevice(_Inout_ PWDFDEVICE_INIT DeviceInit) {
   PAGED_CODE();
 
   NTSTATUS status;
@@ -23,38 +23,38 @@ KernelDriver1CreateDevice(_Inout_ PWDFDEVICE_INIT DeviceInit) {
 
   status = WdfDeviceCreate(&DeviceInit, &deviceAttributes, &device);
   if (!NT_SUCCESS(status)) {
-    KdPrint(("KernelDriver1: WdfDeviceCreate failed 0x%X\n", status));
+    KdPrint(("AydoKernelDriver: WdfDeviceCreate failed 0x%X\n", status));
     return status;
   }
 
   deviceContext = DeviceGetContext(device);
   deviceContext->PrivateDeviceData = 0;
 
-  // Optional: interface GUID for enumeration-based open
+  // interface GUID for enumeration-based open
   status = WdfDeviceCreateDeviceInterface(device,
-                                          &GUID_DEVINTERFACE_KernelDriver1,
+                                          &GUID_DEVINTERFACE_AydoKernelDriver,
                                           NULL);
   if (!NT_SUCCESS(status)) {
-    KdPrint(("KernelDriver1: WdfDeviceCreateDeviceInterface failed 0x%X\n", status));
+    KdPrint(("AydoKernelDriver: WdfDeviceCreateDeviceInterface failed 0x%X\n", status));
     return status;
   }
 
-  // Symbolic link for CreateFileW(L"\\\\.\\KernelDriver1")
+  // Symbolic link for CreateFileW(L"\\\\.\\AydoKernelDriver")
   UNICODE_STRING symLink;
-  RtlInitUnicodeString(&symLink, L"\\DosDevices\\KernelDriver1");
+  RtlInitUnicodeString(&symLink, L"\\DosDevices\\AydoKernelDriver");
   status = WdfDeviceCreateSymbolicLink(device, &symLink);
   if (!NT_SUCCESS(status)) {
-    KdPrint(("KernelDriver1: WdfDeviceCreateSymbolicLink failed 0x%X\n", status));
+    KdPrint(("AydoKernelDriver: WdfDeviceCreateSymbolicLink failed 0x%X\n", status));
     return status;
   }
 
   // Initialize the default I/O queue (IOCTLs handled in Queue.c)
-  status = KernelDriver1QueueInitialize(device);
+  status = AydoKernelDriverQueueInitialize(device);
   if (!NT_SUCCESS(status)) {
-    KdPrint(("KernelDriver1: QueueInitialize failed 0x%X\n", status));
+    KdPrint(("AydoKernelDriver: QueueInitialize failed 0x%X\n", status));
     return status;
   }
 
-  KdPrint(("KernelDriver1: Device created OK\n"));
+  KdPrint(("AydoKernelDriver: Device created OK\n"));
   return STATUS_SUCCESS;
 }

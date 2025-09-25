@@ -1,11 +1,11 @@
-; KernalDriver1.inf
+; AydoKernelDriver.inf
 
 [Version]
 Signature   = "$WINDOWS NT$"
 Class       = System 
 ClassGuid   = {4d36e97d-e325-11ce-bfc1-08002be10318}
 Provider    = %ManufacturerName%
-CatalogFile = KernalDriver1.cat
+CatalogFile = AydoKernelDriver.cat
 DriverVer   = 09/25/2025,1.0.0.0
 PnpLockdown = 1
 
@@ -16,7 +16,7 @@ DefaultDestDir = 13
 1 = %DiskName%,,,""
 
 [SourceDisksFiles]
-KernalDriver1.sys = 1
+AydoKernelDriver.sys = 1
 
 ;*****************************************
 ; Install Section
@@ -26,35 +26,35 @@ KernalDriver1.sys = 1
 %ManufacturerName% = Standard,NTamd64.10.0...16299 
 
 [Standard.NTamd64.10.0...16299]
-%KernalDriver1.DeviceDesc% = KernalDriver1_Device, Root\KernalDriver1
+%AydoKernelDriver.DeviceDesc% = AydoKernelDriver_Device, Root\AydoKernelDriver
 
-[KernalDriver1_Device.NT]
+[AydoKernelDriver_Device.NT]
 CopyFiles = File_Copy
 
 [File_Copy]
-KernalDriver1.sys
+AydoKernelDriver.sys
 
 ;-------------- Service installation
-[KernalDriver1_Device.NT.Services]
-AddService = KernalDriver1,%SPSVCINST_ASSOCSERVICE%, KernalDriver1_Service_Inst
+[AydoKernelDriver_Device.NT.Services]
+AddService = AydoKernelDriver,%SPSVCINST_ASSOCSERVICE%, AydoKernelDriver_Service_Inst
 
-; -------------- KernalDriver1 driver install sections
-[KernalDriver1_Service_Inst]
-DisplayName    = %KernalDriver1.SVCDESC%
+; -------------- AydoKernelDriver driver install sections
+[AydoKernelDriver_Service_Inst]
+DisplayName    = %AydoKernelDriver.SVCDESC%
 ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
 StartType      = 3               ; SERVICE_DEMAND_START
 ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
-ServiceBinary  = %13%\KernalDriver1.sys
+ServiceBinary  = %13%\AydoKernelDriver.sys
 
-[KernalDriver1_Device.NT.Wdf]
-KmdfService = KernalDriver1, KernalDriver1_wdfsect
+[AydoKernelDriver_Device.NT.Wdf]
+KmdfService = AydoKernelDriver, AydoKernelDriver_wdfsect
 
-[KernalDriver1_wdfsect]
+[AydoKernelDriver_wdfsect]
 KmdfLibraryVersion = 1.33
 
 [Strings]
 SPSVCINST_ASSOCSERVICE = 0x00000002
-ManufacturerName       = "aydo"
-DiskName               = "KernalDriver1 Installation Disk"
-KernalDriver1.DeviceDesc = "KernalDriver1 Device"
-KernalDriver1.SVCDESC   = "KernalDriver1 Service"
+ManufacturerName       = "Aydo"
+DiskName               = "AydoKernelDriver Installation Disk"
+AydoKernelDriver.DeviceDesc = "Aydo Device"
+AydoKernelDriver.SVCDESC   = "Aydo Service"

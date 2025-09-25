@@ -3,7 +3,7 @@
 #include <ntddk.h>
 #include <wdf.h>
 
-#include "public.h" // GUID_DEVINTERFACE_KernelDriver1 (interface GUID)
+#include "public.h"
 
 EXTERN_C_START
 
@@ -14,13 +14,13 @@ typedef struct _DEVICE_CONTEXT {
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DEVICE_CONTEXT, DeviceGetContext)
 
-// Creates the WDFDEVICE and configures interfaces/queues (implemented in Device.c)
+// Creates the WDFDEVICE and configures interfaces/queues
 NTSTATUS
-KernelDriver1CreateDevice(
+AydoKernelDriverCreateDevice(
     _Inout_ PWDFDEVICE_INIT DeviceInit);
 
-// Initializes default I/O queue (implemented in Queue.c)
+// Initializes default I/O queue
 NTSTATUS
-KernelDriver1QueueInitialize(_In_ WDFDEVICE Device);
+AydoKernelDriverQueueInitialize(_In_ WDFDEVICE Device);
 
 EXTERN_C_END

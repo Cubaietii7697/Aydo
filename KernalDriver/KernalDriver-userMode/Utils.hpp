@@ -6,7 +6,7 @@
 #include <set>
 #include <TlHelp32.h>
 
-#include "ioctl_defs.h" // must match the driver's IOCTL_KILL_PROCESS
+#include "../ioctl_defs.h"
 
 namespace Errors {
 inline std::wstring FailedToOpen(DWORD pid) {
@@ -23,4 +23,5 @@ bool KillProcess(DWORD pid);
 bool KillAllProcess(const std::set<DWORD> &pids);
 void PrintError(const std::wstring &custom);
 std::set<DWORD> findProcess(const std::filesystem::path &p);
+bool SendKill(HANDLE hDev, DWORD pid);
 } // namespace Utils

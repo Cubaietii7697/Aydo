@@ -18,29 +18,36 @@ void Utils::PrintError(const std::wstring &custom) {
   std::wcerr << custom << L", error " << err << std::endl;
 }
 
-static bool SendKill(HANDLE hDev, DWORD pid) {
-  if (DWORD bytes = 0; !DeviceIoControl(hDev,
-                                        IOCTL_KILL_PROCESS,
-                                        &pid, sizeof(pid),
-                                        nullptr, 0,
-                                        &bytes,
-                                        nullptr)) {
+bool Utils::SendKill(HANDLE hDev, DWORD pid) {
+  constexpr DWORD K_IN_SIZE = sizeof(DWORD);
+  constexpr DWORD K_OUT_SIZE = 0;
+  constexpr LPVOID K_NO_OUT_BUFFER = nullptr;
+  constexpr LPOVERLAPPED K_SYNC = nullptr;
+  DWORD bytes = 0;
+  bool ok = DeviceIoControl(hDev,
+                            IOCTL_KILL_PROCESS,
+                            &pid, K_IN_SIZE,
+                            K_NO_OUT_BUFFER, K_OUT_SIZE,
+                            &bytes,
+                            K_SYNC);
+  if (!ok) {
     std::cerr << "[kernel] DeviceIoControl(IOCTL_KILL_PROCESS, pid=" << pid
               << ") failed, winerr=" << GetLastError() << std::endl;
-    return false;
+    return ok;
   }
-  return true;
+  return ok;
 }
 
 bool Utils::UseKernelMode(const std::set<DWORD> &pids) {
   // Must match the symbolic link you created in Device.c:
-  // RtlInitUnicodeString(&sym, L"\\DosDevices\\KernelDriver1");
-  HANDLE hDev = CreateFileW(LR"(\\.\KernelDriver1)",
+  // RtlInitUnicodeString(&sym, L"\\DosDevices\\AydoKernelDriver");
+  constexpr DWORD K_SHARE_FLAGS = FILE_SHARE_READ | FILE_SHARE_WRITE;
+  HANDLE hDev = CreateFileW(LR"(\\.\AydoKernelDriver)",
                             GENERIC_READ | GENERIC_WRITE,
-                            0, nullptr, OPEN_EXISTING,
+                            K_SHARE_FLAGS, nullptr, OPEN_EXISTING,
                             FILE_ATTRIBUTE_NORMAL, nullptr);
   if (hDev == INVALID_HANDLE_VALUE) {
-    std::wcerr << LR"([kernel] CreateFile(\\.\KernelDriver1) failed, winerr=)"
+    std::wcerr << LR"([kernel] CreateFile(\\.\AydoKernelDriver) failed, winerr=)"
                << GetLastError() << std::endl;
     return false;
   }

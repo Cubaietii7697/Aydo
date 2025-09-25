@@ -22,7 +22,7 @@ Environment:
 
 #define WPP_CONTROL_GUIDS                                                 \
   WPP_DEFINE_CONTROL_GUID(                                                \
-      KernelDriver1TraceGuid, (fefda7d7, f60e, 4328, 81b0, 5e490f2c23d1), \
+      AydoKernelDriverTraceGuid, (fefda7d7, f60e, 4328, 81b0, 5e490f2c23d1), \
                                                                           \
       WPP_DEFINE_BIT(MYDRIVER_ALL_INFO)                                   \
           WPP_DEFINE_BIT(TRACE_DRIVER)                                    \

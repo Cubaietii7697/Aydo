@@ -26,7 +26,7 @@
     <ClInclude Include="Utils.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="ioctl_defs.h">
+    <ClInclude Include="..\ioctl_defs.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

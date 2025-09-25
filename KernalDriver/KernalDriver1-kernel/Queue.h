@@ -31,13 +31,13 @@ typedef struct _QUEUE_CONTEXT {
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(QUEUE_CONTEXT, QueueGetContext)
 
 NTSTATUS
-KernelDriver1QueueInitialize(
+AydoKernelDriverQueueInitialize(
     _In_ WDFDEVICE Device);
 
 //
 // Events from the IoQueue object
 //
-EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL KernelDriver1EvtIoDeviceControl;
-EVT_WDF_IO_QUEUE_IO_STOP KernelDriver1EvtIoStop;
+EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL AydoKernelDriverEvtIoDeviceControl;
+EVT_WDF_IO_QUEUE_IO_STOP AydoKernelDriverEvtIoStop;
 
 EXTERN_C_END

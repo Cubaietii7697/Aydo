@@ -27,15 +27,15 @@
     <ClCompile Include="Queue.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\ioctl_defs.h" />
     <ClInclude Include="Device.h" />
     <ClInclude Include="Driver.h" />
-    <ClInclude Include="ioctl_defs.h" />
     <ClInclude Include="Public.h" />
     <ClInclude Include="Queue.h" />
     <ClInclude Include="Trace.h" />
   </ItemGroup>
   <ItemGroup>
-    <Inf Include="KernalDriver1.inf" />
+    <Inf Include="AydoKernelDriver.inf" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{EF0F76E0-4601-9625-A830-176F7E4D3D8C}</ProjectGuid>
@@ -45,6 +45,7 @@
     <Configuration>Debug</Configuration>
     <Platform Condition="'$(Platform)' == ''">x64</Platform>
     <RootNamespace>KernalDriver1</RootNamespace>
+    <ProjectName>AydoKernelDriver</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">

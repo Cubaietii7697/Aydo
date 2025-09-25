@@ -11,15 +11,15 @@
  * Attaches QUEUE_CONTEXT so QueueGetContext(queue) is valid.
  */
 NTSTATUS
-KernelDriver1QueueInitialize(_In_ WDFDEVICE Device) {
+AydoKernelDriverQueueInitialize(_In_ WDFDEVICE Device) {
   WDF_IO_QUEUE_CONFIG queueConfig;
   WDFQUEUE queue;
   WDF_OBJECT_ATTRIBUTES queueAttributes;
   NTSTATUS status;
 
   WDF_IO_QUEUE_CONFIG_INIT_DEFAULT_QUEUE(&queueConfig, WdfIoQueueDispatchSequential);
-  queueConfig.EvtIoDeviceControl = KernelDriver1EvtIoDeviceControl;
-  queueConfig.EvtIoStop = KernelDriver1EvtIoStop;
+  queueConfig.EvtIoDeviceControl = AydoKernelDriverEvtIoDeviceControl;
+  queueConfig.EvtIoStop = AydoKernelDriverEvtIoStop;
 
   WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&queueAttributes, QUEUE_CONTEXT);
 
@@ -28,7 +28,7 @@ KernelDriver1QueueInitialize(_In_ WDFDEVICE Device) {
                             &queueAttributes,
                             &queue);
   if (!NT_SUCCESS(status)) {
-    KdPrint(("KernelDriver1: WdfIoQueueCreate failed 0x%X\n", status));
+    KdPrint(("AydoKernelDriver: WdfIoQueueCreate failed 0x%X\n", status));
     return status;
   }
   {
@@ -39,7 +39,7 @@ KernelDriver1QueueInitialize(_In_ WDFDEVICE Device) {
   return STATUS_SUCCESS;
 }
 
-VOID KernelDriver1EvtIoStop(
+VOID AydoKernelDriverEvtIoStop(
     _In_ WDFQUEUE Queue,
     _In_ WDFREQUEST Request,
     _In_ ULONG ActionFlags) {
@@ -52,7 +52,7 @@ VOID KernelDriver1EvtIoStop(
   WdfRequestComplete(Request, STATUS_CANCELLED);
 }
 
-VOID KernelDriver1EvtIoDeviceControl(
+VOID AydoKernelDriverEvtIoDeviceControl(
     _In_ WDFQUEUE Queue,
     _In_ WDFREQUEST Request,
     _In_ size_t OutputBufferLength,

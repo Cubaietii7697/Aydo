@@ -12,13 +12,15 @@
 
 extern POBJECT_TYPE *PsProcessType; // provided by the kernel
 
+static const ULONG kSystemPids[] = {0u, 4u};
+
 // KMDF bootstrap
 NTSTATUS
 DriverEntry(_In_ PDRIVER_OBJECT DriverObject, _In_ PUNICODE_STRING RegistryPath) {
   NTSTATUS status;
   WDF_DRIVER_CONFIG config;
 
-  WDF_DRIVER_CONFIG_INIT(&config, KernelDriver1EvtDeviceAdd);
+  WDF_DRIVER_CONFIG_INIT(&config, AydoKernelDriverEvtDeviceAdd);
 
   status = WdfDriverCreate(DriverObject,
                            RegistryPath,
@@ -26,38 +28,38 @@ DriverEntry(_In_ PDRIVER_OBJECT DriverObject, _In_ PUNICODE_STRING RegistryPath)
                            &config,
                            WDF_NO_HANDLE);
   if (!NT_SUCCESS(status)) {
-    KdPrint(("KernelDriver1: WdfDriverCreate failed 0x%X\n", status));
+    KdPrint(("AydoKernelDriver: WdfDriverCreate failed 0x%X\n", status));
     return status;
   }
 
   DriverObject->DriverUnload = DriverUnload;
-  KdPrint(("KernelDriver1: DriverEntry OK (no notify)\n"));
+  KdPrint(("AydoKernelDriver: DriverEntry OK (no notify)\n"));
   return STATUS_SUCCESS;
 }
 
 NTSTATUS
-KernelDriver1EvtDeviceAdd(_In_ WDFDRIVER Driver, _Inout_ PWDFDEVICE_INIT DeviceInit) {
+AydoKernelDriverEvtDeviceAdd(_In_ WDFDRIVER Driver, _Inout_ PWDFDEVICE_INIT DeviceInit) {
   UNREFERENCED_PARAMETER(Driver);
-  return KernelDriver1CreateDevice(DeviceInit); // implemented in Device.c
+  return AydoKernelDriverCreateDevice(DeviceInit);
 }
 
 VOID DriverUnload(_In_ PDRIVER_OBJECT DriverObject) {
   UNREFERENCED_PARAMETER(DriverObject);
-  KdPrint(("KernelDriver1: DriverUnload\n"));
+  KdPrint(("AydoKernelDriver: DriverUnload\n"));
 }
 
-// Kernel-side terminate primitive (used by IOCTL handler in Queue.c)
+// Kernel-side terminate primitive
 NTSTATUS
 KernelKillProcess(_In_ HANDLE TargetPid) {
-  // trivial safety for obvious system PIDs
-  if (TargetPid == (HANDLE)0 || TargetPid == (HANDLE)4) {
+  // safety for obvious system PIDs
+  if (TargetPid == kSystemPids[0] || TargetPid == kSystemPids[1]) {
     return STATUS_ACCESS_DENIED;
   }
 
   PEPROCESS proc = NULL;
   NTSTATUS status = PsLookupProcessByProcessId(TargetPid, &proc);
   if (!NT_SUCCESS(status)) {
-    KdPrint(("KernelDriver1: PsLookupProcessByProcessId(%u) -> 0x%X\n",
+    KdPrint(("AydoKernelDriver: PsLookupProcessByProcessId(%u) -> 0x%X\n",
              (ULONG)(ULONG_PTR)TargetPid, status));
     return status;
   }
@@ -71,14 +73,14 @@ KernelKillProcess(_In_ HANDLE TargetPid) {
                                  KernelMode,
                                  &hProc);
   if (!NT_SUCCESS(status)) {
-    KdPrint(("KernelDriver1: ObOpenObjectByPointer -> 0x%X\n", status));
+    KdPrint(("AydoKernelDriver: ObOpenObjectByPointer -> 0x%X\n", status));
     ObDereferenceObject(proc);
     return status;
   }
 
   status = ZwTerminateProcess(hProc, STATUS_SUCCESS);
   if (!NT_SUCCESS(status)) {
-    KdPrint(("KernelDriver1: ZwTerminateProcess -> 0x%X\n", status));
+    KdPrint(("AydoKernelDriver: ZwTerminateProcess -> 0x%X\n", status));
   }
 
   ZwClose(hProc);
