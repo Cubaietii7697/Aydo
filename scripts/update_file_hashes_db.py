@@ -14,6 +14,8 @@ RENAME_FILES = {
     "full.csv": f"{OUTPUT_FILE_NAME}.csv", # because malware bazaar exports the file as full.csv, we need to rename it
 }
 GENERIC_MALWARE_SIGNATURE = "GenericMalware"
+CSV_COMMENT = '#'
+INVALID_SIGNATURE = "n/a"
 
 
 def remove_files(database_file: str, csv_file:str) -> None:
@@ -88,13 +90,15 @@ def parse_csv_to_sqlite(csv_file: str, db_file: str) -> None:
             csv_reader = csv.reader(csvfile)
             
             for row in tqdm.tqdm(csv_reader):
-                if row[0].startswith('#'):
+                # If the first value is a comment, skip it
+                if row[0].startswith(CSV_COMMENT):
                     continue
                 
+                # The CSV is formatted in such way that we always have a " " around the values, so we wanna remove them
                 sha256_hash = row[CSV_HASH_INDEX].strip().replace('"', "")
                 signature = row[CSV_SIGNATURE_INDEX].strip().replace('"', "")
 
-                if signature == "n/a":
+                if signature == INVALID_SIGNATURE:
                     signature = GENERIC_MALWARE_SIGNATURE # Some file_hashes don't have a name, but have exerted malicous behaviour
                     
                 if sha256_hash and signature:
