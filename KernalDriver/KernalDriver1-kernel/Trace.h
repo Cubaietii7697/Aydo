@@ -20,13 +20,13 @@ Environment:
 // Tracing GUID - fefda7d7-f60e-4328-81b0-5e490f2c23d1
 //
 
-#define WPP_CONTROL_GUIDS                                                 \
-  WPP_DEFINE_CONTROL_GUID(                                                \
+#define WPP_CONTROL_GUIDS                                                    \
+  WPP_DEFINE_CONTROL_GUID(                                                   \
       AydoKernelDriverTraceGuid, (fefda7d7, f60e, 4328, 81b0, 5e490f2c23d1), \
-                                                                          \
-      WPP_DEFINE_BIT(MYDRIVER_ALL_INFO)                                   \
-          WPP_DEFINE_BIT(TRACE_DRIVER)                                    \
-              WPP_DEFINE_BIT(TRACE_DEVICE)                                \
+                                                                             \
+      WPP_DEFINE_BIT(MYDRIVER_ALL_INFO)                                      \
+          WPP_DEFINE_BIT(TRACE_DRIVER)                                       \
+              WPP_DEFINE_BIT(TRACE_DEVICE)                                   \
                   WPP_DEFINE_BIT(TRACE_QUEUE))
 
 #define WPP_FLAG_LEVEL_LOGGER(flag, level) \

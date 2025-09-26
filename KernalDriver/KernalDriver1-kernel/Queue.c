@@ -1,10 +1,12 @@
 #include "Queue.h"
 
 #include <ntddk.h>
+
 #include <wdf.h>
 
-#include "Driver.h"     // KernelKillProcess prototype (implemented in driver.c)
-#include "ioctl_defs.h" // IOCTL_KILL_PROCESS
+#include "../ioctlDefs.h"
+#include "AydoLogger.h"
+#include "Driver.h"
 
 /*
  * Initialize the default I/O queue and bind our callbacks.
@@ -28,7 +30,7 @@ AydoKernelDriverQueueInitialize(_In_ WDFDEVICE Device) {
                             &queueAttributes,
                             &queue);
   if (!NT_SUCCESS(status)) {
-    KdPrint(("AydoKernelDriver: WdfIoQueueCreate failed 0x%X\n", status));
+    AYDO_ERROR("WdfDeviceCreate failed 0x%X", status);
     return status;
   }
   {
@@ -44,7 +46,7 @@ VOID AydoKernelDriverEvtIoStop(
     _In_ WDFREQUEST Request,
     _In_ ULONG ActionFlags) {
   UNREFERENCED_PARAMETER(Queue);
-
+  UNREFERENCED_PARAMETER(ActionFlags);
   // If you previously sent it down the stack, ask lower driver to cancel.
   WdfRequestCancelSentRequest(Request);
 

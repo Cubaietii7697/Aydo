@@ -42,7 +42,10 @@
     <ClInclude Include="Trace.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\ioctl_defs.h">
+    <ClInclude Include="..\ioctlDefs.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="AydoLogger.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

@@ -1,39 +1,54 @@
-﻿#include <iostream>
+﻿#include <filesystem>
+#include <iostream>
+#include <set>
+#include <vector>
 
+#include "FailureInfo.hpp"
+#include "KernelCommunication.hpp"
 #include "Utils.hpp"
 
 int main(int argc, char *argv[]) {
-  constexpr int FILE = 1;
-  constexpr int MODE = 2;
+  constexpr int FILE_ARG = 1;
 
-  if (argc != 3) {
-    std::cerr << "[usage] KernalDriver.exe <file-to-kill> <0=user 1=kernel>" << std::endl;
+  if (argc != 2) {
+    std::cerr << "[usage] KernalDriver.exe <file-to-kill>" << std::endl;
     return EXIT_FAILURE;
   }
-  const std::filesystem::path &exePath = argv[FILE];
-  const int mode = std::stoi(argv[MODE]);
+
+  const std::filesystem::path exePath = argv[FILE_ARG];
   std::set<DWORD> pids = Utils::findProcess(exePath);
 
   if (pids.empty()) {
-    std::cerr << "No running process matches: " << exePath.filename().string() << std::endl;
+    std::cerr << "No running process matches: "
+              << exePath.filename().string() << std::endl;
     return EXIT_FAILURE;
   }
 
-  if (mode == 0) {
-    if (!Utils::KillAllProcess(pids)) {
-      Utils::PrintError(L"[user] KillAllProcess failed");
-      return EXIT_FAILURE;
-    }
-  } else if (mode == 1) {
-    if (!Utils::UseKernelMode(pids)) {
-      Utils::PrintError(L"[user] KillAllProcess failed");
-      return EXIT_FAILURE;
-    }
-  } else {
-    std::cerr << "Invalid mode: " << mode << " (expected 0 or 1)" << std::endl;
+  // Initialize communication with driver
+  auto &km = KernelCommunication::instance();
+  if (!km.initKernel()) {
+    std::wcerr << L"[kernel] Failed to open device" << std::endl;
     return EXIT_FAILURE;
   }
 
-  std::cout << "Successfully sent terminate requests (" << (mode ? "kernel" : "user") << " mode)" << std::endl;
+  std::vector<FailureInfo> failures;
+
+  for (DWORD pid : pids) {
+    if (!km.sendRequest(RequestType::KillProcess, KillProcessData{pid})) {
+      DWORD err = GetLastError();
+      std::wstring reason = std::format(L"DeviceIoControl failed with error: {} ", std::to_wstring(err));
+      failures.emplace_back(pid, reason);
+      Utils::PrintError(L"[kernel] KillProcess request failed");
+    }
+  }
+
+  km.shutdown();
+
+  if (!failures.empty()) {
+    Utils::PrintFailures(failures);
+    return EXIT_FAILURE;
+  }
+
+  std::cout << "Successfully sent terminate requests (kernel mode)" << std::endl;
   return EXIT_SUCCESS;
 }

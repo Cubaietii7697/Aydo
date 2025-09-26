@@ -125,10 +125,14 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="KernalDriver.cpp" />
+    <ClCompile Include="KernelCommunication .cpp" />
     <ClCompile Include="Utils.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\ioctl_defs.h" />
+    <ClInclude Include="..\ioctlDefs.h" />
+    <ClInclude Include="Error.hpp" />
+    <ClInclude Include="FailureInfo.hpp" />
+    <ClInclude Include="KernelCommunication.hpp" />
     <ClInclude Include="Utils.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

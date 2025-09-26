@@ -1,15 +1,16 @@
 #pragma once
 
 #include <ntddk.h>
+
 #include <wdf.h>
 
 #include "public.h"
 
 EXTERN_C_START
 
-// Per-device context (similar to a WDM device extension)
+// Per-device context
 typedef struct _DEVICE_CONTEXT {
-  ULONG PrivateDeviceData; // placeholder for future state
+  ULONG _; // placeholder for future state
 } DEVICE_CONTEXT, *PDEVICE_CONTEXT;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DEVICE_CONTEXT, DeviceGetContext)

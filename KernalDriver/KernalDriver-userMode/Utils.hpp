@@ -1,27 +1,22 @@
 #pragma once
+
 #include <Windows.h>
 
 #include <filesystem>
-#include <memory>
 #include <set>
+#include <string>
 #include <TlHelp32.h>
+#include <vector>
 
-#include "../ioctl_defs.h"
-
-namespace Errors {
-inline std::wstring FailedToOpen(DWORD pid) {
-  return std::format(L"[KillProcess] Failed to open PID {}", pid);
-}
-inline std::wstring FailedToTerminate(DWORD pid) {
-  return std::format(L"[KillProcess] Failed to terminate PID {}", pid);
-}
-} // namespace Errors
-
+#include "FailureInfo.hpp"
 namespace Utils {
-bool UseKernelMode(const std::set<DWORD> &pids);
-bool KillProcess(DWORD pid);
-bool KillAllProcess(const std::set<DWORD> &pids);
-void PrintError(const std::wstring &custom);
+
+// Find all PIDs matching exe name
 std::set<DWORD> findProcess(const std::filesystem::path &p);
-bool SendKill(HANDLE hDev, DWORD pid);
+
+// Print error with custom message
+void PrintError(const std::wstring &custom);
+
+// Print failures in a user-friendly way
+void PrintFailures(const std::vector<FailureInfo> &failures);
 } // namespace Utils

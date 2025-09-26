@@ -22,12 +22,13 @@
     <None Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="AydoLogger.h" />
     <ClCompile Include="Device.c" />
     <ClCompile Include="driver.c" />
     <ClCompile Include="Queue.c" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\ioctl_defs.h" />
+    <ClInclude Include="..\ioctlDefs.h" />
     <ClInclude Include="Device.h" />
     <ClInclude Include="Driver.h" />
     <ClInclude Include="Public.h" />
