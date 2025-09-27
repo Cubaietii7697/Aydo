@@ -1,8 +1,9 @@
 #pragma once
+#include "../pch.hpp"
 
-#include <ntddk.h>
-
-#include <wdf.h>
+#ifndef PROCESS_TERMINATE
+#define PROCESS_TERMINATE 0x0001
+#endif
 
 EXTERN_C_START
 

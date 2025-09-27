@@ -8,7 +8,7 @@
 #include <TlHelp32.h>
 #include <vector>
 
-#include "FailureInfo.hpp"
+#include "../KernelCommunication/FailureInfo.hpp"
 namespace Utils {
 
 // Find all PIDs matching exe name

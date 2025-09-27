@@ -1,10 +1,6 @@
 #pragma once
-
-#include <ntddk.h>
-
-#include <wdf.h>
-
-#include "public.h"
+#include "../pch.hpp"
+#include "public.hpp"
 
 EXTERN_C_START
 

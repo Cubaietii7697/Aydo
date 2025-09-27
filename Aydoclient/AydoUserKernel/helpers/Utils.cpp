@@ -2,7 +2,7 @@
 
 #include <iostream>
 
-#include "Error.hpp"
+#include "../KernelCommunication/Error.hpp"
 
 namespace Utils {
 

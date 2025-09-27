@@ -3,9 +3,10 @@
 #include <set>
 #include <vector>
 
-#include "FailureInfo.hpp"
-#include "KernelCommunication.hpp"
-#include "Utils.hpp"
+#include "../AydoUserKernel/helpers/Utils.hpp"
+#include "../AydoUserKernel/KernelCommunication/Error.hpp"
+#include "../AydoUserKernel/KernelCommunication/FailureInfo.hpp"
+#include "../AydoUserKernel/KernelCommunication/KernelCommunication.hpp"
 
 int main(int argc, char *argv[]) {
   constexpr int FILE_ARG = 1;
@@ -34,7 +35,8 @@ int main(int argc, char *argv[]) {
   std::vector<FailureInfo> failures;
 
   for (DWORD pid : pids) {
-    if (!km.sendRequest(RequestType::KillProcess, KillProcessData{pid})) {
+    // work but crash
+    if (km.sendRequest(RequestType::KillProcess, KillProcessData{pid}) == RespondType::crash) {
       DWORD err = GetLastError();
       std::wstring reason = std::format(L"DeviceIoControl failed with error: {} ", std::to_wstring(err));
       failures.emplace_back(pid, reason);

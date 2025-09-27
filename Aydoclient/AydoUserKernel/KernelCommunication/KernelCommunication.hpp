@@ -14,6 +14,14 @@ enum class RequestType {
   KillProcess
 };
 
+enum class RespondType {
+  work,
+  crash,
+  invalidHandleVal,
+  invalidRequestType
+
+};
+
 class KernelCommunication {
 public:
   // Singleton accessor
@@ -26,7 +34,7 @@ public:
   void shutdown();
 
   // Send a request to kernel
-  bool sendRequest(RequestType type, const std::variant<KillProcessData> &data) const;
+  RespondType sendRequest(RequestType type, const std::variant<KillProcessData> &data) const;
 
 private:
   // Singleton enforcement
@@ -36,5 +44,5 @@ private:
   KernelCommunication &operator=(const KernelCommunication &) = delete;
 
 private:
-  HANDLE hDev_;
+  HANDLE m_hDev;
 };
