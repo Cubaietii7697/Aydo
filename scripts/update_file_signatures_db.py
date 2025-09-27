@@ -48,6 +48,8 @@ def parse_database(database_file: str, output_file_path: str) -> None:
         for line in lines:
             name, signature = parse_line(line)
 
+            signature = signature.replace('\n', '') # Remove new line character from the end of the signature
+
             signature_name_map[signature] = name
 
     with open(output_file_path, 'w') as f:
