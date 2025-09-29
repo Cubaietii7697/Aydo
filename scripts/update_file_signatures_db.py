@@ -75,7 +75,7 @@ def main() -> None:
     parser.add_argument('-r', '--remove_files', action='store_true', help='Remove the leftover files (if exists) (zip, csv)')
     args = parser.parse_args()
 
-    if args.download:
+    def download_step():
         print("\n\n=======================================")
         print("CAN NO LONGER DOWNLOAD THE DATABASE!")
         print("CalmAV has blocked the option to download")
@@ -84,19 +84,24 @@ def main() -> None:
         print(DATABASE_FILE_URL)
         print("=======================================\n\n")
 
-    if args.extract:
-        try:
-            extract_database(os.path.abspath(DATABASE_FILE_NAME), os.path.abspath(EXTRACT_DATABASE_FILE_TO))
-        except Exception as e:
-            print(f"Error extracting database: {e}")
-            return
+    steps = [
+        (args.download, download_step, "downloading database"),
+        (args.extract,  lambda: extract_database(os.path.abspath(DATABASE_FILE_NAME), os.path.abspath(EXTRACT_DATABASE_FILE_TO)), "extracting database"),
+        (args.parse,    lambda: parse_database(os.path.join(EXTRACT_DATABASE_FILE_TO, DATABASE_FILE), OUTPUT_FILE), "parsing database"),
+    ]
 
-    if args.parse:
-        try:
-            parse_database(os.path.join(EXTRACT_DATABASE_FILE_TO, DATABASE_FILE), OUTPUT_FILE)
-        except Exception as e:
-            print(f"Error parsing database: {e}")
-            return
+    any_action = False
+    for flag, func, label in steps:
+        if flag:
+            any_action = True
+            try:
+                func()
+            except Exception as e:
+                print(f"Error {label}: {e}")
+                return
+
+    if not any_action:
+        parser.print_help()
 
 
 if __name__ == '__main__':

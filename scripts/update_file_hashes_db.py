@@ -133,31 +133,24 @@ def main() -> None:
     csv_file = args.csv
     db_file = args.db
 
-    if args.download:
-        try:
-            download_database_from_url(CSV_FILE_HASHES_URL, database_zip_file)
-        except Exception as e:
-            print(f"Error downloading database: {e}")
-            return
-    
-    if args.extract:
-        try:
-            extract_database(database_zip_file, os.path.dirname(database_zip_file), RENAME_FILES)
-        except Exception as e:
-            print(f"Error extracting database: {e}")
-            return
-    
-    if args.parse:
-        try:
-            parse_csv_to_sqlite(csv_file, db_file)
-        except Exception as e:
-            print(f"Error parsing CSV: {e}")
-            return
+    steps = [
+        (args.download, lambda: download_database_from_url(CSV_FILE_HASHES_URL, database_zip_file), "downloading database"),
+        (args.extract,  lambda: extract_database(database_zip_file, os.path.dirname(database_zip_file) or ".", RENAME_FILES), "extracting database"),
+        (args.parse,    lambda: parse_csv_to_sqlite(csv_file, db_file), "parsing CSV"),
+        (args.remove_files, lambda: remove_files(database_zip_file, csv_file), "removing leftover files"),
+    ]
 
-    if args.remove_files:
-        remove_files(database_zip_file, csv_file)
+    any_action = False
+    for flag, func, label in steps:
+        if flag:
+            any_action = True
+            try:
+                func()
+            except Exception as e:
+                print(f"Error {label}: {e}")
+                return
 
-    if not args.download and not args.extract and not args.parse and not args.remove_files:
+    if not any_action:
         parser.print_help()
 
 
