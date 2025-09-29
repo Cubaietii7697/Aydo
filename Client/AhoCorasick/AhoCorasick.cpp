@@ -3,17 +3,17 @@
 #include <queue>
 
 AhoCorasick::AhoCorasick(const std::vector<std::vector<uint8_t>> &patterns)
-    : _patterns(patterns) {
-  _root = std::make_shared<ACNode>();
+    : m_patterns(patterns) {
+  m_root = std::make_shared<ACNode>();
   _buildTrie();
   _buildFailureLinks();
 }
 
 void AhoCorasick::_buildTrie() {
-  for (size_t i = 0; i < _patterns.size(); i++) {
-    std::shared_ptr<ACNode> node = _root;
+  for (size_t i = 0; i < m_patterns.size(); i++) {
+    std::shared_ptr<ACNode> node = m_root;
 
-    for (uint8_t c : _patterns[i]) {
+    for (uint8_t c : m_patterns[i]) {
       if (node->children.find(c) == node->children.end()) {
         node->children[c] = std::make_shared<ACNode>();
       }
@@ -31,8 +31,8 @@ void AhoCorasick::_buildFailureLinks() {
 
   // Set failure links for root's direct children to point back to root
   // and add them to the queue for processing
-  for (auto &child : _root->children) {
-    child.second->fail = _root;
+  for (auto &child : m_root->children) {
+    child.second->fail = m_root;
     q.push(child.second);
   }
 
@@ -57,7 +57,7 @@ void AhoCorasick::_buildFailureLinks() {
       if (fail_node && fail_node->children.find(child.first) != fail_node->children.end()) {
         child.second->fail = fail_node->children[child.first];
       } else {
-        child.second->fail = _root;
+        child.second->fail = m_root;
       }
 
       // Merge output patterns from the failure node
@@ -74,7 +74,7 @@ std::vector<AhoCorasick::Match> AhoCorasick::search(const uint8_t *data, size_t 
   // Vector to store matches: pair of (pattern_index, end_position_in_text)
   std::vector<AhoCorasick::Match> matches;
   // Start searching from the root of the trie
-  std::shared_ptr<ACNode> node = _root;
+  std::shared_ptr<ACNode> node = m_root;
 
   // Iterate through each byte in the input text
   for (size_t i = 0; i < length; i++) {
@@ -89,7 +89,7 @@ std::vector<AhoCorasick::Match> AhoCorasick::search(const uint8_t *data, size_t 
     // If we've reached null, restart from root
     // Otherwise, move to the child node that matches the current byte
     if (!node) {
-      node = _root;
+      node = m_root;
     } else {
       node = node->children.find(byte)->second;
     }

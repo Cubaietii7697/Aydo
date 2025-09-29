@@ -8,8 +8,8 @@
 
 class AhoCorasick {
 private:
-  std::shared_ptr<ACNode> _root;
-  std::vector<std::vector<uint8_t>> _patterns;
+  std::shared_ptr<ACNode> m_root;
+  std::vector<std::vector<uint8_t>> m_patterns;
 
 public:
   using Match = std::pair<size_t, size_t>;

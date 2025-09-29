@@ -35,15 +35,15 @@ namespace Errors {
 
     class FailedToSearchFileException : public std::exception {
     public:
-        std::string _originalErrorMessage;
-        std::string _message;
+        std::string m_originalErrorMessage;
+        std::string m_message;
 
-        explicit FailedToSearchFileException(std::string originalErrorMessage) : _originalErrorMessage(std::move(originalErrorMessage)) {
-            _message = "Failed to search file: " + _originalErrorMessage;
+        explicit FailedToSearchFileException(std::string originalErrorMessage) : m_originalErrorMessage(std::move(originalErrorMessage)) {
+            m_message = "Failed to search file: " + m_originalErrorMessage;
         }
 
         const char* what() const noexcept override {
-            return _message.c_str();
+            return m_message.c_str();
         }
     };
 }
