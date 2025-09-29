@@ -140,6 +140,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="AhoCorasick\ACScanningEngine.cpp" />
     <ClCompile Include="AhoCorasick\AhoCorasick.cpp" />
     <ClCompile Include="AhoCorasick\ACUtils.cpp" />
     <ClCompile Include="Client.cpp" />
@@ -147,9 +148,11 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AhoCorasick\ACNode.hpp" />
+    <ClInclude Include="AhoCorasick\ACScanningEngine.hpp" />
     <ClInclude Include="AhoCorasick\AhoCorasick.hpp" />
     <ClInclude Include="AhoCorasick\ACUtils.hpp" />
     <ClInclude Include="Errors.hpp" />
+    <ClInclude Include="ScanningEngine.hpp" />
     <ClInclude Include="Utils.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

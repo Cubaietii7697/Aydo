@@ -43,7 +43,4 @@ bool checkConstraintSatisfaction(
     
 std::pair<std::vector<PatternInfo>, std::vector<std::vector<uint8_t>>> parsePatternsAndCollectSegments(const std::vector<std::string> &hexPatterns);
 std::pair<bool, std::string> searchPatternsCommon(const std::vector<PatternInfo> &parsedPatterns, const std::vector<std::vector<uint8_t>> &allSegments, const SegmentPositions &segmentPositions);
-
-std::pair<bool, std::string> searchPatternsInFile(const std::string &filePath, const std::vector<std::string> &hexPatterns, size_t chunkSize);
-std::pair<bool, std::string> searchPatternsInMemory(const std::vector<uint8_t> &data, const std::vector<std::string> &hexPatterns);
 }; // namespace ACUtils

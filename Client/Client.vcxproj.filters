@@ -33,6 +33,9 @@
     <ClCompile Include="AhoCorasick\ACUtils.cpp">
       <Filter>Source Files\AhoCorasick</Filter>
     </ClCompile>
+    <ClCompile Include="AhoCorasick\ACScanningEngine.cpp">
+      <Filter>Source Files\AhoCorasick</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Utils.h">
@@ -49,6 +52,12 @@
     </ClInclude>
     <ClInclude Include="Errors.hpp">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ScanningEngine.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="AhoCorasick\ACScanningEngine.hpp">
+      <Filter>Header Files\AhoCorasick</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
