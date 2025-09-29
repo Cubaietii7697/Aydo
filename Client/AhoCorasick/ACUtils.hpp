@@ -25,7 +25,7 @@ struct PatternInfo {
 
 using SegmentPositions = std::map<std::vector<uint8_t>, std::vector<size_t>>;
 
-std::string constraintToString(Constraint constraint);
+std::string constraintToString(const Constraint& constraint);
 
 PatternInfo parsePattern(const std::string &patternStr);
 

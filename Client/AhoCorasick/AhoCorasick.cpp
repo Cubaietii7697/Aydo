@@ -3,17 +3,17 @@
 #include <queue>
 
 AhoCorasick::AhoCorasick(const std::vector<std::vector<uint8_t>> &patterns)
-    : patterns(patterns) {
-  root = std::make_shared<ACNode>();
+    : _patterns(patterns) {
+  _root = std::make_shared<ACNode>();
   _buildTrie();
-  _buildFaliureLinks();
+  _buildFailureLinks();
 }
 
 void AhoCorasick::_buildTrie() {
-  for (size_t i = 0; i < patterns.size(); i++) {
-    std::shared_ptr<ACNode> node = root;
+  for (size_t i = 0; i < _patterns.size(); i++) {
+    std::shared_ptr<ACNode> node = _root;
 
-    for (uint8_t c : patterns[i]) {
+    for (uint8_t c : _patterns[i]) {
       if (node->children.find(c) == node->children.end()) {
         node->children[c] = std::make_shared<ACNode>();
       }
@@ -25,14 +25,14 @@ void AhoCorasick::_buildTrie() {
   }
 }
 
-void AhoCorasick::_buildFaliureLinks() {
+void AhoCorasick::_buildFailureLinks() {
   // Initialize queue for BFS traversal of the trie
   std::queue<std::shared_ptr<ACNode>> q;
 
   // Set failure links for root's direct children to point back to root
   // and add them to the queue for processing
-  for (auto &child : root->children) {
-    child.second->fail = root;
+  for (auto &child : _root->children) {
+    child.second->fail = _root;
     q.push(child.second);
   }
 
@@ -57,7 +57,7 @@ void AhoCorasick::_buildFaliureLinks() {
       if (fail_node && fail_node->children.find(child.first) != fail_node->children.end()) {
         child.second->fail = fail_node->children[child.first];
       } else {
-        child.second->fail = root;
+        child.second->fail = _root;
       }
 
       // Merge output patterns from the failure node
@@ -70,11 +70,11 @@ void AhoCorasick::_buildFaliureLinks() {
 }
 
 // We don't use vectors here because it's slower than raw arrays
-std::vector<std::pair<size_t, size_t>> AhoCorasick::search(const uint8_t *data, size_t length) const {
+std::vector<AhoCorasick::Match> AhoCorasick::search(const uint8_t *data, size_t length) const {
   // Vector to store matches: pair of (pattern_index, end_position_in_text)
-  std::vector<std::pair<size_t, size_t>> matches;
+  std::vector<AhoCorasick::Match> matches;
   // Start searching from the root of the trie
-  std::shared_ptr<ACNode> node = root;
+  std::shared_ptr<ACNode> node = _root;
 
   // Iterate through each byte in the input text
   for (size_t i = 0; i < length; i++) {
@@ -89,14 +89,14 @@ std::vector<std::pair<size_t, size_t>> AhoCorasick::search(const uint8_t *data, 
     // If we've reached null, restart from root
     // Otherwise, move to the child node that matches the current byte
     if (!node) {
-      node = root;
+      node = _root;
     } else {
       node = node->children.find(byte)->second;
     }
 
     // Collect all patterns that end at the current node
     // Each pattern index represents a pattern that matches ending at position i
-    for (size_t pattern_idx : node->output) {
+    for (const auto &pattern_idx : node->output) {
       matches.emplace_back(pattern_idx, i);
     }
   }

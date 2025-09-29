@@ -149,6 +149,7 @@
     <ClInclude Include="AhoCorasick\ACNode.hpp" />
     <ClInclude Include="AhoCorasick\AhoCorasick.hpp" />
     <ClInclude Include="AhoCorasick\ACUtils.hpp" />
+    <ClInclude Include="Errors.hpp" />
     <ClInclude Include="Utils.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

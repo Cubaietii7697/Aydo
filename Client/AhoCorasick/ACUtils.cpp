@@ -7,9 +7,10 @@
 #include <iostream>
 #include <set>
 
+#include "../Errors.hpp"
 #include "AhoCorasick.hpp"
 
-std::string ACUtils::constraintToString(Constraint constraint) {
+std::string ACUtils::constraintToString(const Constraint& constraint) {
   switch (constraint) {
   case Constraint::ANY_BYTE:
     return "??";
@@ -95,7 +96,7 @@ ACUtils::SegmentPositions ACUtils::findSegmentPositionsInFile(const std::string 
 
   std::ifstream file(filePath, std::ios::binary);
   if (!file) {
-    throw std::runtime_error("Failed to open file");
+    throw Errors::FailedToOpenFileException();
   }
 
   std::vector<uint8_t> fileContent(chunkSize);
@@ -199,7 +200,7 @@ bool ACUtils::checkConstraintSatisfaction(
 
   // Make sure a constraint was actually found
   if (!wasConstraintFound) {
-    throw std::runtime_error("Constraint not found although there are more than 2 segments");
+    throw Errors::ConstraintNotFoundException();
   }
 
   // Calculate where the current segment ends
@@ -311,14 +312,14 @@ std::pair<bool, std::string> ACUtils::searchPatternsCommon(const std::vector<Pat
 // Returns: if a pattern was found, and the pattern that was found
 std::pair<bool, std::string> ACUtils::searchPatternsInFile(const std::string &filePath, const std::vector<std::string> &hexPatterns, size_t chunkSize) {
   if (hexPatterns.empty()) {
-    return std::make_pair(false, "No patterns provided");
+    throw Errors::NoPatternsProvidedException();
   }
 
   // Parse patterns and collect segments
   auto [parsedPatterns, allSegments] = parsePatternsAndCollectSegments(hexPatterns);
 
   if (parsedPatterns.empty()) {
-    return std::make_pair(false, "No valid patterns found");
+    throw Errors::NoValidPatternsFoundException();
   }
 
   // Find segment positions in file
@@ -327,7 +328,8 @@ std::pair<bool, std::string> ACUtils::searchPatternsInFile(const std::string &fi
     segmentPositions = findSegmentPositionsInFile(filePath, allSegments, chunkSize);
   } catch (const std::exception &e) {
     std::cerr << "ERROR: Couldn't search file: " << e.what() << std::endl;
-    return std::make_pair(false, "Couldn't search file");
+    
+    throw Errors::FailedToSearchFileException(e.what());
   }
 
   return searchPatternsCommon(parsedPatterns, allSegments, segmentPositions);
@@ -335,14 +337,14 @@ std::pair<bool, std::string> ACUtils::searchPatternsInFile(const std::string &fi
 
 std::pair<bool, std::string> ACUtils::searchPatternsInMemory(const std::vector<uint8_t> &data, const std::vector<std::string> &hexPatterns) {
   if (hexPatterns.empty()) {
-    return std::make_pair(false, "No patterns provided");
+    throw Errors::NoPatternsProvidedException();
   }
 
   // Parse patterns and collect segments
   auto [parsedPatterns, allSegments] = parsePatternsAndCollectSegments(hexPatterns);
 
   if (parsedPatterns.empty()) {
-    return std::make_pair(false, "No valid patterns found");
+    throw Errors::NoValidPatternsFoundException();
   }
 
   // Find segment positions in memory
@@ -351,7 +353,7 @@ std::pair<bool, std::string> ACUtils::searchPatternsInMemory(const std::vector<u
     segmentPositions = findSegmentPositionsInMemory(data, allSegments);
   } catch (const std::exception &e) {
     std::cerr << "ERROR: Couldn't search memory: " << e.what() << std::endl;
-    return std::make_pair(false, "Couldn't search memory");
+    throw Errors::FailedToSearchFileException(e.what());
   }
 
   return searchPatternsCommon(parsedPatterns, allSegments, segmentPositions);

@@ -9,7 +9,7 @@ SIGNATURE_INDEX = 3
 DATABASE_FILE_URL = "https://database.clamav.net/main.cvd"
 DATABASE_FILE_NAME = "../data/main.cvd"
 EXTRACT_DATABASE_FILE_TO = "../data/file_signatures"
-SIGTOOL_PATH = "%USERPROFILE%\\Downloads\\clamav-1.4.3.win.x64\\clamav-1.4.3.win.x64\\sigtool.exe"
+SIGTOOL_PATH = os.path.expandvars("%USERPROFILE%\\Downloads\\clamav-1.4.3.win.x64\\clamav-1.4.3.win.x64\\sigtool.exe")
 DATABASE_FILE = "main.ndb"
 OUTPUT_FILE = "../data/file_signatures.json"
 
@@ -48,7 +48,7 @@ def parse_database(database_file: str, output_file_path: str) -> None:
         for line in lines:
             name, signature = parse_line(line)
 
-            signature = signature.replace('\n', '') # Remove new line character from the end of the signature
+            signature = signature.strip() # Remove new line character from the end of the signature
 
             signature_name_map[signature] = name
 

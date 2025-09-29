@@ -8,19 +8,21 @@
 
 class AhoCorasick {
 private:
-  std::shared_ptr<ACNode> root;
-  std::vector<std::vector<uint8_t>> patterns;
+  std::shared_ptr<ACNode> _root;
+  std::vector<std::vector<uint8_t>> _patterns;
 
 public:
+  using Match = std::pair<size_t, size_t>;
+
   explicit AhoCorasick(const std::vector<std::vector<uint8_t>> &patterns);
 
-  [[nodiscard]] std::vector<std::pair<size_t, size_t>> search(const std::vector<uint8_t> &text) const {
+  [[nodiscard]] std::vector<Match> search(const std::vector<uint8_t> &text) const {
     return search(text.data(), text.size());
   }
 
-  [[nodiscard]] std::vector<std::pair<size_t, size_t>> search(const uint8_t *data, size_t length) const;
+  [[nodiscard]] std::vector<Match> search(const uint8_t *data, size_t length) const;
 
 private:
   void _buildTrie();
-  void _buildFaliureLinks();
+  void _buildFailureLinks();
 };

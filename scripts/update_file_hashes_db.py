@@ -102,8 +102,12 @@ def parse_csv_to_sqlite(csv_file: str, db_file: str) -> None:
                     signature = GENERIC_MALWARE_SIGNATURE # Some file_hashes don't have a name, but have exerted malicous behaviour
                     
                 if sha256_hash and signature:
-                    cursor.execute("INSERT INTO file_hashes (hash, name) VALUES (?, ?)", 
-                                     (sha256_hash, signature))
+                    try:
+                        cursor.execute("INSERT INTO file_hashes (hash, name) VALUES (?, ?)", 
+                                         (sha256_hash, signature))
+                    except sqlite3.IntegrityError:
+                        print(f"Duplicate hash: {sha256_hash}")
+                        continue
     except Exception as e:
         conn.rollback()
         conn.close()

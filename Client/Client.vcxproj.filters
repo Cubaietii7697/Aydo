@@ -47,5 +47,8 @@
     <ClInclude Include="AhoCorasick\ACNode.hpp">
       <Filter>Header Files\AhoCorasick</Filter>
     </ClInclude>
+    <ClInclude Include="Errors.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
