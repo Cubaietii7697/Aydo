@@ -4,7 +4,6 @@
 #include "AhoCorasick.hpp"
 #include <vector>
 #include <string>
-#include <memory>
 
 class SCAScanningEngine : public IScanningEngine {
 private:
