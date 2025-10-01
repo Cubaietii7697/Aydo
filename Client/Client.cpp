@@ -1,79 +1,75 @@
-#include <chrono>
-#include <cstdio>
-#include <fstream>
+#include <windows.h>
+
+#include <cstdlib>
 #include <iostream>
-#include <random>
+#include <string_view>
 #include <vector>
 
-#include "AhoCorasick/SCAScanningEngine.hpp"
-#include "SignaturesDatabase.hpp"
+constexpr std::string_view BANNER = R"(
+   ___ ___ _  _ ___ _   _ ___ 
+  / __| __| \| |_ _| | | / __|
+ | (_ | _|| .` || || |_| \__ \
+  \___|___|_|\_|___|\___/|___/
+                              
+)";
+
+// Rainbow colors for console output
+const std::vector<WORD> rainbowColors = {
+    FOREGROUND_RED | FOREGROUND_INTENSITY,
+    FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_INTENSITY,
+    FOREGROUND_GREEN | FOREGROUND_INTENSITY,
+    FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_INTENSITY,
+    FOREGROUND_BLUE | FOREGROUND_INTENSITY,
+    FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_INTENSITY};
+
+void setConsoleColor(WORD color) {
+  SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), color);
+}
+
+void printRainbowText(const std::string &text) {
+  HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+  CONSOLE_SCREEN_BUFFER_INFO csbi;
+  GetConsoleScreenBufferInfo(hConsole, &csbi);
+
+  WORD defaultColor = csbi.wAttributes;
+
+  for (size_t i = 0; i < text.length(); ++i) {
+    setConsoleColor(rainbowColors[i % rainbowColors.size()]);
+    std::cout << text[i];
+  }
+
+  setConsoleColor(defaultColor);
+}
+
+void printRainbowBanner() {
+  HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+  CONSOLE_SCREEN_BUFFER_INFO csbi;
+  GetConsoleScreenBufferInfo(hConsole, &csbi);
+
+  WORD defaultColor = csbi.wAttributes;
+  std::string bannerStr(BANNER);
+
+  for (size_t i = 0; i < bannerStr.length(); ++i) {
+    if (bannerStr[i] != '\n' && bannerStr[i] != ' ') {
+      setConsoleColor(rainbowColors[i % rainbowColors.size()]);
+    } else {
+      setConsoleColor(defaultColor);
+    }
+    std::cout << bannerStr[i];
+  }
+
+  setConsoleColor(defaultColor);
+}
 
 int main() {
-  std::cout << "Current working directory: " << std::filesystem::current_path().string() << std::endl;
+  while (true) {
+    printRainbowText("Itay is a");
+    std::cout << std::endl;
+    printRainbowBanner();
+    std::cout << std::endl;
 
-  SignaturesDatabase database("file_signatures.json");
-  database.load();
-
-  const auto signatures = database.getSignatures(SignatureType::Simple);
-
-  std::cout << "Loaded " << signatures.size() << " signatures" << std::endl;
-
-  // Create a 15MB file with random bytes
-  // const size_t fileSize = 55 * 1024 * 1024; // 15MB
-  const std::string fileName = "random.bin";
-
-  // std::cout << "Creating " << fileSize / (1024 * 1024) << "MB file with random bytes..." << std::endl;
-
-  // // Use random device to generate random bytes
-  // std::random_device rd;
-  // std::mt19937 gen(rd());
-  // std::uniform_int_distribution<unsigned int> dist(0, 255);
-
-  // std::ofstream outFile(fileName, std::ios::binary);
-  // if (!outFile) {
-  //   std::cerr << "Failed to create file" << std::endl;
-  //   return EXIT_FAILURE;
-  // }
-
-  // // Write random bytes to file
-  // for (size_t i = 0; i < fileSize; ++i) {
-  //   uint8_t randomByte = static_cast<uint8_t>(dist(gen));
-  //   outFile.write(reinterpret_cast<const char *>(&randomByte), sizeof(randomByte));
-  // }
-  // outFile.close();
-
-  // std::cout << "File created successfully" << std::endl;
-
-  // Insert our 6-letter pattern "Hello\0" at a specific position
-  const std::vector<uint8_t> pattern = {'H', 'e', 'l', 'l', 'o', '\0'};
-
-  std::fstream file(fileName, std::ios::binary | std::ios::in | std::ios::out);
-  if (!file) {
-    std::cerr << "Failed to open file for writing pattern" << std::endl;
-    return EXIT_FAILURE;
+    Sleep(100);
   }
-
-  // Create regex engine with multiple patterns
-  SCAScanningEngine engine(signatures);
-
-  std::cout << "Searching for pattern in file..." << std::endl;
-  auto startTime = std::chrono::high_resolution_clock::now();
-
-  auto result = engine.scanFile(fileName);
-
-  auto endTime = std::chrono::high_resolution_clock::now();
-  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
-
-  if (result) {
-    std::cout << "Pattern found: " << *result << std::endl;
-  } else {
-    std::cout << "Pattern not found" << std::endl;
-  }
-
-  std::cout << "Search completed in " << duration.count() << " ms" << std::endl;
-
-  // Clean up the file
-  // std::remove(fileName.c_str());
 
   return EXIT_SUCCESS;
 }
