@@ -3,10 +3,10 @@
 #include <set>
 #include <vector>
 
-#include "../AydoUserKernel/helpers/Utils.hpp"
-#include "../AydoUserKernel/KernelCommunication/Error.hpp"
-#include "../AydoUserKernel/KernelCommunication/FailureInfo.hpp"
-#include "../AydoUserKernel/KernelCommunication/KernelCommunication.hpp"
+#include "../AydoKernelRunner/helpers/Utils.hpp"
+#include "../AydoKernelRunner/KernelCommunication/Error.hpp"
+#include "../AydoKernelRunner/KernelCommunication/FailureInfo.hpp"
+#include "../AydoKernelRunner/KernelCommunication/KernelCommunication.hpp"
 
 int main(int argc, char *argv[]) {
   constexpr int FILE_ARG = 1;
@@ -35,12 +35,23 @@ int main(int argc, char *argv[]) {
   std::vector<FailureInfo> failures;
 
   for (DWORD pid : pids) {
-    // work but crash
-    if (km.sendRequest(RequestType::KillProcess, KillProcessData{pid}) == RespondType::crash) {
-      DWORD err = GetLastError();
-      std::wstring reason = std::format(L"DeviceIoControl failed with error: {} ", std::to_wstring(err));
+    auto [status, res] = km.sendRequest(RequestType::KillProcess, KillProcessData{pid});
+
+    if (status == ResponseStatus::failure) {
+      std::wstring reason = std::format(
+          L"DeviceIoControl failed. pid={}, winErr={}, driverStatus={}",
+          std::to_wstring(pid),
+          std::to_wstring(res.errorCode),
+          std::to_wstring(res.driverStatus));
       failures.emplace_back(pid, reason);
-      Utils::PrintError(L"[kernel] KillProcess request failed");
+      Utils::PrintError(reason);
+      continue;
+    }
+    if (res.terminatedPid != pid) {
+      std::wstring note = std::format(
+          L"Driver reported terminatedPid={}, requested pid={}",
+          std::to_wstring(res.terminatedPid),
+          std::to_wstring(pid));
     }
   }
 

@@ -14,12 +14,17 @@ enum class RequestType {
   KillProcess
 };
 
-enum class RespondType {
-  work,
-  crash,
+struct KillProcessResult {
+  DWORD terminatedPid{};
+  DWORD driverStatus{};
+  DWORD errorCode{};
+};
+
+enum class ResponseStatus {
+  success,
+  failure,
   invalidHandleVal,
   invalidRequestType
-
 };
 
 class KernelCommunication {
@@ -34,7 +39,7 @@ public:
   void shutdown();
 
   // Send a request to kernel
-  RespondType sendRequest(RequestType type, const std::variant<KillProcessData> &data) const;
+  std::pair<ResponseStatus, KillProcessResult> sendRequest(RequestType type, const std::variant<KillProcessData> &data) const;
 
 private:
   // Singleton enforcement

@@ -20,6 +20,7 @@ typedef PS_PROTECTION(NTAPI *PFN_PsGetProcessProtection)(PEPROCESS);
 
 static PFN_PsIsProcessCritical g_PsIsProcessCritical = nullptr;
 static PFN_PsGetProcessProtection g_PsGetProcessProtection = nullptr;
+// PID 0 = Idle Process(none exist process),PID 4 = System Process
 static const ULONG PIDS_TO_NOT_KILL[] = {0u, 4u};
 
 NTSTATUS Requests_HandleKill(ULONG pid) {

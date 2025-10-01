@@ -11,7 +11,7 @@ extern NTSTATUS EvtDeviceAddShim(WDFDRIVER drv, PWDFDEVICE_INIT init) {
 
 extern VOID DriverUnload(PDRIVER_OBJECT drv) {
   UNREFERENCED_PARAMETER(drv);
-  AYDO_INFO("DriverUnload\n");
+  AYDO_INFO("DriverUnload");
 }
 
 // Forward declarations
@@ -21,11 +21,12 @@ extern NTSTATUS DriverEntry(PDRIVER_OBJECT drv, PUNICODE_STRING reg) {
 
   NTSTATUS st = WdfDriverCreate(drv, reg, WDF_NO_OBJECT_ATTRIBUTES, &cfg, WDF_NO_HANDLE);
   if (!NT_SUCCESS(st)) {
-    AYDO_ERROR("WdfDriverCreate failed 0x%x\n", st);
+    AYDO_ERROR("WdfDriverCreate failed 0x%x", st);
+
     return st;
   }
 
   drv->DriverUnload = DriverUnload;
-  AYDO_INFO("DriverEntry OK\n");
+  AYDO_INFO("DriverEntry OK");
   return STATUS_SUCCESS;
 }
