@@ -62,4 +62,18 @@ public:
     return m_message.c_str();
   }
 };
+
+class InvalidHexPatternException : public std::exception {
+public:
+  [[nodiscard]] const char *what() const noexcept override {
+    return "Invalid hex pattern";
+  }
+};
+
+class SignatureNotFoundException : public std::exception {
+public:
+  [[nodiscard]] const char *what() const noexcept override {
+    return "Signature not found";
+  }
+};
 } // namespace Errors

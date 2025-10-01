@@ -1,9 +1,9 @@
 #pragma once
 
-#include "../ScanningEngine.hpp"
+#include "../IScanningEngine.hpp"
 #include "ACUtils.hpp"
 
-class ACScanningEngine : public ScanningEngine {
+class ACScanningEngine : public IScanningEngine {
 private:
   std::vector<ACUtils::PatternInfo> m_parsedPatterns;
   std::vector<std::vector<uint8_t>> m_allSegments;

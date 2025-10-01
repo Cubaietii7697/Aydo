@@ -12,6 +12,7 @@ EXTRACT_DATABASE_FILE_TO = "../data/file_signatures"
 SIGTOOL_PATH = os.path.expandvars("%USERPROFILE%\\Downloads\\clamav-1.4.3.win.x64\\clamav-1.4.3.win.x64\\sigtool.exe")
 DATABASE_FILE = "main.ndb"
 OUTPUT_FILE = "../data/file_signatures.json"
+SIGNATURE_WILDCARDS = ["*", "?", "|", "(", ")", "{", "}", "/"]
 
 
 def extract_database(database_file: str, output_path: str) -> None:
@@ -31,6 +32,9 @@ def extract_database(database_file: str, output_path: str) -> None:
     print(f"Database extracted successfully to {output_path}")
 
 
+def does_signature_contain_wildcard(signature: str) -> bool:
+    return any(wildcard in signature for wildcard in SIGNATURE_WILDCARDS)
+
 def parse_database(database_file: str, output_file_path: str) -> None:
     """Parse the database file and extract the signatures"""
     
@@ -40,7 +44,11 @@ def parse_database(database_file: str, output_file_path: str) -> None:
         print("Error: database file not found. Please extract it first using -e flag.")
         raise Exception("Database file not found")
     
-    signature_name_map = {}
+    signature_name_map = {
+        "simple": {},
+        "complex": {}
+    }
+
     
     with open(database_file, 'r') as f:
         lines = f.readlines()
@@ -50,7 +58,12 @@ def parse_database(database_file: str, output_file_path: str) -> None:
 
             signature = signature.strip() # Remove new line character from the end of the signature
 
-            signature_name_map[signature] = name
+            # Differentiate between simple and complex signatures
+            if does_signature_contain_wildcard(signature):
+                signature_name_map["complex"][signature] = name
+            else:
+                signature_name_map["simple"][signature] = name
+
 
     with open(output_file_path, 'w') as f:
         json.dump(signature_name_map, f)

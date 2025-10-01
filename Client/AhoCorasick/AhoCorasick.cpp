@@ -2,8 +2,9 @@
 
 #include <queue>
 
-AhoCorasick::AhoCorasick(const std::vector<std::vector<uint8_t>> &patterns)
-    : m_patterns(patterns) {
+AhoCorasick::AhoCorasick(const std::vector<std::vector<uint8_t>> &patterns, bool quitOnFirstMatch)
+    : m_patterns(patterns)
+    , m_quitOnFirstMatch(quitOnFirstMatch) {
   m_root = std::make_shared<ACNode>();
   _buildTrie();
   _buildFailureLinks();
@@ -98,6 +99,10 @@ std::vector<AhoCorasick::Match> AhoCorasick::search(const uint8_t *data, size_t 
     // Each pattern index represents a pattern that matches ending at position i
     for (const auto &pattern_idx : node->output) {
       matches.emplace_back(pattern_idx, i);
+
+      if (m_quitOnFirstMatch) {
+        return matches;
+      }
     }
   }
 
