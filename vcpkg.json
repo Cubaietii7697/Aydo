@@ -2,6 +2,7 @@
   "dependencies": [
     "botan",
     "nlohmann-json",
-    "sqlitecpp"
+    "sqlite-orm",
+    "sqlite3"
   ]
 }

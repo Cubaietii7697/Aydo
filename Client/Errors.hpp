@@ -76,4 +76,12 @@ public:
     return "Signature not found";
   }
 };
+
+
+class FailedToGetHashNameException : public std::exception {
+public:
+  [[nodiscard]] const char *what() const noexcept override {
+    return "Failed to get hash name";
+  }
+};
 } // namespace Errors

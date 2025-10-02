@@ -145,6 +145,7 @@
     <ClCompile Include="AhoCorasick\ACUtils.cpp" />
     <ClCompile Include="AhoCorasick\SCAScanningEngine.cpp" />
     <ClCompile Include="Client.cpp" />
+    <ClCompile Include="HashesDatabase.cpp" />
     <ClCompile Include="Regex\RScanningEngine.cpp" />
     <ClCompile Include="SignaturesDatabase.cpp" />
     <ClCompile Include="Utils.cpp" />
@@ -156,6 +157,7 @@
     <ClInclude Include="AhoCorasick\ACUtils.hpp" />
     <ClInclude Include="AhoCorasick\SCAScanningEngine.hpp" />
     <ClInclude Include="Errors.hpp" />
+    <ClInclude Include="HashesDatabase.hpp" />
     <ClInclude Include="IScanningEngine.hpp" />
     <ClInclude Include="jsonTypes.hpp" />
     <ClInclude Include="Regex\RScanningEngine.hpp" />
