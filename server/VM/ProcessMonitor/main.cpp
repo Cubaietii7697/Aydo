@@ -23,6 +23,8 @@ static std::string narrow(const std::wstring &w) {
 int wmain(int argc, wchar_t *argv[]) {
   const int FAILURE_VAL = 1;
   const int WAIT_TIME = 500;
+  const int TRACE_DURATION_MS = 60 * 1000; // 60 seconds
+
   if (argc != 2) {
     std::wcerr << "Usage: " << argv[0] << " <exefile>" << std::endl;
     return FAILURE_VAL;
@@ -31,8 +33,8 @@ int wmain(int argc, wchar_t *argv[]) {
   std::cout << "Starting ETW Monitor..." << std::endl;
 
   const auto targetExe = std::wstring(argv[1]);
-
   std::cout << "Looking for process: " << narrow(targetExe) << std::endl;
+
   std::set<DWORD> pids = processMonitor::FindPidByName(targetExe);
   if (pids.empty()) {
     std::wcerr << "Could not find process: " << targetExe << std::endl;
@@ -40,27 +42,23 @@ int wmain(int argc, wchar_t *argv[]) {
   }
 
   g_targetPids = pids;
-  std::cout << "Found " << pids.size() << narrow(targetExe)
-            << "'s processes:\n";
+  std::cout << "Found " << pids.size() << " process(es) for " << narrow(targetExe) << ":\n";
   for (DWORD pid : pids) {
     std::cout << "  PID: " << pid << std::endl;
     g_targetPids.insert(pid);
   }
-  // Use the standard kernel logger session name
+
   const std::wstring sessionName = L"NTKernelLogger";
   std::cout << "Using session name: " << narrow(sessionName) << std::endl;
 
   if (ULONG status = 0; !processMonitor::StartKernelSession(sessionName, status)) {
     std::wcerr << "[ERROR] StartKernelSession failed: " << status << std::endl;
-    std::cout << "Press Enter to exit..." << std::endl;
-    std::wstring dummy;
-    std::getline(std::wcin, dummy);
     return FAILURE_VAL;
   }
 
   std::cout << "Kernel session started successfully!" << std::endl;
 
-  // Start worker thread
+  // Worker thread
   std::atomic<bool> workerStarted{false};
   std::atomic<bool> workerResult{false};
 
@@ -81,32 +79,21 @@ int wmain(int argc, wchar_t *argv[]) {
     std::cout << "Worker thread started successfully!" << std::endl;
   }
 
-  std::cout << std::endl
-            << "=== ETW Monitor Active ===" << std::endl;
-  std::cout << "Monitoring PIDs: [ ";
+  std::cout << "=== ETW Monitor Active ===" << std::endl;
+  std::cout << "Monitoring PIDs: ";
   for (DWORD pid : pids) {
-    std::cout << "  PID: " << pid << std::endl;
-    g_targetPids.insert(pid);
+    std::cout << pid << " ";
   }
-  std::cout << "] (" << narrow(targetExe) << ")" << std::endl;
-  std::cout << "You should see events within 15 seconds..." << std::endl;
-  std::cout << "If you don't see any events, try:" << std::endl;
-  std::cout << "1. Run as Administrator" << std::endl;
-  std::cout << "2. Try with notepad.exe instead" << std::endl;
-  std::cout << "3. Create some activity in the target process" << std::endl;
-  std::cout << std::endl
-            << "Press Enter to stop monitoring..." << std::endl;
+  std::cout << "(" << narrow(targetExe) << ")" << std::endl;
 
-  std::wstring dummy;
-  std::getline(std::wcin, dummy);
+  std::cout << "Tracing for 60 seconds..." << std::endl;
+  Sleep(TRACE_DURATION_MS);
 
   std::cout << "Stopping trace..." << std::endl;
 
-  // Stop tracing
   if (g_hTrace != 0 && g_hTrace != INVALID_PROCESSTRACE_HANDLE) {
-    std::cout << "Closing trace handle..." << std::endl;
-    if (ULONG closeStatus = CloseTrace(g_hTrace); closeStatus != ERROR_SUCCESS &&
-                                                  closeStatus != ERROR_CTX_CLOSE_PENDING) {
+    if (ULONG closeStatus = CloseTrace(g_hTrace);
+        closeStatus != ERROR_SUCCESS && closeStatus != ERROR_CTX_CLOSE_PENDING) {
       std::wcerr << "CloseTrace failed: " << closeStatus << std::endl;
     } else {
       std::cout << "Trace handle closed successfully" << std::endl;
@@ -120,9 +107,8 @@ int wmain(int argc, wchar_t *argv[]) {
   if (worker.joinable())
     worker.join();
 
-  if (workerResult != 0) {
-    std::wcerr << "Worker reported failure (code=" << (int)workerResult.load()
-               << std::endl;
+  if (!workerResult) {
+    std::wcerr << "Worker reported failure" << std::endl;
   } else {
     std::cout << "Worker completed successfully" << std::endl;
   }
