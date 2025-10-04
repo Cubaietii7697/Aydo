@@ -15,7 +15,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "client", "client", "{728B5C
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "AydoKernelDriver", "Aydoclient\AydoKernelDriver\AydoKernelDriver.vcxproj", "{EF0F76E0-4601-9625-A830-176F7E4D3D8C}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "AydoKernelRunner", "Aydoclient\AydoKernelRunner\AydoKernelRunner.vcxproj", "{364EE06F-19BE-4202-B917-F783A0E54248}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "AydoService", "Aydoclient\AydoService\AydoService.vcxproj", "{364EE06F-19BE-4202-B917-F783A0E54248}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

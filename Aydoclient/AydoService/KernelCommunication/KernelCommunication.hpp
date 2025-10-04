@@ -2,6 +2,7 @@
 
 #include <Windows.h>
 
+#include <memory>
 #include <string>
 #include <variant>
 
@@ -14,10 +15,14 @@ enum class RequestType {
   KillProcess
 };
 
-struct KillProcessResult {
+struct ResultData {
+  DWORD errorCode{};
+  virtual ~ResultData() = default;
+};
+
+struct KillProcessResult : ResultData {
   DWORD terminatedPid{};
   DWORD driverStatus{};
-  DWORD errorCode{};
 };
 
 enum class ResponseStatus {
@@ -39,7 +44,9 @@ public:
   void shutdown();
 
   // Send a request to kernel
-  std::pair<ResponseStatus, KillProcessResult> sendRequest(RequestType type, const std::variant<KillProcessData> &data) const;
+  std::pair<ResponseStatus, std::unique_ptr<ResultData>>
+  sendRequest(const RequestType &type,
+              const std::variant<KillProcessData> &data) const;
 
 private:
   // Singleton enforcement

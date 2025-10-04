@@ -21,6 +21,7 @@ bool KernelCommunication::initKernel(const std::wstring &deviceName) {
   if (m_hDev != INVALID_HANDLE_VALUE) {
     return true;
   }
+
   m_hDev = CreateFileW(deviceName.c_str(),
                        GENERIC_READ | GENERIC_WRITE,
                        FILE_SHARE_READ | FILE_SHARE_WRITE,
@@ -28,6 +29,7 @@ bool KernelCommunication::initKernel(const std::wstring &deviceName) {
                        OPEN_EXISTING,
                        FILE_ATTRIBUTE_NORMAL,
                        nullptr);
+
   return m_hDev != INVALID_HANDLE_VALUE;
 }
 
@@ -37,45 +39,50 @@ void KernelCommunication::shutdown() {
     m_hDev = INVALID_HANDLE_VALUE;
   }
 }
-std::pair<ResponseStatus, KillProcessResult>
-KernelCommunication::sendRequest(RequestType type,
+
+std::pair<ResponseStatus, std::unique_ptr<ResultData>>
+KernelCommunication::sendRequest(const RequestType &type,
                                  const std::variant<KillProcessData> &data) const {
-  KillProcessResult result{};
+  std::unique_ptr<ResultData> result;
   DWORD bytesReturned = 0;
   ResponseStatus status = ResponseStatus::invalidHandleVal;
 
   if (m_hDev == INVALID_HANDLE_VALUE) {
-    result.errorCode = ERROR_INVALID_HANDLE;
-    return {status, result};
+    auto base = std::make_unique<ResultData>();
+    base->errorCode = ERROR_INVALID_HANDLE;
+    return {ResponseStatus::invalidHandleVal, std::move(base)};
   }
 
   switch (type) {
   case RequestType::KillProcess: {
+    auto killRes = std::make_unique<KillProcessResult>();
     const auto &payload = std::get<KillProcessData>(data);
 
-    if (BOOL success = DeviceIoControl(
-            m_hDev,
-            IOCTL_KILL_PROCESS,
-            (LPVOID)&payload.pid, sizeof(DWORD),
-            &result, sizeof(result),
-            &bytesReturned,
-            nullptr);
-        success) {
+    if (DeviceIoControl(m_hDev,
+                        IOCTL_KILL_PROCESS,
+                        (LPVOID)&payload.pid, sizeof(DWORD),
+                        killRes.get(), sizeof(KillProcessResult),
+                        &bytesReturned,
+                        nullptr)) {
       status = ResponseStatus::success;
-      result.errorCode = ERROR_SUCCESS;
-
+      killRes->errorCode = ERROR_SUCCESS;
     } else {
       status = ResponseStatus::failure;
-      result.errorCode = GetLastError();
+      killRes->errorCode = GetLastError();
     }
+
+    result = std::move(killRes);
     break;
   }
 
-  default:
+  default: {
+    auto base = std::make_unique<ResultData>();
     status = ResponseStatus::invalidRequestType;
-    result.errorCode = ERROR_INVALID_FUNCTION;
+    base->errorCode = ERROR_INVALID_FUNCTION;
+    result = std::move(base);
     break;
   }
+  }
 
-  return {status, result};
+  return {status, std::move(result)};
 }

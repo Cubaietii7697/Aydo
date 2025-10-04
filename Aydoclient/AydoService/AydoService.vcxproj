@@ -27,7 +27,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="helpers\Utils.cpp" />
-    <ClCompile Include="KernelRunner.cpp" />
+    <ClCompile Include="AydoService.cpp" />
     <ClCompile Include="KernelCommunication\KernelCommunication.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
@@ -36,7 +36,7 @@
     <ProjectGuid>{364ee06f-19be-4202-b917-f783a0e54248}</ProjectGuid>
     <RootNamespace>client</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
-    <ProjectName>AydoKernelRunner</ProjectName>
+    <ProjectName>AydoService</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
