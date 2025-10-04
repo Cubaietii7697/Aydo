@@ -461,10 +461,10 @@ void processMonitor::PrintEventDetailed(PEVENT_RECORD pEvent) {
                                   ? (PWSTR)((PBYTE)pInfo + prop.NameOffset)
                                   : L"<prop>";
       std::wstring val = FormatProperty(pInfo, pEvent, i);
-      Logger::Info(std::format(L"    {} = {}", propName, val));
+      Logger::Info(std::format(L"\t{} = {}", propName, val));
     }
   } else {
-    Logger::Info(L"    (no properties)");
+    Logger::Info(L"\t(no properties)");
   }
 
   if (pInfo)
