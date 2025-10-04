@@ -9,6 +9,8 @@
 #include <tdh.h>
 #include <TlHelp32.h>
 
+#include "logger.hpp"
+
 extern "C" const GUID KERNEL_LOGGER_GUID;
 
 static const GUID GUID_KERNEL_FILE = {0xEDD08927, 0x9CC4, 0x4E65, {0xB9, 0x70, 0xC2, 0x56, 0x0F, 0xB5, 0xC2, 0x89}};

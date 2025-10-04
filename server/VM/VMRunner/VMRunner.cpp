@@ -4,12 +4,14 @@ int main(int argc, char *argv[]) {
   // We expect args to be: <executable path> <sandbox_id>.
   // argv[0] is the executable path.
   // argv[1] is the sandbox id.
-  if (argc < 2) {
-    std::cerr << "Usage: " << argv[0] << " <sandbox_id>" << std::endl;
+  // argv[2] is the time for ETW
+  if (argc < 2 || argc > 3) {
+    std::cerr << "Usage: " << argv[0] << " <sandbox_id> [runTime]" << std::endl;
     return EXIT_FAILURE;
   }
 
   std::string sandboxId(argv[1]);
+  const int time = (argc == 3) ? atoi(argv[2]) : 0;
 
   Utills::printBanner();
 
@@ -22,9 +24,8 @@ int main(int argc, char *argv[]) {
                                               sandboxId,
                                               sandboxId);
 
-  const std::string vmRunCommand = std::format("{}{} clone {} {} linked -cloneName={}",
+  const std::string vmRunCommand = std::format("{} clone {} {} linked -cloneName={}",
                                                vmRunPath,
-                                               " ",
                                                analysisVmPath,
                                                sandboxPath,
                                                sandboxId);
@@ -37,7 +38,6 @@ int main(int argc, char *argv[]) {
                                                        HOST_FOLDER_PATH);
   Utills::executeAndWait(vmRunCommandAddShare);
 
-  // Enable shared folders
   std::string vmRunCommandEnableShare = std::format("{} enableSharedFolders {}",
                                                     vmRunPath,
                                                     sandboxPath);
@@ -49,7 +49,7 @@ int main(int argc, char *argv[]) {
   Utills::executeAndWait(vmRunCommand2);
 
   std::cout << "Waiting for VMware Tools..." << std::endl;
-  if (!Utills::waitForTools(std::string(VM_RUN_PATH), sandboxPath)) {
+  if (!Utills::waitForTools(vmRunPath, sandboxPath)) {
     std::cerr << "VMware Tools did not start in time. Aborting." << std::endl;
     return EXIT_FAILURE;
   }
@@ -62,18 +62,20 @@ int main(int argc, char *argv[]) {
       sandboxPath,
       PM_FILE_PATH,
       PM_FILE_PATH_GUEST);
-
   Utills::executeAndWait(copyCmd);
 
   std::string runCmd = std::format(
-      R"("{}" -T ws -gu {} -gp {} runProgramInGuest "{}" -activeWindow -interactive "{}" "{}")",
+      R"("{}" -T ws -gu {} -gp {} runProgramInGuest "{}" -activeWindow -interactive "{}" "{}" "{}")",
       VM_RUN_PATH,
       GUEST_USER,
       GUEST_PASS,
       sandboxPath,
       PM_FILE_PATH_GUEST,
-      SUSPICIOUS_FILE_PATH);
-
+      SUSPICIOUS_FILE_PATH,
+      SHARE_FILE_NAME);
+  if (time) {
+    runCmd = std::format("{} {}", runCmd, time);
+  }
   Utills::executeAndWait(runCmd);
 
   std::string runCmdPlot = std::format(
@@ -83,7 +85,6 @@ int main(int argc, char *argv[]) {
       GUEST_PASS,
       sandboxPath,
       SUSPICIOUS_FILE_PATH);
-
   Utills::executeAndWait(runCmdPlot);
 
   Utills::printBanner(true);

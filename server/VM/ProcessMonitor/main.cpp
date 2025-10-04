@@ -2,117 +2,123 @@
 
 #include <atomic>
 #include <evntrace.h>
+#include <fstream>
 #include <iostream>
+#include <set>
 #include <string>
 #include <thread>
 
+#include "logger.hpp"
 #include "processMonitor.hpp"
 
 static std::string narrow(const std::wstring &w) {
   if (w.empty())
     return {};
-
   int size_needed = WideCharToMultiByte(CP_UTF8, 0, w.c_str(), (int)w.size(),
                                         nullptr, 0, nullptr, nullptr);
   std::string str(size_needed, 0);
-  WideCharToMultiByte(CP_UTF8, 0, w.c_str(), (int)w.size(), &str[0],
-                      size_needed, nullptr, nullptr);
+  WideCharToMultiByte(CP_UTF8, 0, w.c_str(), (int)w.size(),
+                      &str[0], size_needed, nullptr, nullptr);
   return str;
 }
 
 int wmain(int argc, wchar_t *argv[]) {
-  const int FAILURE_VAL = 1;
-  const int WAIT_TIME = 500;
-  const int TRACE_DURATION_MS = 60 * 1000; // 60 seconds
-
-  if (argc != 2) {
-    std::wcerr << "Usage: " << argv[0] << " <exefile>" << std::endl;
-    return FAILURE_VAL;
+  if (argc < 3 || argc > 4) {
+    std::wcerr << L"Usage: " << argv[0] << L" <exefile> <logFile> [TraceTime]" << std::endl;
+    return EXIT_FAILURE;
   }
 
-  std::cout << "Starting ETW Monitor..." << std::endl;
+  const int WAIT_TIME = 500;
+  const int TRACE_DURATION_MS = (argc == 4) ? _wtoi(argv[3]) : 60 * 1000;
+  const std::wstring targetExe = argv[1];
 
-  const auto targetExe = std::wstring(argv[1]);
-  std::cout << "Looking for process: " << narrow(targetExe) << std::endl;
+  try {
+    Logger::Init(argv[2]);
+  } catch (const std::exception &e) {
+    std::wcerr << e.what() << std::endl;
+    return EXIT_FAILURE;
+  }
+
+  Logger::Info(L"Starting ETW Monitor...");
+  Logger::Info(L"Looking for process: " + targetExe);
 
   std::set<DWORD> pids = processMonitor::FindPidByName(targetExe);
   if (pids.empty()) {
-    std::wcerr << "Could not find process: " << targetExe << std::endl;
-    return FAILURE_VAL;
+    Logger::Error(L"Could not find process: " + targetExe);
+    return EXIT_FAILURE;
   }
 
   g_targetPids = pids;
-  std::cout << "Found " << pids.size() << " process(es) for " << narrow(targetExe) << ":\n";
+  Logger::Info(std::format(L"Found {} process(es) for {}", std::to_wstring(pids.size()), targetExe));
   for (DWORD pid : pids) {
-    std::cout << "  PID: " << pid << std::endl;
-    g_targetPids.insert(pid);
+    Logger::Info(std::format(L"  PID: {}", std::to_wstring(pid)));
   }
 
   const std::wstring sessionName = L"NTKernelLogger";
-  std::cout << "Using session name: " << narrow(sessionName) << std::endl;
+  Logger::Info(L"Using session name: " + sessionName);
 
   if (ULONG status = 0; !processMonitor::StartKernelSession(sessionName, status)) {
-    std::wcerr << "[ERROR] StartKernelSession failed: " << status << std::endl;
-    return FAILURE_VAL;
+    Logger::Error(std::format(L"StartKernelSession failed: {}", std::to_wstring(status)));
+    return EXIT_FAILURE;
   }
 
-  std::cout << "Kernel session started successfully!" << std::endl;
+  Logger::Info(L"Kernel session started successfully!");
 
-  // Worker thread
   std::atomic<bool> workerStarted{false};
   std::atomic<bool> workerResult{false};
 
-  std::cout << "Starting worker thread..." << std::endl;
+  Logger::Info(L"Starting worker thread...");
   std::jthread worker([&sessionName, &workerStarted, &workerResult]() {
-    std::cout << "[WORKER] Thread started" << std::endl;
+    Logger::Info(L"[WORKER] Thread started");
     workerStarted = true;
     workerResult = processMonitor::OpenAndProcessRealTime(sessionName);
-    std::cout << "[WORKER] Thread finished with result: "
-              << (workerResult ? "SUCCESS" : "FAILURE") << std::endl;
+    Logger::Info(L"[WORKER] Thread finished with result: " +
+                 std::wstring(workerResult ? L"SUCCESS" : L"FAILURE"));
   });
 
   Sleep(WAIT_TIME);
 
   if (!workerStarted) {
-    std::wcerr << "Worker thread did not start properly." << std::endl;
+    Logger::Error(L"Worker thread did not start properly.");
   } else {
-    std::cout << "Worker thread started successfully!" << std::endl;
+    Logger::Info(L"Worker thread started successfully!");
   }
 
-  std::cout << "=== ETW Monitor Active ===" << std::endl;
-  std::cout << "Monitoring PIDs: ";
+  Logger::Info(L"=== ETW Monitor Active ===");
+  std::wstring pidList;
   for (DWORD pid : pids) {
-    std::cout << pid << " ";
+    pidList = std::format(L"{} {} ", pidList, std::to_wstring(pid));
   }
-  std::cout << "(" << narrow(targetExe) << ")" << std::endl;
+  Logger::Info(L"Monitoring PIDs: " + pidList + L"(" + targetExe + L")");
 
-  std::cout << "Tracing for 60 seconds..." << std::endl;
+  Logger::Info(std::format(L"Tracing for {}  seconds... ", std::to_wstring(TRACE_DURATION_MS / 1000)));
   Sleep(TRACE_DURATION_MS);
 
-  std::cout << "Stopping trace..." << std::endl;
+  Logger::Info(L"Stopping trace...");
 
   if (g_hTrace != 0 && g_hTrace != INVALID_PROCESSTRACE_HANDLE) {
     if (ULONG closeStatus = CloseTrace(g_hTrace);
         closeStatus != ERROR_SUCCESS && closeStatus != ERROR_CTX_CLOSE_PENDING) {
-      std::wcerr << "CloseTrace failed: " << closeStatus << std::endl;
+      Logger::Error(std::format(L"CloseTrace failed: {}", std::to_wstring(closeStatus)));
     } else {
-      std::cout << "Trace handle closed successfully" << std::endl;
+      Logger::Info(L"Trace handle closed successfully");
     }
     g_hTrace = 0;
   }
 
   processMonitor::StopKernelSession(sessionName);
 
-  std::cout << "Waiting for worker thread to finish..." << std::endl;
+  Logger::Info(L"Waiting for worker thread to finish...");
   if (worker.joinable())
     worker.join();
 
   if (!workerResult) {
-    std::wcerr << "Worker reported failure" << std::endl;
+    Logger::Error(L"Worker reported failure");
   } else {
-    std::cout << "Worker completed successfully" << std::endl;
+    Logger::Info(L"Worker completed successfully");
   }
 
-  std::cout << "Shutdown complete." << std::endl;
-  return 0;
+  Logger::Info(L"Shutdown complete.");
+  Logger::Shutdown();
+  return EXIT_SUCCESS;
 }

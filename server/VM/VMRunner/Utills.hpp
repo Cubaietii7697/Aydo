@@ -10,11 +10,11 @@
 #include "Constants.hpp"
 
 namespace Utills {
-static void printBanner(bool isClosing = false);
-static void executeAndWait(const std::string &command);
+void printBanner(bool isClosing = false);
+void executeAndWait(const std::string &command);
 
-static bool waitForTools(const std::string &vmRunPath,
-                         const std::string &sandboxPath,
-                         int maxRetries = 60,
-                         int sleepMs = 5000);
+bool waitForTools(const std::string &vmRunPath,
+                  const std::string &sandboxPath,
+                  int maxRetries = 60,
+                  int sleepMs = 5000);
 } // namespace Utills

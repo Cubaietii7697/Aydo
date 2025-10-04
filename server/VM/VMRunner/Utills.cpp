@@ -1,6 +1,8 @@
 #include "Utills.hpp"
 
-static void Utills::printBanner(bool isClosing = false) {
+namespace Utills {
+
+void printBanner(bool isClosing) {
   std::string bannerStr(BANNER);
   std::vector<std::string> lines;
   std::stringstream ss(bannerStr);
@@ -34,7 +36,7 @@ static void Utills::printBanner(bool isClosing = false) {
   }
 }
 
-static void Utills::executeAndWait(const std::string &command) {
+void executeAndWait(const std::string &command) {
   STARTUPINFOA si = {sizeof(STARTUPINFOA)};
   PROCESS_INFORMATION pi;
 
@@ -61,10 +63,10 @@ static void Utills::executeAndWait(const std::string &command) {
   }
 }
 
-static bool Utills::waitForTools(const std::string &vmRunPath,
-                                 const std::string &sandboxPath,
-                                 int maxRetries = 60,
-                                 int sleepMs = 5000) {
+bool waitForTools(const std::string &vmRunPath,
+                  const std::string &sandboxPath,
+                  int maxRetries,
+                  int sleepMs) {
   for (int i = 0; i < maxRetries; i++) {
     STARTUPINFOA si = {sizeof(STARTUPINFOA)};
     PROCESS_INFORMATION pi;
@@ -75,11 +77,10 @@ static bool Utills::waitForTools(const std::string &vmRunPath,
     CreatePipe(&hRead, &hWrite, &sa, 0);
     SetHandleInformation(hRead, HANDLE_FLAG_INHERIT, 0);
 
-    std::string cmd = std::format(R"("{}" checkToolsState "{}")",
-                                  vmRunPath,
-                                  sandboxPath);
-
-    if (CreateProcessA(nullptr, cmd.data(), nullptr, nullptr, TRUE,
+    if (std::string cmd = std::format(R"("{}" checkToolsState "{}")",
+                                      vmRunPath,
+                                      sandboxPath);
+        CreateProcessA(nullptr, cmd.data(), nullptr, nullptr, TRUE,
                        CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi)) {
       CloseHandle(hWrite);
       char buffer[256];
@@ -103,3 +104,4 @@ static bool Utills::waitForTools(const std::string &vmRunPath,
   }
   return false;
 }
+} // namespace Utills
