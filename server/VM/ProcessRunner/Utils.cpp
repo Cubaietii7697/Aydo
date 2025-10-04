@@ -1,13 +1,20 @@
 #include "Utils.hpp"
 
 #include <filesystem>
+#include <vector>
 
 bool Utils::doesFileExist(const std::string &path) {
   return std::filesystem::exists(path);
 }
 
-std::string Utils::createCmdLine(const std::string &program, const std::string &arguments) {
-  return program + " " + arguments;
+std::string Utils::vectorStringToString(const std::vector<std::string> &vector, const std::string &separator) {
+  std::string result;
+
+  for (const auto &str : vector) {
+    result += str + separator;
+  }
+
+  return result;
 }
 
 bool Utils::injectDll(HANDLE hProcess, const std::string &dllPath) {
@@ -55,4 +62,26 @@ bool Utils::injectDll(HANDLE hProcess, const std::string &dllPath) {
   CloseHandle(hThread);
 
   return true;
+}
+
+bool Utils::createSuspendedProcess(const std::string &cmdLine,
+                                   const std::string &workingDirectory,
+                                   STARTUPINFOA &startupInfo,
+                                   PROCESS_INFORMATION &processInfo) {
+  std::vector<char> mutableCmdLine(cmdLine.begin(), cmdLine.end());
+  mutableCmdLine.push_back('\0');
+
+  bool success = CreateProcessA(
+                     nullptr,
+                     mutableCmdLine.data(),
+                     nullptr,
+                     nullptr,
+                     FALSE,
+                     CREATE_SUSPENDED,
+                     nullptr,
+                     workingDirectory.c_str(),
+                     &startupInfo,
+                     &processInfo) != 0;
+
+  return success;
 }

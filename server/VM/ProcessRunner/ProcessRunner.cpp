@@ -2,14 +2,15 @@
 
 #include <chrono>
 #include <iostream>
+#include <string>
 #include <string_view>
 #include <thread>
+#include <vector>
 #include <winnt.h>
 
 #include "Utils.hpp"
 
 constexpr std::string_view DEFAULT_WORKING_DIRECTORY = ".";
-constexpr std::string_view DEFAULT_ARGUMENTS;
 constexpr unsigned int CHECK_INTERVAL_MS = 250;
 
 int main(int argc, char *argv[]) {
@@ -28,19 +29,22 @@ int main(int argc, char *argv[]) {
   std::string program(argv[1]);
   std::string dllToInject(argv[2]);
   std::string workingDirectory{DEFAULT_WORKING_DIRECTORY};
-  std::string arguments{DEFAULT_ARGUMENTS};
+  std::vector<std::string> arguments;
+  if (argc > 4) {
+    arguments.reserve(static_cast<std::size_t>(argc - 4));
+  }
 
   if (argc > 3) {
     workingDirectory = argv[3];
   }
 
   if (argc > 4) {
-    for (int i = 4; i < argc; i++) {
-      arguments = std::format("{} {}", arguments, argv[i]);
-    }
+    arguments.assign(argv + 4, argv + argc);
   }
 
-  std::cout << "Executing `" << program << "` in `" << workingDirectory << "` with arguments `" << arguments << "`" << std::endl;
+  std::string argumentsString = Utils::vectorStringToString(arguments, " ");
+
+  std::cout << "Executing `" << program << "` in `" << workingDirectory << "` with arguments `" << argumentsString << "`" << std::endl;
 
   // Wait until the program file exists
   std::cout << "Waiting for program to exist..." << std::endl;
@@ -58,19 +62,9 @@ int main(int argc, char *argv[]) {
   startupInfo.cb = sizeof(startupInfo);
   ZeroMemory(&processInfo, sizeof(processInfo));
 
-  std::string cmdLine = Utils::createCmdLine(program, arguments);
+  std::string cmdLine = program + " " + argumentsString;
 
-  if (!CreateProcessA(
-          nullptr,
-          const_cast<char *>(cmdLine.c_str()),
-          nullptr,
-          nullptr,
-          FALSE,
-          CREATE_SUSPENDED,
-          nullptr,
-          workingDirectory.c_str(),
-          &startupInfo,
-          &processInfo)) {
+  if (!Utils::createSuspendedProcess(cmdLine, workingDirectory, startupInfo, processInfo)) {
     std::cerr << "CreateProcess failed: " << GetLastError() << std::endl;
 
     return EXIT_FAILURE;
