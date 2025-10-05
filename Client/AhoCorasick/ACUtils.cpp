@@ -10,9 +10,9 @@
 #include "../Errors.hpp"
 #include "AhoCorasick.hpp"
 
-std::string ACUtils::constraintToString(const Constraint& constraint) {
+std::string ACUtils::constraintToString(const Constraint &constraint) {
   switch (constraint) {
-  case Constraint::ANY_BYTE:
+  case Constraint::ONE_BYTE:
     return "??";
   case Constraint::ANY_AMOUNT_OF_BYTES:
     return "*";
@@ -28,13 +28,13 @@ ACUtils::PatternInfo ACUtils::parsePattern(const std::string &patternStr) {
   while (pos < patternStr.length()) {
     // Look for the next constraint
     size_t constraintPos = std::string::npos;
-    Constraint constraintType = Constraint::ANY_BYTE; // ! Placeholder, will be set later
+    Constraint constraintType = Constraint::ONE_BYTE; // ! Placeholder, will be set later
 
     // Check for ?? constraint
-    size_t anyBytePos = patternStr.find(constraintToString(Constraint::ANY_BYTE), pos);
+    size_t anyBytePos = patternStr.find(constraintToString(Constraint::ONE_BYTE), pos);
     if (anyBytePos != std::string::npos) {
       constraintPos = anyBytePos;
-      constraintType = Constraint::ANY_BYTE;
+      constraintType = Constraint::ONE_BYTE;
     }
 
     // Check for * constraint
@@ -85,6 +85,23 @@ ACUtils::PatternInfo ACUtils::parsePattern(const std::string &patternStr) {
   return patternInfo;
 }
 
+// Helper: process Aho-Corasick matches and record start positions with base offset
+void ACUtils::processMatchesAndRecordPositions(
+    const std::vector<std::pair<size_t, size_t>> &matches,
+    const std::vector<std::vector<uint8_t>> &allSegments,
+    size_t baseOffset,
+    SegmentPositions &segmentPositions) {
+  for (const auto &match : matches) {
+    size_t patternIndex = match.first;
+    size_t matchEndPos = match.second;
+
+    const auto &segment = allSegments[patternIndex];
+    size_t startPos = baseOffset + matchEndPos - segment.size();
+
+    segmentPositions[segment].push_back(startPos);
+  }
+}
+
 ACUtils::SegmentPositions ACUtils::findSegmentPositionsInFile(const std::string &filePath, const std::vector<std::vector<uint8_t>> &allSegments, size_t chunkSize) {
   SegmentPositions segmentPositions;
 
@@ -121,18 +138,8 @@ ACUtils::SegmentPositions ACUtils::findSegmentPositionsInFile(const std::string 
     // Search for all patterns in the current chunk using Aho Corasick
     auto matches = ac.search(fileContent.data(), bytesRead);
 
-    // Process all matches found in this chunk
-    for (const auto &match : matches) {
-      size_t patternIndex = match.first; // Index of the matched pattern
-      size_t matchEndPos = match.second; // End position of the match within the chunk
-
-      // Get the actual segment bytes and calculate its start position in the file
-      const auto &segment = allSegments[patternIndex];
-      size_t startPos = filePos + matchEndPos - segment.size();
-
-      // Record the match position for this segment
-      segmentPositions[segment].push_back(startPos);
-    }
+    // Process all matches found in this chunk using helper
+    processMatchesAndRecordPositions(matches, allSegments, filePos, segmentPositions);
 
     if (bytesRead == chunkSize) {
       // Calculate next read position with overlap to catch patterns spanning chunks
@@ -160,18 +167,7 @@ ACUtils::SegmentPositions ACUtils::findSegmentPositionsInMemory(const std::vecto
   AhoCorasick ac(allSegments);
 
   auto matches = ac.search(data);
-
-  for (const auto &match : matches) {
-    size_t patternIndex = match.first; // Index of the matched pattern
-    size_t matchEndPos = match.second; // End position of the match within the chunk
-
-    // Get the actual segment bytes and calculate its start position
-    const auto &segment = allSegments[patternIndex];
-    size_t startPos = matchEndPos - segment.size();
-
-    // Record the match position for this segment
-    segmentPositions[segment].push_back(startPos);
-  }
+  processMatchesAndRecordPositions(matches, allSegments, 0, segmentPositions);
 
   return segmentPositions;
 }
@@ -188,7 +184,7 @@ bool ACUtils::checkConstraintSatisfaction(
   const auto &nextPositions = segmentPositions.at(nextSegment);
 
   // Find the constraint type between current and next segment
-  Constraint constraintType = Constraint::ANY_BYTE;
+  Constraint constraintType = Constraint::ONE_BYTE;
   bool wasConstraintFound = false;
   for (const auto &constraint : constraints) {
     if (std::get<0>(constraint) == currentSegmentIdx && std::get<1>(constraint) == currentSegmentIdx + 1) {
@@ -216,9 +212,9 @@ bool ACUtils::checkConstraintSatisfaction(
         size_t gap = nextPos - currentSegmentEnd;
 
         // Check constraint conditions:
-        // - ANY_BYTE (??): requires exactly 1 byte gap
+        // - ONE_BYTE (??): requires exactly 1 byte gap
         // - ANY_AMOUNT_OF_BYTES (*): requires at least 0 byte gap
-        if (constraintType == Constraint::ANY_BYTE) {
+        if (constraintType == Constraint::ONE_BYTE) {
           return gap == 1 && checkChain(currentSegmentIdx + 1, nextPos);
         } else if (constraintType == Constraint::ANY_AMOUNT_OF_BYTES) {
           return checkChain(currentSegmentIdx + 1, nextPos);

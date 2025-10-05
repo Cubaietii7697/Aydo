@@ -4,10 +4,11 @@
 #include <map>
 #include <string>
 #include <vector>
+#include <utility>
 
 namespace ACUtils {
 enum class Constraint : char {
-  ANY_BYTE = '?',
+  ONE_BYTE = '?',
   ANY_AMOUNT_OF_BYTES = '*'
 };
 
@@ -31,6 +32,13 @@ PatternInfo parsePattern(const std::string &patternStr);
 
 SegmentPositions findSegmentPositionsInFile(const std::string &filePath, const std::vector<std::vector<uint8_t>> &allSegments, size_t chunkSize);
 SegmentPositions findSegmentPositionsInMemory(const std::vector<uint8_t> &data, const std::vector<std::vector<uint8_t>> &allSegments);
+
+// Helper: process Aho-Corasick matches and record start positions, with optional base offset
+void processMatchesAndRecordPositions(
+    const std::vector<std::pair<size_t, size_t>> &matches,
+    const std::vector<std::vector<uint8_t>> &allSegments,
+    size_t baseOffset,
+    SegmentPositions &segmentPositions);
 
 bool verifyPatternConstraints(const std::vector<std::vector<uint8_t>> &segments, const std::vector<std::tuple<size_t, size_t, Constraint>> &constraints, const SegmentPositions &segmentPositions);
 bool checkConstraintSatisfaction(
