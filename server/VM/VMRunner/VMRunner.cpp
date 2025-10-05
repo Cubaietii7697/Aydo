@@ -7,6 +7,7 @@ int main(int argc, char *argv[]) {
   // argv[2] is the time for ETW
   if (argc < 2 || argc > 3) {
     std::cerr << "Usage: " << argv[0] << " <sandbox_id> [runTime]" << std::endl;
+
     return EXIT_FAILURE;
   }
 
@@ -51,6 +52,7 @@ int main(int argc, char *argv[]) {
   std::cout << "Waiting for VMware Tools..." << std::endl;
   if (!Utills::waitForTools(vmRunPath, sandboxPath)) {
     std::cerr << "VMware Tools did not start in time. Aborting." << std::endl;
+
     return EXIT_FAILURE;
   }
 

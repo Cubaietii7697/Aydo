@@ -136,6 +136,7 @@
     <ClCompile Include="ProcessMonitor.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="constants.hpp" />
     <ClInclude Include="logger.hpp" />
     <ClInclude Include="ProcessMonitor.hpp" />
   </ItemGroup>

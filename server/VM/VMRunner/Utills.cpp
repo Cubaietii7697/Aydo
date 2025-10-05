@@ -83,7 +83,7 @@ bool waitForTools(const std::string &vmRunPath,
         CreateProcessA(nullptr, cmd.data(), nullptr, nullptr, TRUE,
                        CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi)) {
       CloseHandle(hWrite);
-      char buffer[256];
+      char buffer[SIZE];
       DWORD bytesRead;
       std::string output;
 

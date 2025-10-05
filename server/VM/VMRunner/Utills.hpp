@@ -17,4 +17,7 @@ bool waitForTools(const std::string &vmRunPath,
                   const std::string &sandboxPath,
                   int maxRetries = 60,
                   int sleepMs = 5000);
+
+const int SIZE = 256;
+
 } // namespace Utills

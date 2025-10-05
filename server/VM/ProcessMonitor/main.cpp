@@ -8,6 +8,7 @@
 #include <string>
 #include <thread>
 
+#include "constants.hpp"
 #include "logger.hpp"
 #include "processMonitor.hpp"
 
@@ -27,17 +28,14 @@ int wmain(int argc, wchar_t *argv[]) {
     std::wcerr << L"Usage: " << argv[0] << L" <exefile> <logFile> [TraceTime]" << std::endl;
     return EXIT_FAILURE;
   }
-
-  const int WAIT_TIME = 500;
-  const int TRACE_DURATION_MS = (argc == 4) ? _wtoi(argv[3]) : 60 * 1000;
   const std::wstring targetExe = argv[1];
-
   try {
     Logger::Init(argv[2]);
   } catch (const std::exception &e) {
     std::wcerr << e.what() << std::endl;
     return EXIT_FAILURE;
   }
+  const int TRACE_DURATION_MS = (argc == 4) ? _wtoi(argv[3]) : Constats::DEFAULT_TIME;
 
   Logger::Info(L"Starting ETW Monitor...");
   Logger::Info(L"Looking for process: " + targetExe);
@@ -76,7 +74,7 @@ int wmain(int argc, wchar_t *argv[]) {
                  std::wstring(workerResult ? L"SUCCESS" : L"FAILURE"));
   });
 
-  Sleep(WAIT_TIME);
+  Sleep(Constats::WAIT_TIME);
 
   if (!workerStarted) {
     Logger::Error(L"Worker thread did not start properly.");
@@ -91,7 +89,7 @@ int wmain(int argc, wchar_t *argv[]) {
   }
   Logger::Info(L"Monitoring PIDs: " + pidList + L"(" + targetExe + L")");
 
-  Logger::Info(std::format(L"Tracing for {}  seconds... ", std::to_wstring(TRACE_DURATION_MS / 1000)));
+  Logger::Info(std::format(L"Tracing for {}  seconds... ", std::to_wstring(TRACE_DURATION_MS / Constats::MS_TO_S)));
   Sleep(TRACE_DURATION_MS);
 
   Logger::Info(L"Stopping trace...");

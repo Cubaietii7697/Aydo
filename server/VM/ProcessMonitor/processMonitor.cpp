@@ -36,6 +36,7 @@ std::set<DWORD> processMonitor::FindPidByName(const std::wstring &exeName) {
   }
 
   CloseHandle(snap);
+
   return pids;
 }
 
@@ -127,6 +128,7 @@ bool processMonitor::StartKernelSession(const std::wstring &sessionName,
   if (!pProps) {
     outStatus = ERROR_OUTOFMEMORY;
     Logger::Error(L"malloc EVENT_TRACE_PROPERTIES failed\n");
+
     return false;
   }
 
@@ -156,6 +158,7 @@ bool processMonitor::StartKernelSession(const std::wstring &sessionName,
     if (outStatus != ERROR_SUCCESS) {
       Logger::Error(std::format(L"StartTrace failed: {}", outStatus));
       free(pProps);
+
       return false;
     }
   }
@@ -178,6 +181,7 @@ bool processMonitor::StartKernelSession(const std::wstring &sessionName,
   Logger::Debug(std::format(L"EnableTraceEx2 GUID_KERNEL_NETWORK -> {}", rc));
 
   free(pProps);
+
   return true;
 }
 
@@ -185,11 +189,11 @@ bool processMonitor::StartKernelSession(const std::wstring &sessionName,
 void processMonitor::StopKernelSession(const std::wstring &sessionName) {
   Logger::Debug(std::format(L"Stopping kernel session '{}'", sessionName));
 
-  if (g_hTrace != 0 && g_hTrace != INVALID_PROCESSTRACE_HANDLE) {
+  if (g_hTrace && g_hTrace != INVALID_PROCESSTRACE_HANDLE) {
     CloseTrace(g_hTrace);
     g_hTrace = 0;
   }
-  if (g_hSession != 0) {
+  if (g_hSession) {
     ControlTraceW(g_hSession, sessionName.c_str(), nullptr, EVENT_TRACE_CONTROL_STOP);
     g_hSession = 0;
   }
@@ -224,14 +228,17 @@ bool processMonitor::OpenAndProcessRealTime(const std::wstring &sessionName) {
 
   if (status == ERROR_SUCCESS) {
     Logger::Debug(L"ProcessTrace completed successfully");
+
     return true;
   }
   if (status == ERROR_CANCELLED) {
     Logger::Info(L"Trace stopped by user (ERROR_CANCELLED)");
+
     return true;
   }
 
   Logger::Error(std::format(L"ProcessTrace failed with status {}", status));
+
   return false;
 }
 
@@ -275,12 +282,14 @@ std::wstring processMonitor::FormatBasicProperty(USHORT inType, PBYTE propertyDa
   case TDH_INTYPE_ANSISTRING: {
     if (propertyLength >= sizeof(char)) {
       std::string ansiStr((char *)propertyData, propertyLength);
+
       return std::wstring(ansiStr.begin(), ansiStr.end());
     }
     return L"";
   }
   case TDH_INTYPE_BOOLEAN: {
     BOOL boolVal = *((BOOL *)propertyData);
+
     return boolVal ? L"true" : L"false";
   }
   default:
