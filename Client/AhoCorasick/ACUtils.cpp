@@ -221,7 +221,7 @@ bool ACUtils::checkConstraintSatisfaction(
         if (constraintType == Constraint::ANY_BYTE) {
           return gap == 1 && checkChain(currentSegmentIdx + 1, nextPos);
         } else if (constraintType == Constraint::ANY_AMOUNT_OF_BYTES) {
-          return gap >= 0 && checkChain(currentSegmentIdx + 1, nextPos);
+          return checkChain(currentSegmentIdx + 1, nextPos);
         }
 
         // Unknown constraint
