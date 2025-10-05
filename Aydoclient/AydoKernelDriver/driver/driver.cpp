@@ -6,6 +6,7 @@
 
 extern NTSTATUS EvtDeviceAddShim(WDFDRIVER drv, PWDFDEVICE_INIT init) {
   UNREFERENCED_PARAMETER(drv);
+
   return Utils_InitDeviceAndQueues(init);
 }
 
@@ -26,7 +27,10 @@ extern NTSTATUS DriverEntry(PDRIVER_OBJECT drv, PUNICODE_STRING reg) {
     return st;
   }
 
+  ResolveOptionalKernelExports();
+
   drv->DriverUnload = DriverUnload;
   AYDO_INFO("DriverEntry OK");
+
   return STATUS_SUCCESS;
 }

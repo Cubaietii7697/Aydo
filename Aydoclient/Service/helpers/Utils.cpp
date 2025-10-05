@@ -27,6 +27,7 @@ std::set<DWORD> findProcess(const std::filesystem::path &p) {
   }
 
   CloseHandle(snap);
+
   return pids;
 }
 

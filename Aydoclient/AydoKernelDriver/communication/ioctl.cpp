@@ -1,5 +1,6 @@
 #include "ioctl.hpp"
 
+#include "../include/Public.hpp"
 #include "../logging/logger.hpp"
 #include "../pch.hpp"
 #include "../requests/request_handler.hpp"
@@ -9,6 +10,7 @@ NTSTATUS Comm_InitDefaultQueue(WDFDEVICE dev) {
   WDF_IO_QUEUE_CONFIG_INIT_DEFAULT_QUEUE(&qc, WdfIoQueueDispatchSequential);
   qc.EvtIoDeviceControl = Comm_EvtIoDeviceControl;
   qc.EvtIoStop = Comm_EvtIoStop;
+
   return WdfIoQueueCreate(dev, &qc, WDF_NO_OBJECT_ATTRIBUTES, nullptr);
 }
 
@@ -24,13 +26,18 @@ VOID Comm_EvtIoDeviceControl(WDFQUEUE, WDFREQUEST req,
       st = STATUS_BUFFER_TOO_SMALL;
       break;
     }
-    PULONG pPid = nullptr;
-    st = WdfRequestRetrieveInputBuffer(req, sizeof(ULONG), (PVOID *)&pPid, NULL);
+
+    PKillProcessData in = nullptr;
+
+    st = WdfRequestRetrieveInputBuffer(req,
+                                       sizeof(KillProcessData),
+                                       reinterpret_cast<PVOID *>(&in),
+                                       nullptr);
     if (!NT_SUCCESS(st))
       break;
-    st = Requests_HandleKill(*pPid);
-    if (NT_SUCCESS(st))
-      written = sizeof(ULONG);
+
+    st = Requests_HandleKill(in->Pid);
+    written = 0;
     break;
   }
   default:

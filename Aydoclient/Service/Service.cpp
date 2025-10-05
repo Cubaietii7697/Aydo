@@ -13,6 +13,7 @@ int main(int argc, char *argv[]) {
 
   if (argc != 2) {
     std::cerr << "[usage]" << argv[0] << "< file-to-kill > " << std::endl;
+
     return EXIT_FAILURE;
   }
 
@@ -22,6 +23,7 @@ int main(int argc, char *argv[]) {
   if (pids.empty()) {
     std::cerr << "No running process matches: "
               << exePath.filename().string() << std::endl;
+
     return EXIT_FAILURE;
   }
 
@@ -29,6 +31,7 @@ int main(int argc, char *argv[]) {
   auto &km = KernelCommunication::instance();
   if (!km.initKernel()) {
     std::wcerr << L"[kernel] Failed to open device" << std::endl;
+
     return EXIT_FAILURE;
   }
 
@@ -72,9 +75,11 @@ int main(int argc, char *argv[]) {
 
   if (!failures.empty()) {
     Utils::PrintFailures(failures);
+
     return EXIT_FAILURE;
   }
 
   std::cout << "Successfully sent terminate requests (kernel mode)" << std::endl;
+
   return EXIT_SUCCESS;
 }

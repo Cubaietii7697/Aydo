@@ -6,9 +6,7 @@
 #include <string>
 #include <variant>
 
-struct KillProcessData {
-  DWORD pid;
-};
+#include "../../AydoKernelDriver/include/Public.hpp"
 
 // Expand later with more request types if needed
 enum class RequestType {
@@ -45,7 +43,7 @@ public:
 
   // Send a request to kernel
   std::pair<ResponseStatus, std::unique_ptr<ResultData>>
-  sendRequest(const RequestType &type,
+  sendRequest(const RequestType type,
               const std::variant<KillProcessData> &data) const;
 
 private:

@@ -6,18 +6,8 @@
 #include "../logging/logger.hpp"
 #include "../pch.hpp"
 
-extern "C" {
-typedef BOOLEAN(NTAPI *PFN_PsIsProcessCritical)(PEPROCESS, PBOOLEAN);
-typedef struct _PS_PROTECTION {
-  UCHAR Type : 3;
-  UCHAR Audit : 1;
-  UCHAR Signer : 4;
-} PS_PROTECTION, *PPS_PROTECTION;
-typedef PS_PROTECTION(NTAPI *PFN_PsGetProcessProtection)(PEPROCESS);
-
-static PFN_PsIsProcessCritical g_PsIsProcessCritical = nullptr;
-static PFN_PsGetProcessProtection g_PsGetProcessProtection = nullptr;
-}
+PFN_PsIsProcessCritical g_PsIsProcessCritical = nullptr;
+PFN_PsGetProcessProtection g_PsGetProcessProtection = nullptr;
 
 NTSTATUS Utils_InitDeviceAndQueues(PWDFDEVICE_INIT init) {
   PAGED_CODE();
@@ -38,6 +28,7 @@ NTSTATUS Utils_InitDeviceAndQueues(PWDFDEVICE_INIT init) {
     return st;
 
   AYDO_INFO("Device created OK");
+
   return STATUS_SUCCESS;
 }
 
@@ -45,10 +36,12 @@ VOID ResolveOptionalKernelExports() {
   UNICODE_STRING name;
 
   RtlInitUnicodeString(&name, L"PsIsProcessCritical");
-  g_PsIsProcessCritical = (PFN_PsIsProcessCritical)MmGetSystemRoutineAddress(&name);
+  g_PsIsProcessCritical =
+      reinterpret_cast<PFN_PsIsProcessCritical>(MmGetSystemRoutineAddress(&name));
 
   RtlInitUnicodeString(&name, L"PsGetProcessProtection");
-  g_PsGetProcessProtection = (PFN_PsGetProcessProtection)MmGetSystemRoutineAddress(&name);
+  g_PsGetProcessProtection =
+      reinterpret_cast<PFN_PsGetProcessProtection>(MmGetSystemRoutineAddress(&name));
 
   AYDO_INFO("Resolved PsIsProcessCritical=%p, PsGetProcessProtection=%p",
             g_PsIsProcessCritical, g_PsGetProcessProtection);
