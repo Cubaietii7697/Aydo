@@ -22,24 +22,34 @@ VOID Comm_EvtIoDeviceControl(WDFQUEUE, WDFREQUEST req,
 
   switch (code) {
   case IOCTL_KILL_PROCESS: {
-    if (inLen < sizeof(ULONG)) {
+    if (inLen < sizeof(KillProcessData) || outLen < sizeof(KillProcessOut)) {
       st = STATUS_BUFFER_TOO_SMALL;
       break;
     }
 
     PKillProcessData in = nullptr;
-
-    st = WdfRequestRetrieveInputBuffer(req,
-                                       sizeof(KillProcessData),
-                                       reinterpret_cast<PVOID *>(&in),
-                                       nullptr);
+    st = WdfRequestRetrieveInputBuffer(req, sizeof(KillProcessData),
+                                       reinterpret_cast<PVOID *>(&in), nullptr);
     if (!NT_SUCCESS(st))
       break;
 
-    st = Requests_HandleKill(in->Pid);
-    written = 0;
+    KillProcessOut *out = nullptr;
+    st = WdfRequestRetrieveOutputBuffer(req, sizeof(KillProcessOut),
+                                        reinterpret_cast<PVOID *>(&out), nullptr);
+    if (!NT_SUCCESS(st))
+      break;
+
+    NTSTATUS killSt = Requests_HandleKill(in->Pid);
+
+    out->requestedPid = in->Pid;
+    out->terminatedPid = NT_SUCCESS(killSt) ? in->Pid : 0;
+    out->ntStatus = static_cast<long>(killSt);
+
+    st = killSt;
+    written = sizeof(KillProcessOut);
     break;
   }
+
   default:
     break;
   }

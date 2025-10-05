@@ -38,36 +38,27 @@ int main(int argc, char *argv[]) {
   std::vector<FailureInfo> failures;
 
   for (DWORD pid : pids) {
-    auto [status, res] = km.sendRequest(RequestType::KillProcess, KillProcessData{pid});
+    std::variant<KillProcessData> payload{KillProcessData{pid}};
+    auto [status, base] = km.sendRequest(RequestType::KillProcess, payload);
+    auto *res = static_cast<KillProcessResult *>(base.get());
 
-    if (status == ResponseStatus::failure) {
-      if (auto const *killRes = dynamic_cast<KillProcessResult *>(res.get())) {
-        std::wstring reason = std::format(
-            L"DeviceIoControl failed. pid={}, winErr={}, driverStatus={}",
-            std::to_wstring(pid),
-            std::to_wstring(killRes->errorCode),
-            std::to_wstring(killRes->driverStatus));
-        failures.emplace_back(pid, reason);
-        Utils::PrintError(reason);
-      } else {
-        std::wstring reason = std::format(
-            L"DeviceIoControl failed. pid={}, winErr={}",
-            std::to_wstring(pid),
-            std::to_wstring(res->errorCode));
-        failures.emplace_back(pid, reason);
-        Utils::PrintError(reason);
-      }
+    if (status != ResponseStatus::success) {
+      std::wstring reason = std::format(
+          L"DeviceIoControl failed. pid={}, winErr={}, driverStatus=0x{:08X}",
+          pid,
+          res->errorCode,
+          res->driverStatus);
+      failures.emplace_back(pid, reason);
+      Utils::PrintError(reason);
       continue;
     }
 
-    if (auto const *killRes = dynamic_cast<KillProcessResult *>(res.get())) {
-      if (killRes->terminatedPid != pid) {
-        std::wstring note = std::format(
-            L"Driver reported terminatedPid={}, requested pid={}",
-            std::to_wstring(killRes->terminatedPid),
-            std::to_wstring(pid));
-        Utils::PrintError(note);
-      }
+    if (res->terminatedPid != pid) {
+      std::wstring note = std::format(
+          L"Driver reported terminatedPid={}, requested pid={}",
+          std::to_wstring(res->terminatedPid),
+          std::to_wstring(pid));
+      Utils::PrintError(note);
     }
   }
 

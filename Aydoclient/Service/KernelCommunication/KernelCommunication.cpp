@@ -52,24 +52,40 @@ KernelCommunication::sendRequest(const RequestType type,
 
   switch (type) {
   case RequestType::KillProcess: {
-    auto r = std::make_unique<KillProcessResult>();
-    const KillProcessData &payload = std::get<KillProcessData>(data);
+    const auto &in = std::get<KillProcessData>(data);
 
+    KillProcessOut out{};
     DWORD bytes = 0;
     BOOL ok = ::DeviceIoControl(
         m_hDev,
         IOCTL_KILL_PROCESS,
-        (LPVOID)&payload, sizeof(payload),
-        nullptr, 0,
-        &bytes,
-        nullptr);
+        (LPVOID)&in, sizeof(in),
+        &out, sizeof(out),
+        &bytes, nullptr);
 
-    r->errorCode = ok ? ERROR_SUCCESS : ::GetLastError();
-    return {ok ? ResponseStatus::success : ResponseStatus::failure, std::move(r)};
+    auto res = std::make_unique<KillProcessResult>();
+
+    if (!ok) {
+      res->errorCode = ::GetLastError();
+      if (bytes == sizeof(KillProcessOut)) {
+        res->driverStatus = static_cast<DWORD>(out.ntStatus);
+        res->terminatedPid = out.terminatedPid;
+      } else {
+        res->driverStatus = 0;
+        res->terminatedPid = 0;
+      }
+      return {ResponseStatus::failure, std::move(res)};
+    }
+    res->errorCode = ERROR_SUCCESS;
+    res->driverStatus = static_cast<DWORD>(out.ntStatus);
+    res->terminatedPid = out.terminatedPid;
+    return {ResponseStatus::success, std::move(res)};
   }
   default: {
-    auto r = std::make_unique<ResultData>();
+    auto r = std::make_unique<KillProcessResult>();
     r->errorCode = ERROR_INVALID_FUNCTION;
+    r->driverStatus = 0;
+    r->terminatedPid = 0;
     return {ResponseStatus::invalidRequestType, std::move(r)};
   }
   }
