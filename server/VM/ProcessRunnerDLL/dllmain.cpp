@@ -1,19 +1,11 @@
 #include <windows.h>
 
-#include <cstdlib>
 #include <iostream>
 #include <libloaderapi.h>
-#include <ostream>
-#include <winternl.h>
+#include <string_view>
 
 #include "pch.h"
-
-struct FunctionToPatch {
-  const char *dllName;
-  const char *functionName;
-  void *newFunction;
-  void **oldFunction;
-};
+#include "ProcessRunnerHooks.hpp"
 
 static bool patchIAT(HMODULE hModule, const char *importDllName, const char *importFunctionName, void *newFunction, void **oldFunction) {
   // Get the base address of the module
@@ -35,7 +27,7 @@ static bool patchIAT(HMODULE hModule, const char *importDllName, const char *imp
   for (; imageImportDescriptor->Name; ++imageImportDescriptor) {
     // If the CURRENT DLL name is not the one we're looking for, skip it
     auto *currentDllName = reinterpret_cast<LPSTR>(base + imageImportDescriptor->Name);
-    if (_stricmp(currentDllName, importDllName) != 0) {
+    if (std::string_view(currentDllName) != importDllName) {
       continue;
     }
 
@@ -89,24 +81,6 @@ static bool patchIAT(HMODULE hModule, const char *importDllName, const char *imp
   return false;
 }
 
-typedef VOID(WINAPI *Sleep_t)(DWORD);
-static Sleep_t oldSleepFunction = nullptr;
-
-static VOID WINAPI newSleepFunction(DWORD dwMilliseconds) {
-  // Do nothing
-}
-
-typedef NTSTATUS(NTAPI *NtDelayExecution_t)(BOOLEAN, PLARGE_INTEGER);
-static NtDelayExecution_t oldNtDelayExecution = nullptr;
-
-static NTSTATUS NTAPI newNtDelayExecution(BOOLEAN alertable, PLARGE_INTEGER delayInterval) {
-  UNREFERENCED_PARAMETER(alertable);
-
-  // Do nothing
-
-  return static_cast<NTSTATUS>(EXIT_SUCCESS);
-}
-
 BOOL APIENTRY DllMain(HMODULE hModule,
                       DWORD ul_reason_for_call,
                       LPVOID lpReserved) {
@@ -114,14 +88,14 @@ BOOL APIENTRY DllMain(HMODULE hModule,
       {
           "KERNEL32.dll",
           "Sleep",
-          reinterpret_cast<void *>(newSleepFunction),
-          reinterpret_cast<void **>(&oldSleepFunction),
+          reinterpret_cast<void *>(ProcessRunnerHooks::newSleepFunction),
+          reinterpret_cast<void **>(&ProcessRunnerHooks::oldSleepFunction),
       },
       {
           "ntdll.dll",
           "NtDelayExecution",
-          reinterpret_cast<void *>(newNtDelayExecution),
-          reinterpret_cast<void **>(&oldNtDelayExecution),
+          reinterpret_cast<void *>(ProcessRunnerHooks::newNtDelayExecution),
+          reinterpret_cast<void **>(&ProcessRunnerHooks::oldNtDelayExecution),
       },
   };
 

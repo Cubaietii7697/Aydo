@@ -72,16 +72,16 @@ bool Utils::createSuspendedProcess(const std::string &cmdLine,
   mutableCmdLine.push_back('\0');
 
   bool success = CreateProcessA(
-                     nullptr,
-                     mutableCmdLine.data(),
-                     nullptr,
-                     nullptr,
-                     FALSE,
-                     CREATE_SUSPENDED,
-                     nullptr,
-                     workingDirectory.c_str(),
-                     &startupInfo,
-                     &processInfo) != 0;
+      nullptr,
+      mutableCmdLine.data(),
+      nullptr,
+      nullptr,
+      FALSE,
+      CREATE_SUSPENDED,
+      nullptr,
+      workingDirectory.c_str(),
+      &startupInfo,
+      &processInfo);
 
   return success;
 }

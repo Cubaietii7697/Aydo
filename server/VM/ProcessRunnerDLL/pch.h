@@ -10,4 +10,11 @@
 // add headers that you want to pre-compile here
 #include "framework.h"
 
+struct FunctionToPatch {
+  const char *dllName;
+  const char *functionName;
+  void *newFunction;
+  void **oldFunction;
+};
+
 #endif // PCH_H
