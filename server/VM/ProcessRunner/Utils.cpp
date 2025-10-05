@@ -18,7 +18,7 @@ std::string Utils::vectorStringToString(const std::vector<std::string> &vector, 
 }
 
 bool Utils::injectDll(HANDLE hProcess, const std::string &dllPath) {
-  SIZE_T dllPathLength = dllPath.length() + 1; // Include null char
+  SIZE_T dllPathLength = dllPath.length() + 1; // Include null char (required by WriteProcessMemory)
 
   // Allocate memory in the remote process (for the DLL)
   LPVOID remoteMemory = VirtualAllocEx(
@@ -69,7 +69,7 @@ bool Utils::createSuspendedProcess(const std::string &cmdLine,
                                    STARTUPINFOA &startupInfo,
                                    PROCESS_INFORMATION &processInfo) {
   std::vector<char> mutableCmdLine(cmdLine.begin(), cmdLine.end());
-  mutableCmdLine.push_back('\0');
+  mutableCmdLine.push_back('\0'); // Null-terminate the command line (required by CreateProcessA)
 
   bool success = CreateProcessA(
       nullptr,
