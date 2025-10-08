@@ -6,11 +6,11 @@
 #include <string>
 #include <variant>
 
-#include "../../AydoKernelDriver/include/Public.hpp"
+#include "../../KernelDriver/include/Public.hpp"
 
-// Expand later with more request types if needed
 enum class RequestType {
-  KillProcess
+  KillProcess,
+  WaitForProcessStart
 };
 
 struct ResultData {
@@ -21,6 +21,10 @@ struct ResultData {
 struct KillProcessResult : ResultData {
   DWORD terminatedPid{};
   DWORD driverStatus{};
+};
+
+struct ProcessNotifyResult : ResultData {
+  PROCESS_NOTIFY_INFO info{};
 };
 
 enum class ResponseStatus {
@@ -44,7 +48,7 @@ public:
   // Send a request to kernel
   std::pair<ResponseStatus, std::unique_ptr<ResultData>>
   sendRequest(const RequestType type,
-              const std::variant<KillProcessData> &data) const;
+              const std::variant<KillProcessData, std::wstring> &data) const;
 
 private:
   // Singleton enforcement

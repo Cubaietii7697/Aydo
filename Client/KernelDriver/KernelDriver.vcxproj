@@ -22,8 +22,12 @@
     <None Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
-    <Inf Include="AydoKernelDriver.inf" />
-  </ItemGroup>
+  <!-- Force MSBuild to keep correct casing for INF file -->
+  <Inf Include="AydoKernelDriver.inf">
+    <InfSource>AydoKernelDriver.inf</InfSource>
+    <InfName>AydoKernelDriver.inf</InfName>
+  </Inf>
+</ItemGroup>
   <ItemGroup>
     <ClCompile Include="driver\driver.cpp" />
     <ClCompile Include="logging\logger.cpp" />
@@ -52,7 +56,7 @@
     <Configuration>Debug</Configuration>
     <Platform Condition="'$(Platform)' == ''">x64</Platform>
     <RootNamespace>AydoKernelDriver</RootNamespace>
-    <ProjectName>AydoKernelDriver</ProjectName>
+    <ProjectName>KernelDriver</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <!-- Debug -->

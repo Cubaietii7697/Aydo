@@ -3,6 +3,7 @@
 #include <iostream>
 
 #include "../../IOCTLDefs.hpp"
+#include "../../KernelDriver/include/Public.hpp"
 
 // Singleton
 KernelCommunication &KernelCommunication::instance() {
@@ -43,7 +44,7 @@ void KernelCommunication::shutdown() {
 
 std::pair<ResponseStatus, std::unique_ptr<ResultData>>
 KernelCommunication::sendRequest(const RequestType type,
-                                 const std::variant<KillProcessData> &data) const {
+                                 const std::variant<KillProcessData, std::wstring> &data) const {
   if (m_hDev == INVALID_HANDLE_VALUE) {
     auto r = std::make_unique<ResultData>();
     r->errorCode = ERROR_INVALID_HANDLE;
@@ -76,16 +77,43 @@ KernelCommunication::sendRequest(const RequestType type,
       }
       return {ResponseStatus::failure, std::move(res)};
     }
+
     res->errorCode = ERROR_SUCCESS;
     res->driverStatus = static_cast<DWORD>(out.ntStatus);
     res->terminatedPid = out.terminatedPid;
     return {ResponseStatus::success, std::move(res)};
   }
+
+  case RequestType::WaitForProcessStart: {
+    const auto &exeName = std::get<std::wstring>(data);
+
+    WAIT_FOR_PROCESS_START_IN input{};
+    wcsncpy_s(input.TargetImageName, exeName.c_str(), _TRUNCATE);
+
+    auto result = std::make_unique<ProcessNotifyResult>();
+    DWORD bytesReturned = 0;
+
+    BOOL ok = ::DeviceIoControl(
+        m_hDev,
+        IOCTL_WAIT_FOR_PROCESS_START,
+        &input, sizeof(input),
+        result.get(), sizeof(result->info),
+        &bytesReturned,
+        nullptr);
+
+    if (!ok) {
+      DWORD err = GetLastError();
+      auto errResult = std::make_unique<ResultData>();
+      errResult->errorCode = err;
+      return {ResponseStatus::failure, std::move(errResult)};
+    }
+
+    return {ResponseStatus::success, std::move(result)};
+  }
+
   default: {
-    auto r = std::make_unique<KillProcessResult>();
+    auto r = std::make_unique<ResultData>();
     r->errorCode = ERROR_INVALID_FUNCTION;
-    r->driverStatus = 0;
-    r->terminatedPid = 0;
     return {ResponseStatus::invalidRequestType, std::move(r)};
   }
   }
