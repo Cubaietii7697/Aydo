@@ -70,7 +70,7 @@ VOID Comm_EvtIoDeviceControl(WDFQUEUE, WDFREQUEST req,
 
     out->requestedPid = in->Pid;
     out->terminatedPid = NT_SUCCESS(killSt) ? in->Pid : 0;
-    out->ntStatus = static_cast<long>(killSt);
+    out->ntStatus = killSt;
 
     st = killSt;
     written = sizeof(KillProcessOut);
@@ -87,26 +87,25 @@ VOID Comm_EvtIoDeviceControl(WDFQUEUE, WDFREQUEST req,
     return;
   }
   case IOCTL_WAIT_FOR_PROCESS_START: {
-    if (inLen < sizeof(WAIT_FOR_PROCESS_START_IN)) {
+    if (inLen < sizeof(WAIT_FOR_PROCESS_START_IN) || outLen < sizeof(PROCESS_NOTIFY_INFO)) {
       WdfRequestComplete(req, STATUS_BUFFER_TOO_SMALL);
       return;
     }
 
-    // Save target image name in request context or global list
-    PWAIT_FOR_PROCESS_START_IN inBuf = nullptr;
-    NTSTATUS stIn = WdfRequestRetrieveInputBuffer(req,
-                                                  sizeof(WAIT_FOR_PROCESS_START_IN),
-                                                  reinterpret_cast<PVOID *>(&inBuf), nullptr);
+    NTSTATUS stIn = WdfRequestMarkCancelableEx(req, EvtRequestCancelWait);
     if (!NT_SUCCESS(stIn)) {
       WdfRequestComplete(req, stIn);
       return;
     }
 
-    // You can store this per-request in a custom request context
-    // For simplicity, we forward it directly to the manual queue
-    WdfRequestForwardToIoQueue(req, g_NotifyQueue);
+    NTSTATUS stFwd = WdfRequestForwardToIoQueue(req, g_NotifyQueue);
+    if (!NT_SUCCESS(stFwd)) {
+      (void)WdfRequestUnmarkCancelable(req);
+      WdfRequestComplete(req, stFwd);
+    }
     return;
   }
+
   default:
     break;
   }

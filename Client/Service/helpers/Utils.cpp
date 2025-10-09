@@ -31,6 +31,37 @@ std::set<DWORD> findProcess(const std::filesystem::path &p) {
   return pids;
 }
 
+std::vector<FailureInfo> killProcces(const std::set<DWORD> &pids, KernelCommunication &km) {
+  // Kill all found or newly started processes
+  std::vector<FailureInfo> failures;
+  for (DWORD pid : pids) {
+    std::variant<KillProcessData, std::wstring> payload{KillProcessData{pid}};
+    auto [status, base] = km.sendRequest(RequestType::KillProcess, payload);
+    auto *res = static_cast<KillProcessResult *>(base.get());
+
+    if (status != ResponseStatus::success) {
+      std::wstring reason = std::format(
+          L"DeviceIoControl failed. pid={}, winErr={}, driverStatus=0x{:08X}",
+          pid,
+          res->errorCode,
+          res->driverStatus);
+      failures.emplace_back(pid, reason);
+      Utils::PrintError(reason);
+      continue;
+    }
+
+    if (res->terminatedPid != pid) {
+      std::wstring note = std::format(
+          L"Driver reported terminatedPid={}, requested pid={}",
+          res->terminatedPid,
+          pid);
+      Utils::PrintError(note);
+    }
+  }
+
+  return failures;
+}
+
 void PrintError(const std::wstring &custom) {
   DWORD err = GetLastError();
   std::wcerr << custom << L", error " << err << std::endl;

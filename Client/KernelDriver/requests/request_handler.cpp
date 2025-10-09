@@ -108,48 +108,122 @@ NTSTATUS Requests_UnregisterProcessNotify() {
   return status;
 }
 
+static void ExtractBasename(_In_ const UNICODE_STRING &full, _Out_ UNICODE_STRING &base) {
+  USHORT i = full.Length / sizeof(WCHAR);
+  while (i > 0 && full.Buffer[i - 1] != L'\\' && full.Buffer[i - 1] != L'/')
+    --i;
+  base.Buffer = full.Buffer + i;
+  base.Length = full.Length - (i * sizeof(WCHAR));
+  base.MaximumLength = base.Length;
+}
+
 WDFQUEUE g_NotifyQueue = nullptr;
+
+VOID EvtRequestCancelWait(_In_ WDFREQUEST Request) {
+
+  WDFREQUEST prev = nullptr;
+
+  for (;;) {
+    WDFREQUEST found = nullptr;
+    NTSTATUS st = WdfIoQueueFindRequest(
+        g_NotifyQueue,
+        prev,    // start-after (NULL)
+        nullptr, // IoTarget
+        nullptr, // RequestParameters
+        &found);
+
+    if (!NT_SUCCESS(st)) {
+      if (prev)
+        WdfObjectDereference(prev);
+      WdfRequestComplete(Request, STATUS_CANCELLED);
+      return;
+    }
+
+    if (found == Request) {
+      if (prev)
+        WdfObjectDereference(prev);
+
+      WDFREQUEST dummy = nullptr;
+      NTSTATUS rt = WdfIoQueueRetrieveFoundRequest(g_NotifyQueue, found, &dummy);
+      UNREFERENCED_PARAMETER(rt);
+      WdfRequestComplete(Request, STATUS_CANCELLED);
+      return;
+    }
+
+    if (prev)
+      WdfObjectDereference(prev);
+    prev = found;
+  }
+}
 
 VOID OnProcessNotifyEx(PEPROCESS Process, HANDLE ProcessId, PPS_CREATE_NOTIFY_INFO CreateInfo) {
   UNREFERENCED_PARAMETER(Process);
-
-  if (CreateInfo == NULL || g_NotifyQueue == nullptr)
+  if (CreateInfo == NULL || g_NotifyQueue == nullptr || CreateInfo->ImageFileName == nullptr)
     return;
 
-  WDFREQUEST req;
-  NTSTATUS st = WdfIoQueueRetrieveNextRequest(g_NotifyQueue, &req);
-  if (!NT_SUCCESS(st))
+  UNICODE_STRING base{};
+  ExtractBasename(*CreateInfo->ImageFileName, base);
+
+  WDFREQUEST matched = nullptr;
+  WDFREQUEST park[32];
+  ULONG parkCount = 0;
+
+  for (;;) {
+    WDFREQUEST req = nullptr;
+    NTSTATUS st = WdfIoQueueRetrieveNextRequest(g_NotifyQueue, &req);
+    if (!NT_SUCCESS(st))
+      break;
+
+    PWAIT_FOR_PROCESS_START_IN inBuf = nullptr;
+    st = WdfRequestRetrieveInputBuffer(req, sizeof(WAIT_FOR_PROCESS_START_IN),
+                                       reinterpret_cast<PVOID *>(&inBuf), nullptr);
+    if (!NT_SUCCESS(st)) {
+      WdfRequestComplete(req, st);
+      continue;
+    }
+
+    UNICODE_STRING target{};
+    RtlInitUnicodeString(&target, inBuf->TargetImageName);
+    const BOOLEAN wildcard = (target.Length == 0) || (target.Length == sizeof(WCHAR) && target.Buffer && target.Buffer[0] == L'*');
+
+    if (wildcard || RtlEqualUnicodeString(&target, &base, TRUE)) {
+      matched = req;
+      break;
+    }
+
+    if (parkCount < RTL_NUMBER_OF(park)) {
+      park[parkCount++] = req;
+    } else {
+      (void)WdfRequestForwardToIoQueue(req, g_NotifyQueue);
+    }
+  }
+
+  for (ULONG i = 0; i < parkCount; ++i) {
+    (void)WdfRequestForwardToIoQueue(park[i], g_NotifyQueue);
+  }
+
+  if (!matched)
     return;
 
-  // Retrieve input buffer (target exe name)
-  PWAIT_FOR_PROCESS_START_IN inBuf;
-  size_t inSize;
-  st = WdfRequestRetrieveInputBuffer(req, sizeof(WAIT_FOR_PROCESS_START_IN),
-                                     reinterpret_cast<PVOID *>(&inBuf), &inSize);
-  if (!NT_SUCCESS(st)) {
-    WdfRequestComplete(req, st);
+  (void)WdfRequestUnmarkCancelable(matched);
+
+  PPROCESS_NOTIFY_INFO out = nullptr;
+  NTSTATUS st = WdfRequestRetrieveOutputBuffer(matched, sizeof(PROCESS_NOTIFY_INFO),
+                                               reinterpret_cast<PVOID *>(&out), nullptr);
+  if (!NT_SUCCESS(st) || out == nullptr) {
+    WdfRequestComplete(matched, NT_SUCCESS(st) ? STATUS_INVALID_PARAMETER : st);
     return;
   }
 
-  // Compare target exe name (case-insensitive)
-  UNICODE_STRING targetName;
-  UNICODE_STRING currentName;
-  RtlInitUnicodeString(&targetName, inBuf->TargetImageName);
-  currentName = *CreateInfo->ImageFileName;
+  out->ProcessId = HandleToULong(ProcessId);
 
-  if (RtlEqualUnicodeString(&targetName, &currentName, TRUE)) {
-    // Match! Fill output buffer
-    size_t bufSize;
-    PPROCESS_NOTIFY_INFO info;
-    WdfRequestRetrieveOutputBuffer(req, sizeof(PROCESS_NOTIFY_INFO),
-                                   reinterpret_cast<PVOID *>(&info), &bufSize);
-    info->ProcessId = HandleToULong(ProcessId);
-    RtlStringCchCopyNW(info->ImageFileName, ARRAYSIZE(info->ImageFileName),
-                       CreateInfo->ImageFileName->Buffer,
-                       CreateInfo->ImageFileName->Length / sizeof(WCHAR));
-    WdfRequestCompleteWithInformation(req, STATUS_SUCCESS, sizeof(PROCESS_NOTIFY_INFO));
+  size_t copyChars = min(static_cast<size_t>(AYDO_MAX_PATH - 1), static_cast<size_t>(base.Length / sizeof(WCHAR)));
+  if (copyChars) {
+    RtlStringCchCopyNW(out->ImageFileName, AYDO_MAX_PATH, base.Buffer, copyChars);
+    out->ImageFileName[copyChars] = L'\0';
   } else {
-    // Not the target process; put it back into the queue
-    WdfRequestForwardToIoQueue(req, g_NotifyQueue);
+    out->ImageFileName[0] = L'\0';
   }
+
+  WdfRequestCompleteWithInformation(matched, STATUS_SUCCESS, sizeof(PROCESS_NOTIFY_INFO));
 }

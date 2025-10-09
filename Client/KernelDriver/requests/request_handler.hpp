@@ -6,6 +6,7 @@
 #endif
 
 extern WDFQUEUE g_NotifyQueue;
+EVT_WDF_REQUEST_CANCEL EvtRequestCancelWait;
 
 EXTERN_C_START
 NTSTATUS Requests_HandleKill(ULONG pid);
