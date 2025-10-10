@@ -27,7 +27,7 @@ int main(int argc, char *argv[]) {
 
   std::string program(argv[1]);
   std::string dllToInject(argv[2]);
-  std::string workingDirectory{DEFAULT_WORKING_DIRECTORY};
+  std::string workingDirectory{Constants::DEFAULT_WORKING_DIRECTORY};
   std::vector<std::string> arguments;
   if (argc > 4) {
     arguments.reserve(static_cast<std::size_t>(argc - 4));
@@ -48,7 +48,7 @@ int main(int argc, char *argv[]) {
   // Wait until the program file exists
   std::cout << "Waiting for program to exist..." << std::endl;
   while (!Utils::doesFileExist(program)) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(CHECK_INTERVAL_MS));
+    std::this_thread::sleep_for(std::chrono::milliseconds(Constants::CHECK_INTERVAL_MS));
   }
 
   // Run the program in suspended mode (so we can attach to it)
