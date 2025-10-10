@@ -80,6 +80,7 @@ void WINAPI processMonitor::StaticEventRecordCallback(PEVENT_RECORD pEvent) {
   if (status != ERROR_SUCCESS) {
     if (pInfo)
       free(pInfo);
+
     return;
   }
 
@@ -218,6 +219,7 @@ bool processMonitor::OpenAndProcessRealTime(const std::wstring &sessionName) {
     DWORD error = GetLastError();
     Logger::Error(std::format(L"OpenTrace failed with error: {}", error));
     StopKernelSession(sessionName);
+
     return false;
   }
   Logger::Debug(std::format(L"OpenTraceW succeeded, handle: {}", g_hTrace));
@@ -300,6 +302,7 @@ std::wstring processMonitor::FormatBasicProperty(USHORT inType, PBYTE propertyDa
       if (i < propertyLength - 1)
         hexStr += L" ";
     }
+
     return hexStr;
   }
 }
