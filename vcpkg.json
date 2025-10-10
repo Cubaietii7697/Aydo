@@ -1,0 +1,8 @@
+{
+  "dependencies": [
+    "botan",
+    "nlohmann-json",
+    "sqlite-orm",
+    "sqlite3"
+  ]
+}
