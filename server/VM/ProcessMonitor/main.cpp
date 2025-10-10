@@ -35,7 +35,7 @@ int wmain(int argc, wchar_t *argv[]) {
     std::wcerr << e.what() << std::endl;
     return EXIT_FAILURE;
   }
-  const int TRACE_DURATION_MS = (argc == 4) ? _wtoi(argv[3]) : Constats::DEFAULT_TIME;
+  const int TRACE_DURATION_MS = (argc == 4) ? _wtoi(argv[3]) : Constants::DEFAULT_TIME;
 
   Logger::Info(L"Starting ETW Monitor...");
   Logger::Info(L"Looking for process: " + targetExe);
@@ -74,7 +74,7 @@ int wmain(int argc, wchar_t *argv[]) {
                  std::wstring(workerResult ? L"SUCCESS" : L"FAILURE"));
   });
 
-  Sleep(Constats::WAIT_TIME);
+  Sleep(Constants::WAIT_TIME);
 
   if (!workerStarted) {
     Logger::Error(L"Worker thread did not start properly.");
@@ -89,7 +89,7 @@ int wmain(int argc, wchar_t *argv[]) {
   }
   Logger::Info(L"Monitoring PIDs: " + pidList + L"(" + targetExe + L")");
 
-  Logger::Info(std::format(L"Tracing for {}  seconds... ", std::to_wstring(TRACE_DURATION_MS / Constats::MS_TO_S)));
+  Logger::Info(std::format(L"Tracing for {}  seconds... ", std::to_wstring(TRACE_DURATION_MS / Constants::MS_TO_S)));
   Sleep(TRACE_DURATION_MS);
 
   Logger::Info(L"Stopping trace...");
