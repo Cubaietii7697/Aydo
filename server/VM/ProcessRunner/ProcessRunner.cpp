@@ -10,8 +10,7 @@
 
 #include "Utils.hpp"
 
-constexpr std::string_view DEFAULT_WORKING_DIRECTORY = ".";
-constexpr unsigned int CHECK_INTERVAL_MS = 250;
+#include "Constants.hpp"
 
 int main(int argc, char *argv[]) {
   // Get the program to execute:
