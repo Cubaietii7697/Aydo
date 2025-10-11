@@ -29,12 +29,8 @@ int wmain(int argc, wchar_t *argv[]) {
     return EXIT_FAILURE;
   }
   const std::wstring targetExe = argv[1];
-  try {
-    Logger::Init(argv[2]);
-  } catch (const std::exception &e) {
-    std::wcerr << e.what() << std::endl;
+  if (!Logger::Init(argv[2]))
     return EXIT_FAILURE;
-  }
   const int TRACE_DURATION_MS = (argc == 4) ? _wtoi(argv[3]) : Constants::DEFAULT_TIME;
 
   Logger::Info(L"Starting ETW Monitor...");

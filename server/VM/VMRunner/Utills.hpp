@@ -18,6 +18,6 @@ bool waitForTools(const std::string &vmRunPath,
                   int maxRetries = 60,
                   int sleepMs = 5000);
 
-const int SIZE = 256;
+const int BUFFER_SIZE = 256;
 
 } // namespace Utills

@@ -1,14 +1,16 @@
 #include "logger.hpp"
 
-void Logger::Init(const std::wstring &logPath, bool alsoConsole) {
+bool Logger::Init(const std::wstring &logPath, bool alsoConsole) {
   instance().m_console = alsoConsole;
   instance().m_ofs.exceptions(std::ios::failbit | std::ios::badbit);
   const std::filesystem::path p{logPath};
   try {
     instance().m_ofs.open(p, std::ios::out | std::ios::app);
-  } catch (const std::ios_base::failure &e) {
-    throw std::ios_base::failure("Logger::Init: cannot open " + p.string() + " | " + e.what());
+  } catch (const std::ios_base::failure &) {
+    return false;
   }
+
+  return true;
 }
 
 void Logger::Shutdown() {

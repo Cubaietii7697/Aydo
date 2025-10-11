@@ -12,7 +12,7 @@ public:
                         LOG_ERROR,
                         LOG_DEBUG };
 
-  static void Init(const std::wstring &logPath, bool alsoConsole = true);
+  [[nodiscard]] static bool Init(const std::wstring &logPath, bool alsoConsole = true);
 
   static void Shutdown();
 
