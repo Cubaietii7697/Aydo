@@ -22,12 +22,12 @@
     <None Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
-  <!-- Force MSBuild to keep correct casing for INF file -->
-  <Inf Include="AydoKernelDriver.inf">
-    <InfSource>AydoKernelDriver.inf</InfSource>
-    <InfName>AydoKernelDriver.inf</InfName>
-  </Inf>
-</ItemGroup>
+    <!-- Force MSBuild to keep correct casing for INF file -->
+    <Inf Include="KernelDriver.inf">
+      <InfSource>AydoKernelDriver.inf</InfSource>
+      <InfName>AydoKernelDriver.inf</InfName>
+    </Inf>
+  </ItemGroup>
   <ItemGroup>
     <ClCompile Include="driver\driver.cpp" />
     <ClCompile Include="logging\logger.cpp" />

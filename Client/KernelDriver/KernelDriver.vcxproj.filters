@@ -22,7 +22,7 @@
     <None Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
-    <Inf Include="AydoKernelDriver.inf">
+    <Inf Include="KernelDriver.inf">
       <Filter>Driver Files</Filter>
     </Inf>
   </ItemGroup>
