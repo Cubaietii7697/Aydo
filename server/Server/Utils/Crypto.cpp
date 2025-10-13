@@ -51,7 +51,9 @@ std::string base64UrlDecode(const std::string &data) {
   try {
     auto decoded = Botan::base64_decode(base64);
     return {decoded.begin(), decoded.end()};
-  } catch (...) {
+  } catch (const std::exception &e) {
+    LOG_ERROR << "Failed to decode base64: " << e.what();
+
     return "";
   }
 }

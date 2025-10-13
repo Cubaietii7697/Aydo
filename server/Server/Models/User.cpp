@@ -39,9 +39,7 @@ std::optional<User> User::getById(const DbClientPtr &dbClient,
   int userId;
   try {
     userId = std::stoi(id);
-  } catch (const std::invalid_argument &) {
-    return std::nullopt;
-  } catch (const std::out_of_range &) {
+  } catch (...) {
     return std::nullopt;
   }
 
@@ -68,7 +66,7 @@ void User::create(const DbClientPtr &dbClient, User &user) {
   auto result = dbClient->execSqlSync(
       "INSERT INTO users (email, nickname, passwordHash) VALUES ($1, $2, $3) RETURNING id",
       user.getEmail(), user.getNickname(), user.getPasswordHash());
-  
+
   if (!result.empty()) {
     user.setId(std::to_string(result[0]["id"].as<int>()));
   }

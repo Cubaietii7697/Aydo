@@ -1,9 +1,9 @@
 #include "Auth.hpp"
 
-#include <ctime>
 #include <trantor/utils/Logger.h>
 
 #include "../JWT.hpp"
+#include "../Utils/Generic.hpp"
 #include "../Utils/Responses.hpp"
 
 void Middleware::AuthFilter::doFilter(const drogon::HttpRequestPtr &req,
@@ -49,7 +49,7 @@ void Middleware::AuthFilter::doFilter(const drogon::HttpRequestPtr &req,
   if (expIt != claims->end()) {
     try {
       long long exp = std::stoll(expIt->second);
-      auto now = static_cast<long long>(std::time(nullptr));
+      auto now = Utils::Generic::getCurrentTimestamp();
       if (exp < now) {
         return fcb(jsonError("Token expired",
                              drogon::HttpStatusCode::k401Unauthorized));

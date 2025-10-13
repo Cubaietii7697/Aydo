@@ -145,6 +145,7 @@
     <ClCompile Include="Models\User.cpp" />
     <ClCompile Include="Server.cpp" />
     <ClCompile Include="Utils\Crypto.cpp" />
+    <ClCompile Include="Utils\Generic.cpp" />
     <ClCompile Include="Utils\Password.cpp" />
     <ClCompile Include="Utils\Validation.cpp" />
   </ItemGroup>
@@ -156,6 +157,7 @@
     <ClInclude Include="Middleware\Auth.hpp" />
     <ClInclude Include="Models\User.hpp" />
     <ClInclude Include="Utils\Crypto.hpp" />
+    <ClInclude Include="Utils\Generic.hpp" />
     <ClInclude Include="Utils\Password.hpp" />
     <ClInclude Include="Utils\Responses.hpp" />
     <ClInclude Include="Utils\Validation.hpp" />

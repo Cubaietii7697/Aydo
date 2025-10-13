@@ -3,6 +3,10 @@
 #include <string>
 #include <trantor/utils/Logger.h>
 
-void makeSureUserTableExists(const drogon::orm::DbClientPtr &dbClient);
+namespace DatabaseSetup {
 
-void setupDatabase();
+bool makeSureUserTableExists(const drogon::orm::DbClientPtr &dbClient);
+
+bool setupDatabase();
+
+} // namespace DatabaseSetup

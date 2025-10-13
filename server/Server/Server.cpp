@@ -12,7 +12,9 @@ int main() {
 
   // Setup the database and make sure we have a JWT secret
   drogon::app().registerBeginningAdvice([]() {
-    setupDatabase();
+    if (!DatabaseSetup::setupDatabase()) {
+      exit(EXIT_FAILURE);
+    }
 
     auto &jwtSecret = drogon::app().getCustomConfig()["jwtSecret"];
 

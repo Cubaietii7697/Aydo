@@ -42,9 +42,6 @@
     <ClCompile Include="Server.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Controllers/Auth.cpp">
-      <Filter>Source Files\Controllers</Filter>
-    </ClCompile>
     <ClCompile Include="DatabaseSetup.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -65,6 +62,12 @@
     </ClCompile>
     <ClCompile Include="Middleware\Auth.cpp">
       <Filter>Source Files\Middleware</Filter>
+    </ClCompile>
+    <ClCompile Include="Controllers\Auth.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Utils\Generic.cpp">
+      <Filter>Source Files\Utils</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -96,6 +99,9 @@
       <Filter>Header Files\Middleware</Filter>
     </ClInclude>
     <ClInclude Include="Utils\Responses.hpp">
+      <Filter>Header Files\Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="Utils\Generic.hpp">
       <Filter>Header Files\Utils</Filter>
     </ClInclude>
   </ItemGroup>

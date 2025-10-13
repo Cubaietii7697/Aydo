@@ -1,12 +1,12 @@
 #include "Auth.hpp"
 
-#include <ctime>
 #include <drogon/HttpResponse.h>
 #include <drogon/HttpTypes.h>
 
 #include "../Constants.hpp"
 #include "../JWT.hpp"
 #include "../Models/User.hpp"
+#include "../Utils/Generic.hpp"
 #include "../Utils/Password.hpp"
 #include "../Utils/Responses.hpp"
 #include "../Utils/Validation.hpp"
@@ -59,9 +59,7 @@ void API::Auth::_registerUser(
     resp["accessToken"] = accessToken;
     resp["refreshToken"] = refreshToken;
 
-    callback(jsonOk(resp));
-
-    return;
+    return callback(jsonOk(resp));
   } catch (const std::exception &e) {
     return callback(jsonError(std::string("Internal server error: ") + e.what(),
                               drogon::HttpStatusCode::k500InternalServerError));
@@ -106,7 +104,7 @@ void API::Auth::_loginUser(const drogon::HttpRequestPtr &req,
   resp["accessToken"] = accessToken;
   resp["refreshToken"] = refreshToken;
 
-  callback(jsonOk(resp));
+  return callback(jsonOk(resp));
 }
 
 void API::Auth::_refreshToken(const drogon::HttpRequestPtr &req,
@@ -153,7 +151,7 @@ void API::Auth::_refreshToken(const drogon::HttpRequestPtr &req,
   if (expIt != claims->end()) {
     try {
       long long exp = std::stoll(expIt->second);
-      auto now = static_cast<long long>(std::time(nullptr));
+      auto now = Utils::Generic::getCurrentTimestamp();
       if (exp < now) {
         return callback(jsonError("Token expired",
                                   drogon::HttpStatusCode::k401Unauthorized));
@@ -205,7 +203,7 @@ void API::Auth::_getMe(const drogon::HttpRequestPtr &req,
 
 // Generate a pair of access and refresh tokens
 std::pair<std::string, std::string> API::Auth::generateTokenPair(const std::string &userId) {
-  const auto now = static_cast<long long>(std::time(nullptr));
+  const auto now = Utils::Generic::getCurrentTimestamp();
   const auto accessExp = now + Constants::ACCESS_TOKEN_TTL_SECONDS;
   const auto refreshExp = now + Constants::REFRESH_TOKEN_TTL_SECONDS;
 
