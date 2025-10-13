@@ -4,6 +4,7 @@
 #include <drogon/HttpResponse.h>
 #include <drogon/HttpTypes.h>
 
+#include "../Constants.hpp"
 #include "../JWT.hpp"
 #include "../Models/User.hpp"
 #include "../Utils/Password.hpp"
@@ -205,8 +206,8 @@ void API::Auth::_getMe(const drogon::HttpRequestPtr &req,
 // Generate a pair of access and refresh tokens
 std::pair<std::string, std::string> API::Auth::generateTokenPair(const std::string &userId) {
   const auto now = static_cast<long long>(std::time(nullptr));
-  const auto accessExp = now + API::Auth::ACCESS_TOKEN_TTL_SECONDS;
-  const auto refreshExp = now + API::Auth::REFRESH_TOKEN_TTL_SECONDS;
+  const auto accessExp = now + Constants::ACCESS_TOKEN_TTL_SECONDS;
+  const auto refreshExp = now + Constants::REFRESH_TOKEN_TTL_SECONDS;
 
   // Generate access token
   JWT::Claims accessClaims = {

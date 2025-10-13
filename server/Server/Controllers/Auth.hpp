@@ -1,7 +1,6 @@
 #pragma once
 
 #include <drogon/HttpController.h>
-#include "../Middleware/Auth.hpp"
 
 namespace API {
 using namespace drogon;
@@ -31,8 +30,5 @@ private:
                      std::function<void(const HttpResponsePtr &)> &&callback);
 
   static std::pair<std::string, std::string> generateTokenPair(const std::string &userId);
-
-  static constexpr long long ACCESS_TOKEN_TTL_SECONDS = 15 * 60;              // 15 minutes
-  static constexpr long long REFRESH_TOKEN_TTL_SECONDS = 30LL * 24 * 60 * 60; // 30 days
 };
 } // namespace API

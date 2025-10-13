@@ -16,7 +16,8 @@ enum class FieldType {
 
 inline constexpr unsigned int MIN_PASSWORD_LENGTH = 8;
 inline const std::regex EMAIL_PATTERN(
-    R"(^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$)");
+    R"(^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$)" // RFC 5322
+);
 inline const std::regex NICKNAME_PATTERN(R"(^[a-zA-Z]+$)");
 inline const std::regex PASSWORD_HAS_ATLEAST_ONE_LOWER(R"([a-z])");
 inline const std::regex PASSWORD_HAS_ATLEAST_ONE_UPPER(R"([A-Z])");
