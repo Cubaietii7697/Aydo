@@ -1,0 +1,30 @@
+{
+  "listeners": [
+    {
+      "address": "0.0.0.0",
+      "port": 80,
+      "https": false
+    }
+  ],
+  "threads_num": 16,
+  "log": {
+    "log_path": "./",
+    "logfile_base_name": "",
+    "log_size_limit": 100000000,
+    "log_level": "INFO"
+  },
+  "db_clients": [
+    {
+      "name": "default",
+      "rdbms": "postgresql",
+      "host": "trolley.proxy.rlwy.net",
+      "port": 32705,
+      "dbname": "railway",
+      "user": "postgres",
+      "password": "wFLKNcFjVcmHKzcUhGPSOAnpZFXldTeu"
+    }
+  ],
+  "custom_config": {
+    "jwtSecret": "secret"
+  }
+}
