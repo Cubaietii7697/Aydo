@@ -90,7 +90,9 @@ template <typename T>
 static bool is_hit(const T &r) { return !!r; } // bool
 template <typename T>
 static bool is_hit(const std::vector<T> &r) { return !r.empty(); } // vector
-template <typename T>
+template <class Ch, class Tr, class Al>
+inline bool is_hit(const std::basic_string<Ch, Tr, Al> &s) { return !s.empty(); }
+template <class T>
 static bool is_hit(const std::optional<T> &r) { return r && is_hit(*r); } // optional<...>
 
 // ---------------- run-forever watcher ----------------

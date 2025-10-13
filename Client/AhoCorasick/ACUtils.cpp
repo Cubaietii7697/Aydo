@@ -1,5 +1,6 @@
 #include "ACUtils.hpp"
 
+#include <algorithm>
 #include <botan/hex.h>
 #include <cstdint>
 #include <exception>
@@ -16,6 +17,8 @@ std::string ACUtils::constraintToString(const Constraint &constraint) {
     return "??";
   case Constraint::ANY_AMOUNT_OF_BYTES:
     return "*";
+  default:
+    return "";
   }
 }
 

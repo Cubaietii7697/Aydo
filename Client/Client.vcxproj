@@ -164,6 +164,11 @@
     <ClInclude Include="SignaturesDatabase.hpp" />
     <ClInclude Include="Utils.hpp" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="Service\Service.vcxproj">
+      <Project>{364ee06f-19be-4202-b917-f783a0e54248}</Project>
+    </ProjectReference>
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
