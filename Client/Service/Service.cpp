@@ -1,64 +1,102 @@
-﻿#include <filesystem>
-#include <iostream>
-#include <set>
-#include <vector>
+﻿#include "Service.hpp"
 
-#include "../KernelDriver/include/Public.hpp"
-#include "helpers/Utils.hpp"
-#include "KernelCommunication/Error.hpp"
-#include "KernelCommunication/FailureInfo.hpp"
-#include "KernelCommunication/KernelCommunication.hpp"
+#include <stdexcept>
 
-int wmain(int argc, wchar_t *argv[]) {
-  constexpr int FILE_ARG = 1;
+static PROCESS_NOTIFY_INFO *as_proc_info(const std::unique_ptr<ResultData> &p) {
+  return dynamic_cast<PROCESS_NOTIFY_INFO *>(p.get());
+}
 
-  if (argc != 2) {
-    std::wcerr << L"[usage] " << argv[0] << L"<exe-to-watch>" << std::endl;
-    return EXIT_FAILURE;
+Service::~Service() {
+  shutdown();
+}
+
+bool Service::init() {
+  if (km_)
+    return true;
+  km_ = &KernelCommunication::instance();
+  if (!km_->initKernel()) {
+    km_ = nullptr;
+    return false;
   }
+  return true;
+}
 
-  const std::filesystem::path exePath = argv[FILE_ARG];
-  const std::wstring exeName = exePath.filename().wstring();
-
-  std::set<DWORD> pids = Utils::findProcess(exePath);
-
-  // Initialize communication with driver
-  auto &km = KernelCommunication::instance();
-  if (!km.initKernel()) {
-    std::wcerr << L"[kernel] Failed to open device" << std::endl;
-    return EXIT_FAILURE;
+void Service::shutdown() {
+  if (km_) {
+    km_->shutdown();
+    km_ = nullptr;
   }
+}
 
-  if (!pids.empty()) {
-    std::wcerr << L"Process is already running: " << exeName << std::endl;
-  } else {
-    std::wcout << L"[kernel] Waiting for process start: " << exeName << std::endl;
-    auto [status, result] = km.sendRequest(RequestType::WaitForProcessStart, exeName);
+std::wstring Service::toExeName(const std::wstring &input) {
+  std::filesystem::path p(input);
+  return p.has_filename() ? p.filename().wstring() : input;
+}
 
-    if (status != ResponseStatus::success) {
-      std::wcerr << L"[kernel] waitForProcessStart failed." << std::endl;
-      km.shutdown();
-      return EXIT_FAILURE;
-    }
+std::optional<ProcessStartEvent>
+Service::waitForStart(const std::wstring &exeName) {
+  if (!km_ && !init())
+    return std::nullopt;
 
-    auto const *info = dynamic_cast<PROCESS_NOTIFY_INFO *>(result.get());
+  const std::wstring name = toExeName(exeName);
+  auto [status, payload] = km_->sendRequest(RequestType::WaitForProcessStart, name);
+  if (status != ResponseStatus::success || !payload)
+    return std::nullopt;
 
-    std::wcout << L"[+] Target process started! PID=" << info->ProcessId
-               << L"  Image=" << info->ImageFileName << std::endl;
+  auto const *info = as_proc_info(payload);
+  if (!info)
+    return std::nullopt;
 
-    pids.insert(info->ProcessId);
+  ProcessStartEvent ev{info->ProcessId, info->ImageFileName};
+  return ev;
+}
+
+void Service::watch(const std::wstring &exeName,
+                    std::atomic<bool> &stopFlag,
+                    const std::function<void(const ProcessStartEvent &)> &onEvent) {
+  if (!km_ && !init())
+    return;
+
+  const std::wstring name = toExeName(exeName);
+  while (!stopFlag.load(std::memory_order_relaxed)) {
+    auto [status, payload] = km_->sendRequest(RequestType::WaitForProcessStart, name);
+    if (stopFlag.load(std::memory_order_relaxed))
+      break;
+    if (status != ResponseStatus::success || !payload)
+      break;
+
+    auto const *info = as_proc_info(payload);
+    if (!info)
+      break;
+
+    onEvent(ProcessStartEvent{info->ProcessId, info->ImageFileName});
   }
+}
 
-  /* std::vector<FailureInfo> failures = Utils::killProcces(pids, km);
-  KILL PART
+KillResult Service::killByPid(DWORD pid) {
+  using enum KillStatus;
+  if (!km_ && !init())
+    return {.status = Error};
+  std::set<DWORD> pids{pid};
+  if (auto failures = Utils::killProcces(pids, *km_); !failures.empty())
+    return {.status = PartialFailure, .failures = std::move(failures)};
+  return {.status = Ok};
+}
 
-  km.shutdown();
+KillResult Service::killByExe(const std::wstring &exeOrPath) {
+  using enum KillStatus;
+  if (!km_ && !init())
+    return {.status = Error};
 
-  if (!failures.empty()) {
-    Utils::PrintFailures(failures);
-    return EXIT_FAILURE;
-  }*/
+  auto pids = findPids(exeOrPath);
+  if (pids.empty())
+    return {.status = NotFound};
 
-  std::wcout << L"Successfully sent terminate requests (kernel mode)" << std::endl;
-  return EXIT_SUCCESS;
+  if (auto failures = Utils::killProcces(pids, *km_); !failures.empty())
+    return {.status = PartialFailure, .failures = std::move(failures)};
+  return {.status = Ok};
+}
+
+std::set<DWORD> Service::findPids(const std::wstring &exeOrPath) const {
+  return Utils::findProcess(exeOrPath);
 }

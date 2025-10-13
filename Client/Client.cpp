@@ -2,8 +2,17 @@
 
 #include <cstdlib>
 #include <iostream>
+#include <mutex>
+#include <psapi.h>
 #include <string_view>
+#include <thread>
 #include <vector>
+
+#include "AhoCorasick/ACScanningEngine.hpp"
+#include "Regex/RScanningEngine.hpp"
+#include "Service/Service.hpp"
+#include "SignaturesDatabase.hpp"
+#include "Utils.hpp"
 
 constexpr std::string_view BANNER = R"(
    ___ ___ _  _ ___ _   _ ___ 
@@ -61,15 +70,80 @@ void printRainbowBanner() {
   setConsoleColor(defaultColor);
 }
 
-int main() {
-  while (true) {
-    printRainbowText("Itay is a");
-    std::cout << std::endl;
-    printRainbowBanner();
-    std::cout << std::endl;
+static std::vector<std::string> getPatterns(const SignaturesDatabase &sd) {
+  return sd.getSignatures(SignatureType::Simple);
+}
 
-    Sleep(100);
+static std::atomic<bool> _stop{false};
+
+static BOOL WINAPI CtrlHandler(DWORD t) {
+  if (t == CTRL_C_EVENT || t == CTRL_BREAK_EVENT || t == CTRL_CLOSE_EVENT) {
+    _stop.store(true, std::memory_order_relaxed);
+    return TRUE;
+  }
+  return FALSE;
+}
+
+// ---------------- scan result adapter ----------------
+// Works whether SearchResult is bool, vector<...>, or optional<...>.
+template <typename T>
+static bool is_hit(const T &r) { return !!r; } // bool
+template <typename T>
+static bool is_hit(const std::vector<T> &r) { return !r.empty(); } // vector
+template <typename T>
+static bool is_hit(const std::optional<T> &r) { return r && is_hit(*r); } // optional<...>
+
+// ---------------- run-forever watcher ----------------
+static void run_forever(Service &s, RScanningEngine &RSE) {
+  DWORD backoff_ms = 250;
+  const DWORD backoff_max = 10'000;
+
+  while (!_stop.load(std::memory_order_relaxed)) {
+    // watch() should block until a process starts or stop flag is set.
+    // If it returns early due to an error, we’ll sleep and retry.
+    s.watch(L"", _stop, [&RSE, &s](const ProcessStartEvent &e) {
+      const std::wstring wpath = Utils::resolve_process_path(e.pid, e.image);
+      const std::string path = Utils::wstring_to_utf8(wpath);
+
+      const auto res = RSE.scanFile(path);
+      if (is_hit(res)) {
+        s.killByPid(e.pid);
+      }
+    });
+
+    if (_stop.load(std::memory_order_relaxed))
+      break;
+
+    // Error/disconnect: backoff and retry
+    Sleep(backoff_ms);
+    backoff_ms = std::min<DWORD>(backoff_ms * 2, backoff_max);
+  }
+}
+
+int main() {
+  std::string DB_PATH = "";
+  printRainbowText("Itay&Dori\n");
+  printRainbowBanner();
+  std::cout << std::endl;
+
+  Service s;
+  if (!s.init())
+    return EXIT_FAILURE;
+  SignaturesDatabase sd{DB_PATH};
+
+  RScanningEngine RSE{getPatterns(sd)};
+  SetConsoleCtrlHandler(CtrlHandler, TRUE);
+
+  // Single, long-lived watcher thread
+  std::thread watcher([&s, &RSE] { run_forever(s, RSE); });
+
+  // Main thread idles until Ctrl+C
+  while (!_stop.load(std::memory_order_relaxed)) {
+    Sleep(200);
   }
 
+  if (watcher.joinable())
+    watcher.join();
+  s.shutdown();
   return EXIT_SUCCESS;
 }

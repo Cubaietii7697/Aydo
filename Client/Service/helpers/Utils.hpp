@@ -16,7 +16,7 @@ namespace Utils {
 std::set<DWORD> findProcess(const std::filesystem::path &p);
 
 //
-std::vector<FailureInfo> killProcces(const std::set<DWORD> &ps, KernelCommunication &);
+std::vector<FailureInfo> killProcces(const std::set<DWORD> &ps, const KernelCommunication &);
 
 // Print error with custom message
 void PrintError(const std::wstring &custom);

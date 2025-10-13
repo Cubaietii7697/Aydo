@@ -24,6 +24,7 @@
     <ClInclude Include="KernelCommunication\Error.hpp" />
     <ClInclude Include="KernelCommunication\FailureInfo.hpp" />
     <ClInclude Include="KernelCommunication\KernelCommunication.hpp" />
+    <ClInclude Include="Service.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="helpers\Utils.cpp" />

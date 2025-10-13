@@ -162,7 +162,7 @@
     <ClInclude Include="jsonTypes.hpp" />
     <ClInclude Include="Regex\RScanningEngine.hpp" />
     <ClInclude Include="SignaturesDatabase.hpp" />
-    <ClInclude Include="Utils.h" />
+    <ClInclude Include="Utils.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

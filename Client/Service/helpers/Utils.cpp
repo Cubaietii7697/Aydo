@@ -31,7 +31,7 @@ std::set<DWORD> findProcess(const std::filesystem::path &p) {
   return pids;
 }
 
-std::vector<FailureInfo> killProcces(const std::set<DWORD> &pids, KernelCommunication &km) {
+std::vector<FailureInfo> killProcces(const std::set<DWORD> &pids, const KernelCommunication &km) {
   // Kill all found or newly started processes
   std::vector<FailureInfo> failures;
   for (DWORD pid : pids) {
