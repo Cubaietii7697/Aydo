@@ -25,6 +25,6 @@
     }
   ],
   "custom_config": {
-    "jwtSecret": "secret"
+    "jwtSecret": "secret-shhhh-dont-tell"
   }
 }

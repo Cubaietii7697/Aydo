@@ -10,8 +10,6 @@ public:
 
   static JWT &instance();
 
-  [[nodiscard]] std::string getSecret() const { return m_secret; }
-
   [[nodiscard]] static std::string generate(const Claims &claims);
 
   [[nodiscard]] static std::optional<Claims> verify(const std::string &token);
