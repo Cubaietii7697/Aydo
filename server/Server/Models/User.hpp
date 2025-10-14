@@ -2,6 +2,7 @@
 
 #include <optional>
 #include <trantor/utils/Date.h>
+#include <drogon/orm/Result.h>
 #include <drogon/orm/DbClient.h>
 #include <drogon/orm/CoroMapper.h>
 #include <drogon/orm/Mapper.h>
@@ -17,6 +18,9 @@ private:
   trantor::Date m_updatedAt;
 
 public:
+  User() = default;
+  explicit User(const drogon::orm::Row &row);
+
   static std::optional<User> getByEmail(
       const drogon::orm::DbClientPtr &dbClient, const std::string &email);
 

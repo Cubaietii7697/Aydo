@@ -8,10 +8,23 @@ using drogon::orm::DbClientPtr;
 
 namespace Models {
 
+User::User(const drogon::orm::Row &row) {
+  try {
+    m_id = std::to_string(row["id"].as<int>());
+    m_email = row["email"].as<std::string>();
+    m_nickname = row["nickname"].as<std::string>();
+    m_passwordHash = row["passwordHash"].as<std::string>();
+  } catch (const std::exception &e) {
+    LOG_WARN << "Failed to parse User from row: " << e.what();
+  } catch (...) {
+    LOG_WARN << "Failed to parse User from row: unknown error";
+  }
+}
+
 std::optional<User> User::getByEmail(const DbClientPtr &dbClient,
                                      const std::string &email) {
   auto result = dbClient->execSqlSync(
-      "SELECT id, email, nickname, passwordHash, createdAt, updatedAt FROM users WHERE email = $1 LIMIT 1",
+      "SELECT id, email, nickname, passwordHash FROM users WHERE email = $1 LIMIT 1",
       email);
 
   if (result.empty()) {
@@ -20,11 +33,7 @@ std::optional<User> User::getByEmail(const DbClientPtr &dbClient,
 
   const auto &row = result[0];
 
-  User user;
-  user.setId(std::to_string(row["id"].as<int>()));
-  user.setEmail(row["email"].as<std::string>());
-  user.setNickname(row["nickname"].as<std::string>());
-  user.setPasswordHash(row["passwordHash"].as<std::string>());
+  User user(row);
 
   return user;
 }
@@ -53,11 +62,7 @@ std::optional<User> User::getById(const DbClientPtr &dbClient,
 
   const auto &row = result[0];
 
-  User user;
-  user.setId(std::to_string(row["id"].as<int>()));
-  user.setEmail(row["email"].as<std::string>());
-  user.setNickname(row["nickname"].as<std::string>());
-  user.setPasswordHash(row["passwordHash"].as<std::string>());
+  User user(row);
 
   return user;
 }
