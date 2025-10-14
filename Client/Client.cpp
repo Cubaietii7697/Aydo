@@ -9,6 +9,8 @@
 #include <vector>
 
 #include "AhoCorasick/ACScanningEngine.hpp"
+#include "AhoCorasick/AhoCorasick.hpp"
+#include "HashesDatabase.hpp"
 #include "Regex/RScanningEngine.hpp"
 #include "Service/Service.hpp"
 #include "SignaturesDatabase.hpp"
@@ -70,10 +72,6 @@ void printRainbowBanner() {
   setConsoleColor(defaultColor);
 }
 
-static std::vector<std::string> getPatterns(const SignaturesDatabase &sd) {
-  return sd.getSignatures(SignatureType::Simple);
-}
-
 static std::atomic<bool> _stop{false};
 
 static BOOL WINAPI CtrlHandler(DWORD t) {
@@ -84,19 +82,8 @@ static BOOL WINAPI CtrlHandler(DWORD t) {
   return FALSE;
 }
 
-// ---------------- scan result adapter ----------------
-// Works whether SearchResult is bool, vector<...>, or optional<...>.
-template <typename T>
-static bool is_hit(const T &r) { return !!r; } // bool
-template <typename T>
-static bool is_hit(const std::vector<T> &r) { return !r.empty(); } // vector
-template <class Ch, class Tr, class Al>
-inline bool is_hit(const std::basic_string<Ch, Tr, Al> &s) { return !s.empty(); }
-template <class T>
-static bool is_hit(const std::optional<T> &r) { return r && is_hit(*r); } // optional<...>
-
 // ---------------- run-forever watcher ----------------
-static void run_forever(Service &s, RScanningEngine &RSE) {
+static void processStartWatcher(Service &s, RScanningEngine &RSE) {
   DWORD backoff_ms = 250;
   const DWORD backoff_max = 10'000;
 
@@ -106,9 +93,14 @@ static void run_forever(Service &s, RScanningEngine &RSE) {
     s.watch(L"", _stop, [&RSE, &s](const ProcessStartEvent &e) {
       const std::wstring wpath = Utils::resolve_process_path(e.pid, e.image);
       const std::string path = Utils::wstring_to_utf8(wpath);
-
+      std::vector<uint8_t> textFile = Utils::readFile(path);
+      // check signture
       const auto res = RSE.scanFile(path);
-      if (is_hit(res)) {
+      if (res.has_value() && !res.value().empty()) {
+        s.killByPid(e.pid);
+      }
+
+      if (/* TODO: check hashes*/) {
         s.killByPid(e.pid);
       }
     });
@@ -123,7 +115,8 @@ static void run_forever(Service &s, RScanningEngine &RSE) {
 }
 
 int main() {
-  std::string DB_PATH = "";
+  std::string DB_PATH_SIG = "";
+  std::string DB_PATH_HASHES = "";
   printRainbowText("Itay&Dori\n");
   printRainbowBanner();
   std::cout << std::endl;
@@ -131,13 +124,13 @@ int main() {
   Service s;
   if (!s.init())
     return EXIT_FAILURE;
-  SignaturesDatabase sd{DB_PATH};
-
-  RScanningEngine RSE{getPatterns(sd)};
+  SignaturesDatabase sd{DB_PATH_SIG};
+  HashesDatabase hs{DB_PATH_HASHES};
+  RScanningEngine RSE{sd.getSignatures(SignatureType::Complex)};
   SetConsoleCtrlHandler(CtrlHandler, TRUE);
 
   // Single, long-lived watcher thread
-  std::thread watcher([&s, &RSE] { run_forever(s, RSE); });
+  std::thread watcher([&s, &RSE] { processStartWatcher(s, RSE); });
 
   // Main thread idles until Ctrl+C
   while (!_stop.load(std::memory_order_relaxed)) {

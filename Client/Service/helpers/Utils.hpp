@@ -15,8 +15,8 @@ namespace Utils {
 // Find all PIDs matching exe name
 std::set<DWORD> findProcess(const std::filesystem::path &p);
 
-//
-std::vector<FailureInfo> killProcces(const std::set<DWORD> &ps, const KernelCommunication &);
+// kill all the procces with pds using kernel
+std::vector<FailureInfo> killProcces(const std::set<DWORD> &ps, const KernelCommunication &km);
 
 // Print error with custom message
 void PrintError(const std::wstring &custom);
