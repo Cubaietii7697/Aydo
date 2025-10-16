@@ -75,12 +75,14 @@ KernelCommunication::sendRequest(const RequestType type,
         res->driverStatus = 0;
         res->terminatedPid = 0;
       }
+
       return {ResponseStatus::failure, std::move(res)};
     }
 
     res->errorCode = ERROR_SUCCESS;
     res->driverStatus = static_cast<DWORD>(out.ntStatus);
     res->terminatedPid = out.terminatedPid;
+
     return {ResponseStatus::success, std::move(res)};
   }
 
@@ -93,18 +95,18 @@ KernelCommunication::sendRequest(const RequestType type,
     auto result = std::make_unique<ProcessNotifyResult>();
     DWORD bytesReturned = 0;
 
-    BOOL ok = ::DeviceIoControl(
-        m_hDev,
-        IOCTL_WAIT_FOR_PROCESS_START,
-        &input, sizeof(input),
-        result.get(), sizeof(result->info),
-        &bytesReturned,
-        nullptr);
-
-    if (!ok) {
+    if (BOOL ok = ::DeviceIoControl(
+            m_hDev,
+            IOCTL_WAIT_FOR_PROCESS_START,
+            &input, sizeof(input),
+            result.get(), sizeof(result->info),
+            &bytesReturned,
+            nullptr);
+        !ok) {
       DWORD err = GetLastError();
       auto errResult = std::make_unique<ResultData>();
       errResult->errorCode = err;
+
       return {ResponseStatus::failure, std::move(errResult)};
     }
 
@@ -114,6 +116,7 @@ KernelCommunication::sendRequest(const RequestType type,
   default: {
     auto r = std::make_unique<ResultData>();
     r->errorCode = ERROR_INVALID_FUNCTION;
+
     return {ResponseStatus::invalidRequestType, std::move(r)};
   }
   }

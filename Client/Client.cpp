@@ -162,8 +162,10 @@ int main() {
     Sleep(200);
   }
 
-  if (watcher.joinable())
+  if (watcher.joinable()) {
     watcher.join();
+  }
+
   s.shutdown();
   return EXIT_SUCCESS;
 }

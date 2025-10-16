@@ -11,22 +11,27 @@ Service::~Service() {
 }
 
 bool Service::init() {
-  if (m_km)
+  if (m_km) {
     return true;
+  }
+
   m_km = std::make_unique<KernelCommunication>();
   if (!m_km->initKernel()) {
     m_km = nullptr;
 
     return false;
   }
+
   return true;
 }
 
 void Service::shutdown() {
-  if (m_km) {
-    m_km->shutdown();
-    m_km.reset();
+  if (!m_km) {
+    return;
   }
+
+  m_km->shutdown();
+  m_km.reset();
 }
 
 std::wstring Service::toExeName(const std::wstring &input) {
@@ -37,17 +42,20 @@ std::wstring Service::toExeName(const std::wstring &input) {
 
 std::optional<ProcessStartEvent>
 Service::waitForStart(const std::wstring &exeName) {
-  if (!m_km && !init())
+  if (!m_km && !init()) {
     return std::nullopt;
+  }
 
   const std::wstring name = toExeName(exeName);
   auto [status, payload] = m_km->sendRequest(RequestType::WaitForProcessStart, name);
-  if (status != ResponseStatus::success || !payload)
+  if (status != ResponseStatus::success || !payload) {
     return std::nullopt;
+  }
 
   auto const *info = as_proc_info(payload);
-  if (!info)
+  if (!info) {
     return std::nullopt;
+  }
 
   ProcessStartEvent ev{info->ProcessId, info->ImageFileName};
 
@@ -78,25 +86,32 @@ void Service::watch(const std::wstring &exeName,
 
 KillResult Service::killByPid(DWORD pid) {
   using enum KillStatus;
-  if (!m_km && !init())
+  if (!m_km && !init()) {
     return {.status = Error};
+  }
+
   std::set<DWORD> pids{pid};
-  if (auto failures = Utils::killProcces(pids, *m_km); !failures.empty())
+  if (auto failures = Utils::killProcces(pids, *m_km); !failures.empty()) {
     return {.status = PartialFailure, .failures = std::move(failures)};
+  }
+
   return {.status = Ok};
 }
 
 KillResult Service::killByExe(const std::wstring &exeOrPath) {
   using enum KillStatus;
-  if (!m_km && !init())
+  if (!m_km && !init()) {
     return {.status = Error};
+  }
 
   auto pids = findPids(exeOrPath);
-  if (pids.empty())
+  if (pids.empty()) {
     return {.status = NotFound};
+  }
 
-  if (auto failures = Utils::killProcces(pids, *m_km); !failures.empty())
+  if (auto failures = Utils::killProcces(pids, *m_km); !failures.empty()) {
     return {.status = PartialFailure, .failures = std::move(failures)};
+  }
 
   return {.status = Ok};
 }

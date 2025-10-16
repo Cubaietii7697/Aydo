@@ -47,6 +47,7 @@ std::vector<FailureInfo> killProcces(const std::set<DWORD> &pids, const KernelCo
           res->driverStatus);
       failures.emplace_back(pid, reason);
       Utils::PrintError(reason);
+
       continue;
     }
 
