@@ -6,6 +6,7 @@
 #include <trantor/utils/Logger.h>
 #include <vector>
 
+#include "Constants.hpp"
 #include "Utils/Crypto.hpp"
 
 JWT &JWT::instance() {
@@ -16,8 +17,8 @@ JWT &JWT::instance() {
 
 JWT::JWT() {
   try {
-    const auto &cfg = drogon::app().getCustomConfig()["jwtSecret"];
-    m_secret = cfg.asString();
+    auto jwtSecret = drogon::app().getCustomConfig().get(reinterpret_cast<const char *>(Constants::JWT_SECRET_JSON_KEY.data()), "");
+    m_secret = jwtSecret.asString();
     if (m_secret.empty()) {
       LOG_ERROR << "JWT secret is empty; set 'jwtSecret' in config";
     }

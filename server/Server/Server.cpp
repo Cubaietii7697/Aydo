@@ -16,9 +16,9 @@ int main() {
       exit(EXIT_FAILURE);
     }
 
-    auto &jwtSecret = drogon::app().getCustomConfig()["jwtSecret"];
+    auto jwtSecret = drogon::app().getCustomConfig().get(reinterpret_cast<const char *>(Constants::JWT_SECRET_JSON_KEY.data()), "");
 
-    if (jwtSecret.asString().empty()) {
+    if (jwtSecret.empty()) {
       LOG_ERROR << "No JWT secret found in config! Please add it to the config file.";
 
       exit(EXIT_FAILURE);
