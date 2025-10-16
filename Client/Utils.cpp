@@ -1,10 +1,14 @@
+#define NOMINMAX
 #include "Utils.hpp"
 
 #include <cwctype>
 #include <fstream>
 #include <psapi.h>
 #include <vector>
-
+#ifndef BOTAN_INCLUDED
+#include <botan/hash.h>
+#include <botan/hex.h>
+#endif
 #include "Errors.hpp"
 
 #ifdef _MSC_VER
@@ -123,11 +127,6 @@ std::string Utils::wstring_to_utf8(const std::wstring &w) {
                       out.data(), sz, nullptr, nullptr);
   return out;
 }
-
-#ifndef BOTAN_INCLUDED
-#include <botan/hash.h>
-#include <botan/hex.h>
-#endif
 
 std::string Utils::computeSHA256(const std::string &path) {
   std::ifstream file(path, std::ios::binary);

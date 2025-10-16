@@ -37,7 +37,12 @@ enum class ResponseStatus {
 class KernelCommunication {
 public:
   // Singleton accessor
-  static KernelCommunication &instance();
+  static std::shared_ptr<KernelCommunication> instance() {
+    struct make_shared_enabler : public KernelCommunication {}; // gives access
+    static std::shared_ptr<KernelCommunication> inst =
+        std::make_shared<make_shared_enabler>();
+    return inst;
+  }
 
   // Open handle to device
   bool initKernel(const std::wstring &deviceName = LR"(\\.\AydoKernelDriver)");

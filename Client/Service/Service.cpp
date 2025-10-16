@@ -15,7 +15,8 @@ bool Service::init() {
     return true;
   }
 
-  m_km = std::make_unique<KernelCommunication>();
+  m_km = KernelCommunication::instance();
+
   if (!m_km->initKernel()) {
     m_km = nullptr;
 
@@ -31,7 +32,6 @@ void Service::shutdown() {
   }
 
   m_km->shutdown();
-  m_km.reset();
 }
 
 std::wstring Service::toExeName(const std::wstring &input) {

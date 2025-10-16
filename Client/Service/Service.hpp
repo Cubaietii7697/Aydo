@@ -56,5 +56,5 @@ public:
 
 private:
   static std::wstring toExeName(const std::wstring &input);
-  std::unique_ptr<KernelCommunication> m_km{nullptr};
+  std::shared_ptr<KernelCommunication> m_km;
 };

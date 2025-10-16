@@ -5,13 +5,6 @@
 #include "../../IOCTLDefs.hpp"
 #include "../../KernelDriver/include/Public.hpp"
 
-// Singleton
-KernelCommunication &KernelCommunication::instance() {
-  static KernelCommunication inst;
-
-  return inst;
-}
-
 KernelCommunication::KernelCommunication()
     : m_hDev(INVALID_HANDLE_VALUE) {}
 
