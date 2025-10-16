@@ -4,15 +4,17 @@ int main(int argc, char *argv[]) {
   // We expect args to be: <executable path> <sandbox_id>.
   // argv[0] is the executable path.
   // argv[1] is the sandbox id.
-  // argv[2] is the time for ETW
-  if (argc < 2 || argc > 3) {
-    std::cerr << "Usage: " << argv[0] << " <sandbox_id> [runTime]" << std::endl;
+  // argv[2] is the path of virus
+  // argv[3] is the time for ETW
+  if (argc < 3 || argc > 4) {
+    std::cerr << "Usage: " << argv[0] << " <sandbox_id> <virus_path> [runTime]" << std::endl;
 
     return EXIT_FAILURE;
   }
 
   std::string sandboxId(argv[1]);
-  const int time = (argc == 3) ? atoi(argv[2]) : 0;
+  std::string_view SUSPICIOUS_FILE_PATH(argv[2]);
+  const int time = (argc == 4) ? atoi(argv[3]) : 60;
 
   Utills::printBanner();
 
@@ -63,7 +65,7 @@ int main(int argc, char *argv[]) {
       GUEST_PASS,
       sandboxPath,
       PM_FILE_PATH,
-      PM_FILE_PATH_GUEST);
+      PM_FILE_PATH_INSIDE_VM);
   Utills::executeAndWait(copyCmd);
 
   std::string runCmd = std::format(
@@ -72,7 +74,7 @@ int main(int argc, char *argv[]) {
       GUEST_USER,
       GUEST_PASS,
       sandboxPath,
-      PM_FILE_PATH_GUEST,
+      PM_FILE_PATH_INSIDE_VM,
       SUSPICIOUS_FILE_PATH,
       SHARE_FILE_NAME);
   if (time) {
