@@ -1,4 +1,3 @@
-# base style
 BasedOnStyle: LLVM
 
 # indent
@@ -10,19 +9,28 @@ UseTab: Never
 IncludeBlocks: Regroup
 SortIncludes: CaseInsensitive
 IncludeCategories:
+  # Force <windows.h> very top
   - Regex: '^<windows.h>'
     Priority: 1
-  - Regex: '^<.*>'
+  # Kernel-mode core headers
+  - Regex: '^<ntddk.h>'
     Priority: 2
-  - Regex: '.*'
+  - Regex: '^<wdf.h>'
     Priority: 3
+  - Regex: '^<ntifs.h>'
+    Priority: 4
+  # All other system headers
+  - Regex: '^<.*>'
+    Priority: 5
+  # Project/local headers
+  - Regex: '.*'
+    Priority: 6
+
 SortUsingDeclarations: true
 
 # constructor initializer settings
 PackConstructorInitializers: Never
 BreakConstructorInitializersBeforeComma: true
 
-# line length settings
+# line length
 ColumnLimit: 0
-
-# for more options, type ctrl + space to bring up the auto-completion list

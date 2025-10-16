@@ -21,8 +21,9 @@ TRACEHANDLE g_hSession = 0;
 std::set<DWORD> processMonitor::FindPidByName(const std::wstring &exeName) {
   std::set<DWORD> pids;
   HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-  if (snap == INVALID_HANDLE_VALUE)
+  if (snap == INVALID_HANDLE_VALUE) {
     return pids;
+  }
 
   PROCESSENTRY32W pe;
   pe.dwSize = sizeof(pe);
@@ -36,6 +37,7 @@ std::set<DWORD> processMonitor::FindPidByName(const std::wstring &exeName) {
   }
 
   CloseHandle(snap);
+
   return pids;
 }
 
@@ -50,8 +52,9 @@ void WINAPI processMonitor::StaticEventRecordCallback(PEVENT_RECORD pEvent) {
   const std::vector<int> OPCODES_TO_SKIP = {38, 33, 44};
 
   // Shouldn't happen, just a failsafe to make sure we don't print something that doesn't exist in memory
-  if (!pEvent)
+  if (!pEvent) {
     return;
+  }
 
   DWORD pid = pEvent->EventHeader.ProcessId;
 
@@ -72,13 +75,17 @@ void WINAPI processMonitor::StaticEventRecordCallback(PEVENT_RECORD pEvent) {
   ULONG status = TdhGetEventInformation(pEvent, 0, nullptr, pInfo, &bufSize);
   if (status == ERROR_INSUFFICIENT_BUFFER) {
     pInfo = (PTRACE_EVENT_INFO)malloc(bufSize);
-    if (!pInfo)
+    if (!pInfo) {
       return;
+    }
+
     status = TdhGetEventInformation(pEvent, 0, nullptr, pInfo, &bufSize);
   }
   if (status != ERROR_SUCCESS) {
-    if (pInfo)
+    if (pInfo) {
       free(pInfo);
+    }
+
     return;
   }
 
@@ -102,16 +109,19 @@ void WINAPI processMonitor::StaticEventRecordCallback(PEVENT_RECORD pEvent) {
       std::wstring propName = prop.NameOffset ? GetStringFromInfo(pInfo, prop.NameOffset) : L"<prop>";
 
       std::wstring val = FormatProperty(pInfo, pEvent, i);
-      if (val.empty())
+      if (val.empty()) {
         val = L"(empty)";
+      }
+
       std::wcout << L"\t" << propName << L" = " << val << std::endl;
     }
   } else {
     std::wcout << L"\t(no properties)" << std::endl;
   }
 
-  if (pInfo)
+  if (pInfo) {
     free(pInfo);
+  }
 }
 
 // Starts a kernel logging session
@@ -128,6 +138,7 @@ bool processMonitor::StartKernelSession(const std::wstring &sessionName,
   if (!pProps) {
     outStatus = ERROR_OUTOFMEMORY;
     std::wcerr << L"[ERROR] malloc EVENT_TRACE_PROPERTIES failed\n";
+
     return false;
   }
 
@@ -157,6 +168,7 @@ bool processMonitor::StartKernelSession(const std::wstring &sessionName,
     if (outStatus != ERROR_SUCCESS) {
       std::wcerr << L"[ERROR] StartTrace failed: " << outStatus << std::endl;
       free(pProps);
+
       return false;
     }
   }
@@ -179,6 +191,7 @@ bool processMonitor::StartKernelSession(const std::wstring &sessionName,
   std::wcout << L"[DEBUG] EnableTraceEx2 GUID_KERNEL_NETWORK -> " << rc << std::endl;
 
   free(pProps);
+
   return true;
 }
 
@@ -215,6 +228,7 @@ bool processMonitor::OpenAndProcessRealTime(const std::wstring &sessionName) {
     std::wcerr << L"[ERROR] OpenTrace failed with error: " << error
                << std::endl;
     StopKernelSession(sessionName);
+
     return false;
   }
   std::wcout << L"[DBG] OpenTraceW succeeded, handle: " << g_hTrace
@@ -226,16 +240,19 @@ bool processMonitor::OpenAndProcessRealTime(const std::wstring &sessionName) {
 
   if (status == ERROR_SUCCESS) {
     std::wcout << L"[DEBUG] ProcessTrace completed successfully" << std::endl;
+
     return true;
   }
   if (status == ERROR_CANCELLED) {
     std::wcout << L"[INFO] Trace stopped by user (ERROR_CANCELLED)"
                << std::endl;
+
     return true;
   }
 
   std::wcerr << L"[ERROR] ProcessTrace failed with status " << status
              << std::endl;
+
   return false;
 }
 
@@ -246,8 +263,9 @@ bool processMonitor::OpenAndProcessRealTime(const std::wstring &sessionName) {
 std::wstring processMonitor::FormatBasicProperty(USHORT inType, PBYTE propertyData, USHORT propertyLength) {
   const unsigned int MAX_HEX_BYTES_FOR_UNKOWN_TYPE = 8;
 
-  if (!propertyData || propertyLength == 0)
+  if (!propertyData || propertyLength == 0) {
     return L"";
+  }
 
   switch (inType) {
   case TDH_INTYPE_INT8:
@@ -274,13 +292,16 @@ std::wstring processMonitor::FormatBasicProperty(USHORT inType, PBYTE propertyDa
     if (propertyLength >= sizeof(wchar_t)) {
       return std::wstring((wchar_t *)propertyData, propertyLength / sizeof(wchar_t));
     }
+
     return L"";
   }
   case TDH_INTYPE_ANSISTRING: {
     if (propertyLength >= sizeof(char)) {
       std::string ansiStr((char *)propertyData, propertyLength);
+
       return std::wstring(ansiStr.begin(), ansiStr.end());
     }
+
     return L"";
   }
   case TDH_INTYPE_BOOLEAN: {
@@ -292,9 +313,11 @@ std::wstring processMonitor::FormatBasicProperty(USHORT inType, PBYTE propertyDa
     std::wstring hexStr;
     for (USHORT i = 0; i < propertyLength && i < MAX_HEX_BYTES_FOR_UNKOWN_TYPE; ++i) {
       hexStr += std::to_wstring(propertyData[i]);
-      if (i < propertyLength - 1)
+      if (i < propertyLength - 1) {
         hexStr += L" ";
+      }
     }
+
     return hexStr;
   }
 }
@@ -302,8 +325,10 @@ std::wstring processMonitor::FormatBasicProperty(USHORT inType, PBYTE propertyDa
 // Gets a string from a event info memory with an offset
 std::wstring processMonitor::GetStringFromInfo(PTRACE_EVENT_INFO pInfo,
                                                ULONG offset) {
-  if (!pInfo || offset == 0)
+  if (!pInfo || offset == 0) {
     return L"";
+  }
+
   auto p = (PWSTR)((PBYTE)pInfo + offset);
 
   return {p};
@@ -311,14 +336,17 @@ std::wstring processMonitor::GetStringFromInfo(PTRACE_EVENT_INFO pInfo,
 
 // Formats bytes as a hex string
 std::wstring processMonitor::BytesToHex(const BYTE *data, ULONG size, ULONG maxBytes) {
-  if (!data || size == 0)
+  if (!data || size == 0) {
     return L"";
+  }
 
   std::wostringstream oss;
   ULONG toShow = (size > maxBytes) ? maxBytes : size;
   for (ULONG i = 0; i < toShow; ++i) {
-    if (i)
+    if (i) {
       oss << L" ";
+    }
+
     oss << std::hex << std::uppercase << (int)data[i];
   }
   if (size > maxBytes) {
@@ -334,8 +362,9 @@ std::wstring processMonitor::BytesToHex(const BYTE *data, ULONG size, ULONG maxB
 std::wstring processMonitor::FormatProperty(PTRACE_EVENT_INFO pInfo,
                                             PEVENT_RECORD pEvent,
                                             USHORT propertyIndex) {
-  if (!pInfo || !pEvent)
+  if (!pInfo || !pEvent) {
     return L"";
+  }
 
   EVENT_PROPERTY_INFO const *propInfo = &pInfo->EventPropertyInfoArray[propertyIndex];
 
@@ -366,8 +395,9 @@ std::wstring processMonitor::FormatProperty(PTRACE_EVENT_INFO pInfo,
   USHORT inType = propInfo->nonStructType.InType;
   if (!data.empty()) {
     std::wstring formatted = FormatBasicProperty(inType, data.data(), USHORT(data.size()));
-    if (!formatted.empty())
+    if (!formatted.empty()) {
       return formatted;
+    }
   }
 
   // If empty and the property looks like a string, try a few common alternative names
@@ -383,28 +413,34 @@ std::wstring processMonitor::FormatProperty(PTRACE_EVENT_INFO pInfo,
 
     ULONG altSize = 0;
     ULONG rc = TdhGetPropertySize(pEvent, 0, nullptr, 1, &altPdd, &altSize);
-    if (rc != ERROR_SUCCESS || altSize == 0)
+    if (rc != ERROR_SUCCESS || altSize == 0) {
       continue;
+    }
 
     std::vector<BYTE> altData(altSize);
     rc = TdhGetProperty(pEvent, 0, nullptr, 1, &altPdd, altSize, altData.data());
     if (rc == ERROR_SUCCESS && !altData.empty()) {
       // Try to format as Unicode string first, then fall back
       std::wstring out = FormatBasicProperty(TDH_INTYPE_UNICODESTRING, altData.data(), USHORT(altData.size()));
-      if (!out.empty())
+      if (!out.empty()) {
         return out;
+      }
+
       // Try as ANSI
       out = FormatBasicProperty(TDH_INTYPE_ANSISTRING, altData.data(), USHORT(altData.size()));
-      if (!out.empty())
+      if (!out.empty()) {
         return out;
+      }
+
       // General fallback
       return BytesToHex(altData.data(), (ULONG)altData.size());
     }
   }
 
   // Final fallback: empty hex preview of original data (or empty string)
-  if (!data.empty())
+  if (!data.empty()) {
     return BytesToHex(data.data(), (ULONG)data.size());
+  }
 
   return L"";
 }
@@ -413,8 +449,9 @@ std::wstring processMonitor::FormatProperty(PTRACE_EVENT_INFO pInfo,
 // Call this from StaticEventRecordCallback (it is safe-ish to call from
 // callback; keep output minimal)
 void processMonitor::PrintEventDetailed(PEVENT_RECORD pEvent) {
-  if (!pEvent)
+  if (!pEvent) {
     return;
+  }
 
   // Get trace event info
   PTRACE_EVENT_INFO pInfo = nullptr;
@@ -422,8 +459,10 @@ void processMonitor::PrintEventDetailed(PEVENT_RECORD pEvent) {
   ULONG status = TdhGetEventInformation(pEvent, 0, nullptr, pInfo, &bufferSize);
   if (status == ERROR_INSUFFICIENT_BUFFER) {
     pInfo = (PTRACE_EVENT_INFO)malloc(bufferSize);
-    if (!pInfo)
+    if (!pInfo) {
       return;
+    }
+
     status = TdhGetEventInformation(pEvent, 0, nullptr, pInfo, &bufferSize);
   }
   if (status != ERROR_SUCCESS) {
@@ -434,8 +473,11 @@ void processMonitor::PrintEventDetailed(PEVENT_RECORD pEvent) {
                << (int)pEvent->EventHeader.EventDescriptor.Opcode << L" Level="
                << (int)pEvent->EventHeader.EventDescriptor.Level << L" PID="
                << pEvent->EventHeader.ProcessId << std::endl;
-    if (pInfo)
+
+    if (pInfo) {
       free(pInfo);
+    }
+
     return;
   }
 
@@ -483,8 +525,9 @@ void processMonitor::PrintEventDetailed(PEVENT_RECORD pEvent) {
     std::wcout << L"    (no properties)" << std::endl;
   }
 
-  if (pInfo)
+  if (pInfo) {
     free(pInfo);
+  }
 }
 
 // Formats a timestamp from an event record
