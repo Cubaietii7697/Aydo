@@ -17,5 +17,12 @@ constexpr std::string_view BANNER = R"(
 constexpr std::string_view VM_RUN_PATH = R"("C:\Program Files (x86)\VMware\VMware Workstation\vmrun.exe")";
 constexpr std::string_view ANALYSIS_VM_PATH = R"("D:\veeeertoooaaalll\SANDBOX1\SANDBOX1.vmx")";
 constexpr std::string_view SANDBOXES_DIRECTORY_PATH = R"(D:\veeeertoooaaalll\copy.me.here.plz)";
+constexpr std::string_view HOST_FOLDER_PATH = R"(C:\Shared)";
+constexpr std::string_view SHARE_FILE_NAME = "logs.log";
+constexpr std::string_view GUEST_USER = "vmuser";
+constexpr std::string_view GUEST_PASS = "vmpassword";
+constexpr std::string_view PM_FILE_PATH = R"(C:\Projects\ProcessMonitor\x64\Debug\readFromVm.exe)";
+constexpr std::string_view PM_FILE_PATH_GUEST = R"(C:\Users\vmuser\Desktop\Ghost.exe)";
+constexpr std::string_view SUSPICIOUS_FILE_PATH = R"(C:\Users\vmuser\Desktop\filetoplot.exe)";
 
 constexpr unsigned int ANIMATION_SLEEP_TIME_MS = 50;
