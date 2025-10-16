@@ -44,7 +44,7 @@ bool isValidPassword(const std::string &password) {
 }
 
 // Checks for a valid refresh token (we don't validate the token itself, just check if it's not empty)
-bool isValidRefreshToken(const std::string &refreshToken) {
+bool isValidRefreshToken(std::string_view refreshToken) {
   if (refreshToken.empty()) {
     return false;
   }

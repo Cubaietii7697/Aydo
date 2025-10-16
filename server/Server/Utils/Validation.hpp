@@ -34,6 +34,6 @@ inline const std::regex PASSWORD_HAS_ATLEAST_ONE_DIGIT(R"([0-9])");
 
 [[nodiscard]] bool isValidPassword(const std::string &password);
 
-[[nodiscard]] bool isValidRefreshToken(const std::string &refreshToken);
+[[nodiscard]] bool isValidRefreshToken(std::string_view refreshToken);
 
 } // namespace Utils::Validation
