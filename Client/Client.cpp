@@ -83,10 +83,10 @@ static BOOL WINAPI CtrlHandler(DWORD t) {
   return FALSE;
 }
 
-bool isThreat(const std::string &path,
-              RScanningEngine &RSE,
-              SCAScanningEngine &SCA,
-              HashesDatabase const &hs) {
+static bool isThreat(const std::string &path,
+                     RScanningEngine &RSE,
+                     SCAScanningEngine &SCA,
+                     HashesDatabase const &hs) {
   const auto resRSE = RSE.scanFile(path);
   const auto resSCA = SCA.scanFile(path);
   const auto hexHash = Utils::computeSHA256(path);
@@ -101,7 +101,7 @@ bool isThreat(const std::string &path,
 static void processStartWatcher(Service &s,
                                 RScanningEngine &RSE,
                                 SCAScanningEngine &SCA,
-                                HashesDatabase &hs) {
+                                HashesDatabase const &hs) {
   DWORD backoff_ms = 250;
   const DWORD backoff_max = 10'000;
   DWORD currentPid = GetCurrentProcessId();
