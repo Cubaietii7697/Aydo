@@ -55,4 +55,7 @@ std::wstring resolve_process_path(DWORD pid, const std::wstring &imageFromDriver
 // UTF-16 (std::wstring) to UTF-8 (std::string). Returns empty string if input empty.
 std::string wstring_to_utf8(const std::wstring &w);
 
+// compute SHA-256 incrementally
+std::string computeSHA256(const std::string &path);
+
 } // namespace Utils

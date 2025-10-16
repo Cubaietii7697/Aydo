@@ -3,8 +3,8 @@
 #include <functional>
 #include <map>
 #include <string>
-#include <vector>
 #include <utility>
+#include <vector>
 
 namespace ACUtils {
 enum class Constraint : char {
@@ -26,7 +26,7 @@ struct PatternInfo {
 
 using SegmentPositions = std::map<std::vector<uint8_t>, std::vector<size_t>>;
 
-std::string constraintToString(const Constraint& constraint);
+std::string constraintToString(const Constraint &constraint);
 
 PatternInfo parsePattern(const std::string &patternStr);
 
@@ -48,7 +48,8 @@ bool checkConstraintSatisfaction(
     const std::vector<std::tuple<size_t, size_t, Constraint>> &constraints,
     const SegmentPositions &segmentPositions,
     const std::function<bool(size_t, size_t)> &checkChain);
-    
+
 std::pair<std::vector<PatternInfo>, std::vector<std::vector<uint8_t>>> parsePatternsAndCollectSegments(const std::vector<std::string> &hexPatterns);
 std::pair<bool, std::string> searchPatternsCommon(const std::vector<PatternInfo> &parsedPatterns, const std::vector<std::vector<uint8_t>> &allSegments, const SegmentPositions &segmentPositions);
+
 }; // namespace ACUtils

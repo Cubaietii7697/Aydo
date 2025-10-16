@@ -10,6 +10,7 @@
 
 #include "AhoCorasick/ACScanningEngine.hpp"
 #include "AhoCorasick/AhoCorasick.hpp"
+#include "AhoCorasick/SCAScanningEngine.hpp"
 #include "HashesDatabase.hpp"
 #include "Regex/RScanningEngine.hpp"
 #include "Service/Service.hpp"
@@ -17,12 +18,12 @@
 #include "Utils.hpp"
 
 constexpr std::string_view BANNER = R"(
-   ___ ___ _  _ ___ _   _ ___ 
-  / __| __| \| |_ _| | | / __|
- | (_ | _|| .` || || |_| \__ \
-  \___|___|_|\_|___|\___/|___/
+       ___ ___ _  _ ___ _   _ ___ 
+      / __| __| \| |_ _| | | / __|
+     | (_ | _|| .` || || |_| \__ \
+      \___|___|_|\_|___|\___/|___/
                               
-)";
+    )";
 
 // Rainbow colors for console output
 const std::vector<WORD> rainbowColors = {
@@ -82,33 +83,56 @@ static BOOL WINAPI CtrlHandler(DWORD t) {
   return FALSE;
 }
 
+bool isThreat(const std::string &path,
+              RScanningEngine &RSE,
+              SCAScanningEngine &SCA,
+              HashesDatabase const &hs) {
+  const auto resRSE = RSE.scanFile(path);
+  const auto resSCA = SCA.scanFile(path);
+  const auto hexHash = Utils::computeSHA256(path);
+  const auto resHASH = hs.getHashName(hexHash);
+
+  return (resRSE && !resRSE->empty()) ||
+         (resSCA && !resSCA->empty()) ||
+         (resHASH && !resHASH->empty());
+}
+
 // ---------------- run-forever watcher ----------------
-static void processStartWatcher(Service &s, RScanningEngine &RSE) {
+static void processStartWatcher(Service &s,
+                                RScanningEngine &RSE,
+                                SCAScanningEngine &SCA,
+                                HashesDatabase &hs) {
   DWORD backoff_ms = 250;
   const DWORD backoff_max = 10'000;
+  DWORD currentPid = GetCurrentProcessId();
 
   while (!_stop.load(std::memory_order_relaxed)) {
-    // watch() should block until a process starts or stop flag is set.
-    // If it returns early due to an error, we’ll sleep and retry.
-    s.watch(L"", _stop, [&RSE, &s](const ProcessStartEvent &e) {
+    s.watch(L"", _stop, [&currentPid, &RSE, &SCA, &hs, &s](const ProcessStartEvent &e) {
+      if (e.pid == currentPid)
+        return;
+
       const std::wstring wpath = Utils::resolve_process_path(e.pid, e.image);
       const std::string path = Utils::wstring_to_utf8(wpath);
-      std::vector<uint8_t> textFile = Utils::readFile(path);
-      // check signture
-      const auto res = RSE.scanFile(path);
-      if (res.has_value() && !res.value().empty()) {
-        s.killByPid(e.pid);
-      }
 
-      if (/* TODO: check hashes*/) {
-        s.killByPid(e.pid);
+      if (path.empty())
+        return;
+
+      try {
+        if (isThreat(path, RSE, SCA, hs)) {
+          std::cout << "[ALERT] Killing PID=" << e.pid
+                    << " (" << path << ")\n";
+          s.killByPid(e.pid);
+        }
+      } catch (const std::exception &ex) {
+        std::cerr << "[ERROR] Scan failed for " << path << ": "
+                  << ex.what() << "\n";
       }
     });
 
-    if (_stop.load(std::memory_order_relaxed))
+    if (_stop.load(std::memory_order_relaxed)) {
       break;
+    }
 
-    // Error/disconnect: backoff and retry
     Sleep(backoff_ms);
     backoff_ms = std::min<DWORD>(backoff_ms * 2, backoff_max);
   }
@@ -127,10 +151,11 @@ int main() {
   SignaturesDatabase sd{DB_PATH_SIG};
   HashesDatabase hs{DB_PATH_HASHES};
   RScanningEngine RSE{sd.getSignatures(SignatureType::Complex)};
+  SCAScanningEngine SCA{sd.getSignatures(SignatureType::Simple)};
   SetConsoleCtrlHandler(CtrlHandler, TRUE);
 
   // Single, long-lived watcher thread
-  std::thread watcher([&s, &RSE] { processStartWatcher(s, RSE); });
+  std::thread watcher([&s, &RSE, &SCA, &hs] { processStartWatcher(s, RSE, SCA, hs); });
 
   // Main thread idles until Ctrl+C
   while (!_stop.load(std::memory_order_relaxed)) {

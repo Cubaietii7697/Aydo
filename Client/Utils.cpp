@@ -123,3 +123,26 @@ std::string Utils::wstring_to_utf8(const std::wstring &w) {
                       out.data(), sz, nullptr, nullptr);
   return out;
 }
+
+#ifndef BOTAN_INCLUDED
+#include <botan/hash.h>
+#include <botan/hex.h>
+#endif
+
+std::string Utils::computeSHA256(const std::string &path) {
+  std::ifstream file(path, std::ios::binary);
+  if (!file)
+    return "";
+
+  auto hasher = Botan::HashFunction::create_or_throw("SHA-256");
+  std::vector<uint8_t> buf(64 * 1024);
+
+  while (file) {
+    file.read(reinterpret_cast<char *>(buf.data()), buf.size());
+    std::streamsize bytesRead = file.gcount();
+    if (bytesRead > 0)
+      hasher->update(buf.data(), static_cast<size_t>(bytesRead));
+  }
+
+  return Botan::hex_encode(hasher->final());
+}
