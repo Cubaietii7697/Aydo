@@ -1,0 +1,59 @@
+; KernelDriver.inf
+
+[Version]
+Signature   = "$WINDOWS NT$"
+Class       = System
+ClassGuid   = {4d36e97d-e325-11ce-bfc1-08002be10318}
+Provider    = %ManufacturerName%
+CatalogFile = KernelDriver.cat
+DriverVer   = 09/25/2025,1.0.0.0
+PnpLockdown = 1
+
+[DestinationDirs]
+DefaultDestDir = 12   ; %12% = drivers directory
+
+[SourceDisksNames]
+1 = %DiskName%,,,""
+
+[SourceDisksFiles]
+KernelDriver.sys = 1
+
+;*****************************************
+; Install Section
+;*****************************************
+
+[Manufacturer]
+%ManufacturerName% = Standard,NTamd64
+
+[Standard.NTamd64]
+%KernelDriver.DeviceDesc% = KernelDriver_Install, Root\KernelDriver
+
+[KernelDriver_Install.NT]
+CopyFiles = File_Copy
+
+[File_Copy]
+KernelDriver.sys
+
+;-------------- Service installation
+[KernelDriver_Install.NT.Services]
+AddService = KernelDriver,%SPSVCINST_ASSOCSERVICE%, KernelDriver_Service_Inst
+
+[KernelDriver_Service_Inst]
+DisplayName    = %KernelDriver.SVCDESC%
+ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
+StartType      = 3               ; SERVICE_DEMAND_START
+ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %12%\KernelDriver.sys
+
+[KernelDriver_Install.NT.Wdf]
+KmdfService = KernelDriver, KernelDriver_wdfsect
+
+[KernelDriver_wdfsect]
+KmdfLibraryVersion = 1.33
+
+[Strings]
+SPSVCINST_ASSOCSERVICE = 0x00000002
+ManufacturerName       = "Aydo"
+DiskName               = "KernelDriver Installation Disk"
+KernelDriver.DeviceDesc = "Kernel Driver Device"
+KernelDriver.SVCDESC    = "Kernel Driver Service"

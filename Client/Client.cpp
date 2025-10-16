@@ -2,16 +2,28 @@
 
 #include <cstdlib>
 #include <iostream>
+#include <mutex>
+#include <psapi.h>
 #include <string_view>
+#include <thread>
 #include <vector>
 
+#include "AhoCorasick/ACScanningEngine.hpp"
+#include "AhoCorasick/AhoCorasick.hpp"
+#include "AhoCorasick/SCAScanningEngine.hpp"
+#include "HashesDatabase.hpp"
+#include "Regex/RScanningEngine.hpp"
+#include "Service/Service.hpp"
+#include "SignaturesDatabase.hpp"
+#include "Utils.hpp"
+
 constexpr std::string_view BANNER = R"(
-   ___ ___ _  _ ___ _   _ ___ 
-  / __| __| \| |_ _| | | / __|
- | (_ | _|| .` || || |_| \__ \
-  \___|___|_|\_|___|\___/|___/
+       ___ ___ _  _ ___ _   _ ___ 
+      / __| __| \| |_ _| | | / __|
+     | (_ | _|| .` || || |_| \__ \
+      \___|___|_|\_|___|\___/|___/
                               
-)";
+    )";
 
 // Rainbow colors for console output
 const std::vector<WORD> rainbowColors = {
@@ -61,15 +73,99 @@ void printRainbowBanner() {
   setConsoleColor(defaultColor);
 }
 
-int main() {
-  while (true) {
-    printRainbowText("Itay is a");
-    std::cout << std::endl;
-    printRainbowBanner();
-    std::cout << std::endl;
+static std::atomic<bool> _stop{false};
 
-    Sleep(100);
+static BOOL WINAPI CtrlHandler(DWORD t) {
+  if (t == CTRL_C_EVENT || t == CTRL_BREAK_EVENT || t == CTRL_CLOSE_EVENT) {
+    _stop.store(true, std::memory_order_relaxed);
+    return TRUE;
+  }
+  return FALSE;
+}
+
+static bool isThreat(const std::string &path,
+                     RScanningEngine &RSE,
+                     SCAScanningEngine &SCA,
+                     HashesDatabase const &hs) {
+  const auto resRSE = RSE.scanFile(path);
+  const auto resSCA = SCA.scanFile(path);
+  const auto hexHash = Utils::computeSHA256(path);
+  const auto resHASH = hs.getHashName(hexHash);
+
+  return (resRSE && !resRSE->empty()) ||
+         (resSCA && !resSCA->empty()) ||
+         (resHASH && !resHASH->empty());
+}
+
+// ---------------- run-forever watcher ----------------
+static void processStartWatcher(Service &s,
+                                RScanningEngine &RSE,
+                                SCAScanningEngine &SCA,
+                                HashesDatabase const &hs) {
+  DWORD backoff_ms = 250;
+  const DWORD backoff_max = 10'000;
+  DWORD currentPid = GetCurrentProcessId();
+
+  while (!_stop.load(std::memory_order_relaxed)) {
+    s.watch(L"", _stop, [&currentPid, &RSE, &SCA, &hs, &s](const ProcessStartEvent &e) {
+      if (e.pid == currentPid)
+        return;
+
+      const std::wstring wpath = Utils::resolve_process_path(e.pid, e.image);
+      const std::string path = Utils::wstring_to_utf8(wpath);
+
+      if (path.empty())
+        return;
+
+      try {
+        if (isThreat(path, RSE, SCA, hs)) {
+          std::cout << "[ALERT] Killing PID=" << e.pid
+                    << " (" << path << ")\n";
+          s.killByPid(e.pid);
+        }
+      } catch (const std::exception &ex) {
+        std::cerr << "[ERROR] Scan failed for " << path << ": "
+                  << ex.what() << "\n";
+      }
+    });
+
+    if (_stop.load(std::memory_order_relaxed)) {
+      break;
+    }
+
+    Sleep(backoff_ms);
+    backoff_ms = std::min<DWORD>(backoff_ms * 2, backoff_max);
+  }
+}
+
+int main() {
+  std::string DB_PATH_SIG = "";
+  std::string DB_PATH_HASHES = "";
+  printRainbowText("Itay&Dori\n");
+  printRainbowBanner();
+  std::cout << std::endl;
+
+  Service s;
+  if (!s.init())
+    return EXIT_FAILURE;
+  SignaturesDatabase sd{DB_PATH_SIG};
+  HashesDatabase hs{DB_PATH_HASHES};
+  RScanningEngine RSE{sd.getSignatures(SignatureType::Complex)};
+  SCAScanningEngine SCA{sd.getSignatures(SignatureType::Simple)};
+  SetConsoleCtrlHandler(CtrlHandler, TRUE);
+
+  // Single, long-lived watcher thread
+  std::thread watcher([&s, &RSE, &SCA, &hs] { processStartWatcher(s, RSE, SCA, hs); });
+
+  // Main thread idles until Ctrl+C
+  while (!_stop.load(std::memory_order_relaxed)) {
+    Sleep(200);
   }
 
+  if (watcher.joinable()) {
+    watcher.join();
+  }
+
+  s.shutdown();
   return EXIT_SUCCESS;
 }

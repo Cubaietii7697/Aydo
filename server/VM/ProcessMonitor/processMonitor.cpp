@@ -1,4 +1,4 @@
-﻿#include "processMonitor.hpp"
+#include "processMonitor.hpp"
 
 #include <windows.h>
 
@@ -21,8 +21,9 @@ TRACEHANDLE g_hSession = 0;
 std::set<DWORD> processMonitor::FindPidByName(const std::wstring &exeName) {
   std::set<DWORD> pids;
   HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-  if (snap == INVALID_HANDLE_VALUE)
+  if (snap == INVALID_HANDLE_VALUE) {
     return pids;
+  }
 
   PROCESSENTRY32W pe;
   pe.dwSize = sizeof(pe);
@@ -36,6 +37,7 @@ std::set<DWORD> processMonitor::FindPidByName(const std::wstring &exeName) {
   }
 
   CloseHandle(snap);
+
   return pids;
 }
 
@@ -50,8 +52,9 @@ void WINAPI processMonitor::StaticEventRecordCallback(PEVENT_RECORD pEvent) {
   const std::vector<int> OPCODES_TO_SKIP = {38, 33, 44};
 
   // Shouldn't happen, just a failsafe to make sure we don't print something that doesn't exist in memory
-  if (!pEvent)
+  if (!pEvent) {
     return;
+  }
 
   DWORD pid = pEvent->EventHeader.ProcessId;
 
@@ -72,13 +75,17 @@ void WINAPI processMonitor::StaticEventRecordCallback(PEVENT_RECORD pEvent) {
   ULONG status = TdhGetEventInformation(pEvent, 0, nullptr, pInfo, &bufSize);
   if (status == ERROR_INSUFFICIENT_BUFFER) {
     pInfo = (PTRACE_EVENT_INFO)malloc(bufSize);
-    if (!pInfo)
+    if (!pInfo) {
       return;
+    }
+
     status = TdhGetEventInformation(pEvent, 0, nullptr, pInfo, &bufSize);
   }
   if (status != ERROR_SUCCESS) {
-    if (pInfo)
+    if (pInfo) {
       free(pInfo);
+    }
+
     return;
   }
 
@@ -87,13 +94,12 @@ void WINAPI processMonitor::StaticEventRecordCallback(PEVENT_RECORD pEvent) {
   std::wstring timestamp = FormatTimestamp(pEvent);
 
   // Print a concise header
-  std::wcout << L"[" << timestamp << L"] PID: " << pid
-             << L" Provider: "
-             << (providerName.empty() ? std::to_wstring(pEvent->EventHeader.ProviderId.Data1) : providerName)
-             << L" Event: "
-             << (eventName.empty() ? std::to_wstring(pEvent->EventHeader.EventDescriptor.Id) : eventName)
-             << L" Opcode: " << opcode
-             << std::endl;
+  Logger::Info(std::format(L"[{}] PID: {} Provider: {} Event: {} Opcode: {}",
+                           timestamp,
+                           pid,
+                           providerName.empty() ? std::to_wstring(pEvent->EventHeader.ProviderId.Data1) : providerName,
+                           eventName.empty() ? std::to_wstring(pEvent->EventHeader.EventDescriptor.Id) : eventName,
+                           opcode));
 
   // Print only matching properties
   if (pInfo->TopLevelPropertyCount > 0) {
@@ -102,16 +108,18 @@ void WINAPI processMonitor::StaticEventRecordCallback(PEVENT_RECORD pEvent) {
       std::wstring propName = prop.NameOffset ? GetStringFromInfo(pInfo, prop.NameOffset) : L"<prop>";
 
       std::wstring val = FormatProperty(pInfo, pEvent, i);
-      if (val.empty())
+      if (val.empty()) {
         val = L"(empty)";
-      std::wcout << L"\t" << propName << L" = " << val << std::endl;
+        Logger::Info(std::format(L"\t{} = {}", propName, val));
+      }
     }
   } else {
-    std::wcout << L"\t(no properties)" << std::endl;
+    Logger::Info(L"\t(no properties)");
   }
 
-  if (pInfo)
+  if (pInfo) {
     free(pInfo);
+  }
 }
 
 // Starts a kernel logging session
@@ -127,7 +135,8 @@ bool processMonitor::StartKernelSession(const std::wstring &sessionName,
   auto pProps = (EVENT_TRACE_PROPERTIES *)malloc(propsSize);
   if (!pProps) {
     outStatus = ERROR_OUTOFMEMORY;
-    std::wcerr << L"[ERROR] malloc EVENT_TRACE_PROPERTIES failed\n";
+    Logger::Error(L"malloc EVENT_TRACE_PROPERTIES failed\n");
+
     return false;
   }
 
@@ -141,55 +150,58 @@ bool processMonitor::StartKernelSession(const std::wstring &sessionName,
 
   pProps->LogFileMode = EVENT_TRACE_REAL_TIME_MODE;
   pProps->LoggerNameOffset = sizeof(EVENT_TRACE_PROPERTIES);
-
-  std::wcout << L"[DEBUG] StartTrace session='" << sessionName << L"' EnableFlags=0x"
-             << std::hex << pProps->EnableFlags << std::dec << std::endl;
+  Logger::Debug(std::format(L"StartTrace session='{}' EnableFlags=0x{:X}",
+                            sessionName,
+                            pProps->EnableFlags));
 
   outStatus = StartTraceW(&g_hSession, sessionName.c_str(), pProps);
   if (outStatus != ERROR_SUCCESS) {
     if (outStatus == ERROR_ALREADY_EXISTS) {
-      std::wcerr << L"[WARN] StartTrace: session already exists, attempting stop/retry\n";
+      Logger::Error(L"[WARN] StartTrace: session already exists, attempting stop/retry");
       ULONG ctrl = ControlTraceW(0, sessionName.c_str(), nullptr, EVENT_TRACE_CONTROL_STOP);
-      std::wcout << L"[DEBUG] ControlTrace stop returned " << ctrl << std::endl;
+      Logger::Debug(std::format(L"ControlTrace stop returned {}", ctrl));
       Sleep(WAIT_FOR_SESSION_STOP_MS); // Wait for the session to be stopped
       outStatus = StartTraceW(&g_hSession, sessionName.c_str(), pProps);
     }
     if (outStatus != ERROR_SUCCESS) {
-      std::wcerr << L"[ERROR] StartTrace failed: " << outStatus << std::endl;
+      Logger::Error(std::format(L"StartTrace failed: {}", outStatus));
       free(pProps);
+
       return false;
     }
   }
 
-  std::wcout << L"[DEBUG] StartTrace succeeded, session handle " << g_hSession << std::endl;
+  Logger::Debug(std::format(L"StartTrace succeeded, session handle {}", outStatus));
 
   // Explicitly enable kernel providers too (best-practice in many setups).
   ULONG rc;
   rc = EnableTraceEx2(g_hSession, &GUID_KERNEL_FILE, EVENT_CONTROL_CODE_ENABLE_PROVIDER,
                       TRACE_LEVEL_VERBOSE, 0, 0, 0, nullptr);
-  std::wcout << L"[DEBUG] EnableTraceEx2 GUID_KERNEL_FILE -> " << rc << std::endl;
+  Logger::Debug(std::format(L"EnableTraceEx2 GUID_KERNEL_FILE -> {}", rc));
 
   rc = EnableTraceEx2(g_hSession, &GUID_KERNEL_REGISTRY, EVENT_CONTROL_CODE_ENABLE_PROVIDER,
                       TRACE_LEVEL_VERBOSE, 0, 0, 0, nullptr);
-  std::wcout << L"[DEBUG] EnableTraceEx2 GUID_KERNEL_REGISTRY -> " << rc << std::endl;
+  Logger::Debug(std::format(L"EnableTraceEx2 GUID_KERNEL_REGISTRY -> {}", rc));
 
   // Enable kernel-network provider (the correct GUID, not a placeholder)
   rc = EnableTraceEx2(g_hSession, &GUID_KERNEL_NETWORK, EVENT_CONTROL_CODE_ENABLE_PROVIDER,
                       TRACE_LEVEL_VERBOSE, 0, 0, 0, nullptr);
-  std::wcout << L"[DEBUG] EnableTraceEx2 GUID_KERNEL_NETWORK -> " << rc << std::endl;
+  Logger::Debug(std::format(L"EnableTraceEx2 GUID_KERNEL_NETWORK -> {}", rc));
 
   free(pProps);
+
   return true;
 }
 
 // Stops the kernel session
 void processMonitor::StopKernelSession(const std::wstring &sessionName) {
-  std::wcout << L"[DEBUG] Stopping kernel session..." << std::endl;
-  if (g_hTrace != 0 && g_hTrace != INVALID_PROCESSTRACE_HANDLE) {
+  Logger::Debug(std::format(L"Stopping kernel session '{}'", sessionName));
+
+  if (g_hTrace && g_hTrace != INVALID_PROCESSTRACE_HANDLE) {
     CloseTrace(g_hTrace);
     g_hTrace = 0;
   }
-  if (g_hSession != 0) {
+  if (g_hSession) {
     ControlTraceW(g_hSession, sessionName.c_str(), nullptr, EVENT_TRACE_CONTROL_STOP);
     g_hSession = 0;
   }
@@ -197,7 +209,7 @@ void processMonitor::StopKernelSession(const std::wstring &sessionName) {
 
 // Starts logging events
 bool processMonitor::OpenAndProcessRealTime(const std::wstring &sessionName) {
-  std::wcout << L"[DEBUG] Opening real-time trace..." << std::endl;
+  Logger::Debug(std::format(L"Opening real-time trace for session '{}'", sessionName));
 
   EVENT_TRACE_LOGFILEW log = {};
   ZeroMemory(&log, sizeof(log));
@@ -208,34 +220,34 @@ bool processMonitor::OpenAndProcessRealTime(const std::wstring &sessionName) {
   log.EventRecordCallback =
       (PEVENT_RECORD_CALLBACK)processMonitor::StaticEventRecordCallback;
 
-  std::wcout << L"[DEBUG] Calling OpenTraceW..." << std::endl;
+  Logger::Debug(L"Calling OpenTraceW...");
   g_hTrace = OpenTraceW(&log);
   if (g_hTrace == INVALID_PROCESSTRACE_HANDLE) {
     DWORD error = GetLastError();
-    std::wcerr << L"[ERROR] OpenTrace failed with error: " << error
-               << std::endl;
+    Logger::Error(std::format(L"OpenTrace failed with error: {}", error));
     StopKernelSession(sessionName);
+
     return false;
   }
-  std::wcout << L"[DBG] OpenTraceW succeeded, handle: " << g_hTrace
-             << std::endl;
+  Logger::Debug(std::format(L"OpenTraceW succeeded, handle: {}", g_hTrace));
 
-  std::wcout << L"[DEBUG] Starting ProcessTrace..." << std::endl;
+  Logger::Debug(L"Starting ProcessTrace...");
   ULONG status = ProcessTrace(&g_hTrace, 1, nullptr, nullptr);
-  std::wcout << L"[DBG] ProcessTrace returned: " << status << std::endl;
+  Logger::Debug(std::format(L"ProcessTrace returned: {}", status));
 
   if (status == ERROR_SUCCESS) {
-    std::wcout << L"[DEBUG] ProcessTrace completed successfully" << std::endl;
+    Logger::Debug(L"ProcessTrace completed successfully");
+
     return true;
   }
   if (status == ERROR_CANCELLED) {
-    std::wcout << L"[INFO] Trace stopped by user (ERROR_CANCELLED)"
-               << std::endl;
+    Logger::Info(L"Trace stopped by user (ERROR_CANCELLED)");
+
     return true;
   }
 
-  std::wcerr << L"[ERROR] ProcessTrace failed with status " << status
-             << std::endl;
+  Logger::Error(std::format(L"ProcessTrace failed with status {}", status));
+
   return false;
 }
 
@@ -246,8 +258,9 @@ bool processMonitor::OpenAndProcessRealTime(const std::wstring &sessionName) {
 std::wstring processMonitor::FormatBasicProperty(USHORT inType, PBYTE propertyData, USHORT propertyLength) {
   const unsigned int MAX_HEX_BYTES_FOR_UNKOWN_TYPE = 8;
 
-  if (!propertyData || propertyLength == 0)
+  if (!propertyData || propertyLength == 0) {
     return L"";
+  }
 
   switch (inType) {
   case TDH_INTYPE_INT8:
@@ -274,17 +287,21 @@ std::wstring processMonitor::FormatBasicProperty(USHORT inType, PBYTE propertyDa
     if (propertyLength >= sizeof(wchar_t)) {
       return std::wstring((wchar_t *)propertyData, propertyLength / sizeof(wchar_t));
     }
+
     return L"";
   }
   case TDH_INTYPE_ANSISTRING: {
     if (propertyLength >= sizeof(char)) {
       std::string ansiStr((char *)propertyData, propertyLength);
+
       return std::wstring(ansiStr.begin(), ansiStr.end());
     }
+
     return L"";
   }
   case TDH_INTYPE_BOOLEAN: {
     BOOL boolVal = *((BOOL *)propertyData);
+
     return boolVal ? L"true" : L"false";
   }
   default:
@@ -292,9 +309,11 @@ std::wstring processMonitor::FormatBasicProperty(USHORT inType, PBYTE propertyDa
     std::wstring hexStr;
     for (USHORT i = 0; i < propertyLength && i < MAX_HEX_BYTES_FOR_UNKOWN_TYPE; ++i) {
       hexStr += std::to_wstring(propertyData[i]);
-      if (i < propertyLength - 1)
+      if (i < propertyLength - 1) {
         hexStr += L" ";
+      }
     }
+
     return hexStr;
   }
 }
@@ -302,8 +321,10 @@ std::wstring processMonitor::FormatBasicProperty(USHORT inType, PBYTE propertyDa
 // Gets a string from a event info memory with an offset
 std::wstring processMonitor::GetStringFromInfo(PTRACE_EVENT_INFO pInfo,
                                                ULONG offset) {
-  if (!pInfo || offset == 0)
+  if (!pInfo || offset == 0) {
     return L"";
+  }
+
   auto p = (PWSTR)((PBYTE)pInfo + offset);
 
   return {p};
@@ -311,14 +332,17 @@ std::wstring processMonitor::GetStringFromInfo(PTRACE_EVENT_INFO pInfo,
 
 // Formats bytes as a hex string
 std::wstring processMonitor::BytesToHex(const BYTE *data, ULONG size, ULONG maxBytes) {
-  if (!data || size == 0)
+  if (!data || size == 0) {
     return L"";
+  }
 
   std::wostringstream oss;
   ULONG toShow = (size > maxBytes) ? maxBytes : size;
   for (ULONG i = 0; i < toShow; ++i) {
-    if (i)
+    if (i) {
       oss << L" ";
+    }
+
     oss << std::hex << std::uppercase << (int)data[i];
   }
   if (size > maxBytes) {
@@ -334,8 +358,9 @@ std::wstring processMonitor::BytesToHex(const BYTE *data, ULONG size, ULONG maxB
 std::wstring processMonitor::FormatProperty(PTRACE_EVENT_INFO pInfo,
                                             PEVENT_RECORD pEvent,
                                             USHORT propertyIndex) {
-  if (!pInfo || !pEvent)
+  if (!pInfo || !pEvent) {
     return L"";
+  }
 
   EVENT_PROPERTY_INFO const *propInfo = &pInfo->EventPropertyInfoArray[propertyIndex];
 
@@ -366,8 +391,9 @@ std::wstring processMonitor::FormatProperty(PTRACE_EVENT_INFO pInfo,
   USHORT inType = propInfo->nonStructType.InType;
   if (!data.empty()) {
     std::wstring formatted = FormatBasicProperty(inType, data.data(), USHORT(data.size()));
-    if (!formatted.empty())
+    if (!formatted.empty()) {
       return formatted;
+    }
   }
 
   // If empty and the property looks like a string, try a few common alternative names
@@ -383,28 +409,34 @@ std::wstring processMonitor::FormatProperty(PTRACE_EVENT_INFO pInfo,
 
     ULONG altSize = 0;
     ULONG rc = TdhGetPropertySize(pEvent, 0, nullptr, 1, &altPdd, &altSize);
-    if (rc != ERROR_SUCCESS || altSize == 0)
+    if (rc != ERROR_SUCCESS || altSize == 0) {
       continue;
+    }
 
     std::vector<BYTE> altData(altSize);
     rc = TdhGetProperty(pEvent, 0, nullptr, 1, &altPdd, altSize, altData.data());
     if (rc == ERROR_SUCCESS && !altData.empty()) {
       // Try to format as Unicode string first, then fall back
       std::wstring out = FormatBasicProperty(TDH_INTYPE_UNICODESTRING, altData.data(), USHORT(altData.size()));
-      if (!out.empty())
+      if (!out.empty()) {
         return out;
+      }
+
       // Try as ANSI
       out = FormatBasicProperty(TDH_INTYPE_ANSISTRING, altData.data(), USHORT(altData.size()));
-      if (!out.empty())
+      if (!out.empty()) {
         return out;
+      }
+
       // General fallback
       return BytesToHex(altData.data(), (ULONG)altData.size());
     }
   }
 
   // Final fallback: empty hex preview of original data (or empty string)
-  if (!data.empty())
+  if (!data.empty()) {
     return BytesToHex(data.data(), (ULONG)data.size());
+  }
 
   return L"";
 }
@@ -413,8 +445,9 @@ std::wstring processMonitor::FormatProperty(PTRACE_EVENT_INFO pInfo,
 // Call this from StaticEventRecordCallback (it is safe-ish to call from
 // callback; keep output minimal)
 void processMonitor::PrintEventDetailed(PEVENT_RECORD pEvent) {
-  if (!pEvent)
+  if (!pEvent) {
     return;
+  }
 
   // Get trace event info
   PTRACE_EVENT_INFO pInfo = nullptr;
@@ -422,69 +455,62 @@ void processMonitor::PrintEventDetailed(PEVENT_RECORD pEvent) {
   ULONG status = TdhGetEventInformation(pEvent, 0, nullptr, pInfo, &bufferSize);
   if (status == ERROR_INSUFFICIENT_BUFFER) {
     pInfo = (PTRACE_EVENT_INFO)malloc(bufferSize);
-    if (!pInfo)
+    if (!pInfo) {
       return;
+    }
+
     status = TdhGetEventInformation(pEvent, 0, nullptr, pInfo, &bufferSize);
   }
   if (status != ERROR_SUCCESS) {
     // fallback minimal info
-    std::wcout << L"[ETW] Provider=" << std::hex
-               << pEvent->EventHeader.ProviderId.Data1 << std::dec << L" EID="
-               << pEvent->EventHeader.EventDescriptor.Id << L" Op="
-               << (int)pEvent->EventHeader.EventDescriptor.Opcode << L" Level="
-               << (int)pEvent->EventHeader.EventDescriptor.Level << L" PID="
-               << pEvent->EventHeader.ProcessId << std::endl;
-    if (pInfo)
+    Logger::Info(std::format(
+        L"[ETW] Provider={:X} EID={} Op={} Level={} PID={}",
+        pEvent->EventHeader.ProviderId.Data1,
+        pEvent->EventHeader.EventDescriptor.Id,
+        (int)pEvent->EventHeader.EventDescriptor.Opcode,
+        (int)pEvent->EventHeader.EventDescriptor.Level,
+        pEvent->EventHeader.ProcessId));
+    if (pInfo) {
       free(pInfo);
+    }
+
     return;
   }
 
   // Extract human readable names
-  std::wstring providerName =
-      GetStringFromInfo(pInfo, pInfo->ProviderNameOffset);
+  std::wstring providerName = GetStringFromInfo(pInfo, pInfo->ProviderNameOffset);
   std::wstring taskName = GetStringFromInfo(pInfo, pInfo->TaskNameOffset);
   std::wstring opcodeName = GetStringFromInfo(pInfo, pInfo->OpcodeNameOffset);
   std::wstring eventName = GetStringFromInfo(pInfo, pInfo->EventNameOffset);
   std::wstring keywords = GetStringFromInfo(pInfo, pInfo->KeywordsNameOffset);
 
   // Print header
-  std::wcout << L"[ETW] Provider: "
-             << (providerName.empty()
-                     ? std::to_wstring(pEvent->EventHeader.ProviderId.Data1)
-                     : providerName)
-             << L" Event: "
-             << (eventName.empty()
-                     ? std::to_wstring(pEvent->EventHeader.EventDescriptor.Id)
-                     : eventName)
-             << L" Task: " << (taskName.empty() ? L"-" : taskName)
-             << L" Opcode: "
-             << (opcodeName.empty()
-                     ? std::to_wstring(
-                           (int)pEvent->EventHeader.EventDescriptor.Opcode)
-                     : opcodeName)
-             << L" Level: " << (int)pEvent->EventHeader.EventDescriptor.Level
-             << L" PID: " << pEvent->EventHeader.ProcessId << std::endl;
+  Logger::Info(std::format(
+      L"[ETW] Provider: {} Event: {} Task: {} Opcode: {} Level: {} PID: {}",
+      providerName.empty() ? std::to_wstring(pEvent->EventHeader.ProviderId.Data1) : providerName,
+      eventName.empty() ? std::to_wstring(pEvent->EventHeader.EventDescriptor.Id) : eventName,
+      taskName.empty() ? L"-" : taskName,
+      opcodeName.empty() ? std::to_wstring((int)pEvent->EventHeader.EventDescriptor.Opcode) : opcodeName,
+      (int)pEvent->EventHeader.EventDescriptor.Level,
+      pEvent->EventHeader.ProcessId));
 
   // print properties if any
   if (pInfo->TopLevelPropertyCount > 0) {
     for (USHORT i = 0; i < pInfo->TopLevelPropertyCount; ++i) {
       EVENT_PROPERTY_INFO const &prop = pInfo->EventPropertyInfoArray[i];
-      std::wstring propName;
-      if (prop.NameOffset) {
-        propName = (PWSTR)((PBYTE)pInfo + prop.NameOffset);
-      } else {
-        propName = L"<prop>";
-      }
-
+      std::wstring propName = prop.NameOffset
+                                  ? (PWSTR)((PBYTE)pInfo + prop.NameOffset)
+                                  : L"<prop>";
       std::wstring val = FormatProperty(pInfo, pEvent, i);
-      std::wcout << L"    " << propName << L" = " << val << std::endl;
+      Logger::Info(std::format(L"\t{} = {}", propName, val));
     }
   } else {
-    std::wcout << L"    (no properties)" << std::endl;
+    Logger::Info(L"\t(no properties)");
   }
 
-  if (pInfo)
+  if (pInfo) {
     free(pInfo);
+  }
 }
 
 // Formats a timestamp from an event record
