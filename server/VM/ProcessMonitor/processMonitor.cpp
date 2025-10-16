@@ -110,7 +110,8 @@ void WINAPI processMonitor::StaticEventRecordCallback(PEVENT_RECORD pEvent) {
       std::wstring val = FormatProperty(pInfo, pEvent, i);
       if (val.empty()) {
         val = L"(empty)";
-      Logger::Info(std::format(L"\t{} = {}", propName, val));
+        Logger::Info(std::format(L"\t{} = {}", propName, val));
+      }
     }
   } else {
     Logger::Info(L"\t(no properties)");
@@ -469,7 +470,7 @@ void processMonitor::PrintEventDetailed(PEVENT_RECORD pEvent) {
         (int)pEvent->EventHeader.EventDescriptor.Opcode,
         (int)pEvent->EventHeader.EventDescriptor.Level,
         pEvent->EventHeader.ProcessId));
-    if (pInfo)
+    if (pInfo) {
       free(pInfo);
     }
 
