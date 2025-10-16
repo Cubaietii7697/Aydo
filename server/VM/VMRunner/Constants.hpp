@@ -21,8 +21,6 @@ constexpr std::string_view HOST_FOLDER_PATH = R"(C:\Shared)";
 constexpr std::string_view SHARE_FILE_NAME = "logs.log";
 constexpr std::string_view GUEST_USER = "vmuser";
 constexpr std::string_view GUEST_PASS = "vmpassword";
-constexpr std::string_view PM_FILE_PATH = R"(C:\Projects\ProcessMonitor\x64\Debug\readFromVm.exe)";
-constexpr std::string_view PM_FILE_PATH_GUEST = R"(C:\Users\vmuser\Desktop\Ghost.exe)";
-constexpr std::string_view SUSPICIOUS_FILE_PATH = R"(C:\Users\vmuser\Desktop\filetoplot.exe)";
-
+constexpr std::string_view PM_FILE_PATH = R"(..\ProcessMonitor\x64\Debug\readFromVm.exe)";
+constexpr std::string_view PM_FILE_PATH_INSIDE_VM = R"(C:\Users\vmuser\Desktop\Ghost.exe)";
 constexpr unsigned int ANIMATION_SLEEP_TIME_MS = 50;
