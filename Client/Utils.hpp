@@ -58,4 +58,6 @@ std::string wstring_to_utf8(const std::wstring &w);
 // compute SHA-256 incrementally
 std::string computeSHA256(const std::string &path);
 
+double calculateEntropy(const std::vector<int> &countedBytes, const std::streamsize totalLength);
+
 } // namespace Utils
