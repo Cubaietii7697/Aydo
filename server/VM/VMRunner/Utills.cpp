@@ -1,5 +1,8 @@
 #include "Utills.hpp"
 
+#include <algorithm>
+#include <ranges>
+
 namespace Utills {
 
 void printBanner(bool isClosing) {
@@ -67,41 +70,83 @@ bool waitForTools(const std::string &vmRunPath,
                   const std::string &sandboxPath,
                   int maxRetries,
                   int sleepMs) {
-  for (int i = 0; i < maxRetries; i++) {
-    STARTUPINFOA si = {sizeof(STARTUPINFOA)};
-    PROCESS_INFORMATION pi;
-    SECURITY_ATTRIBUTES sa{sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE};
+  auto dequote = [](std::string s) {
+    if (s.size() >= 2 && s.front() == '"' && s.back() == '"')
+      s = s.substr(1, s.size() - 2);
+    return s;
+  };
+  auto ensureQuoted = [](const std::string &s) -> std::string {
+    if (!s.empty() && s.front() == '"' && s.back() == '"')
+      return s;
+    return std::string("\"") + s + "\"";
+  };
+  auto squashDoubleSlashes = [](std::string s) {
+    for (size_t i = 1; i < s.size(); ++i) {
+      if (s[i] == '\\' && s[i - 1] == '\\')
+        s.erase(i--, 1);
+    }
+    return s;
+  };
 
-    HANDLE hRead;
-    HANDLE hWrite;
+  // Build one full, mutable command line. Pass ApplicationName = nullptr.
+  const std::string vmrun = dequote(vmRunPath);
+  std::string vmx = squashDoubleSlashes(dequote(sandboxPath));
+  std::string full = std::string("\"") + vmrun + "\" -T ws checkToolsState " + ensureQuoted(vmx);
+
+  for (int i = 0; i < maxRetries; ++i) {
+    SECURITY_ATTRIBUTES sa{sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE};
+    HANDLE hRead = nullptr, hWrite = nullptr;
     CreatePipe(&hRead, &hWrite, &sa, 0);
     SetHandleInformation(hRead, HANDLE_FLAG_INHERIT, 0);
 
-    if (std::string cmd = std::format(R"("{}" checkToolsState "{}")",
-                                      vmRunPath,
-                                      sandboxPath);
-        CreateProcessA(nullptr, cmd.data(), nullptr, nullptr, TRUE,
-                       CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi)) {
-      CloseHandle(hWrite);
-      char buffer[BUFFER_SIZE] = {0};
-      DWORD bytesRead;
-      std::string output;
+    STARTUPINFOA si{};
+    si.cb = sizeof(si);
+    si.dwFlags = STARTF_USESTDHANDLES;
+    si.hStdOutput = hWrite;
+    si.hStdError = hWrite;
 
-      while (ReadFile(hRead, buffer, sizeof(buffer) - 1, &bytesRead, nullptr)) {
-        buffer[bytesRead] = '\0';
-        output += buffer;
+    PROCESS_INFORMATION pi{};
+    // CreateProcess requires a writable buffer for the command line
+    std::vector<char> cmd(full.begin(), full.end());
+    cmd.push_back('\0');
+
+    BOOL ok = CreateProcessA(
+        /*lpApplicationName*/ nullptr,
+        /*lpCommandLine    */ cmd.data(),
+        nullptr, nullptr, TRUE, CREATE_NO_WINDOW, nullptr, nullptr,
+        &si, &pi);
+
+    CloseHandle(hWrite);
+
+    std::string output;
+    if (ok) {
+      char buf[BUFFER_SIZE]{};
+      DWORD n = 0;
+      while (ReadFile(hRead, buf, sizeof(buf) - 1, &n, nullptr) && n) {
+        buf[n] = '\0';
+        output += buf;
       }
       WaitForSingleObject(pi.hProcess, INFINITE);
       CloseHandle(pi.hProcess);
       CloseHandle(pi.hThread);
-      CloseHandle(hRead);
+    }
+    CloseHandle(hRead);
 
-      if (output.find("running") != std::string::npos) {
-        return true;
-      }
+    // Debug so this never gaslights you again
+    std::string lower = output;
+    std::transform(lower.begin(), lower.end(), lower.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+
+    std::cout << "[vmrun cmd] " << full << "\n";
+    std::cout << "[vmrun output] " << lower << "\n";
+
+    if (lower.find("not running") == std::string::npos &&
+        lower.find("running") != std::string::npos) {
+      return true;
     }
     Sleep(sleepMs);
   }
   return false;
 }
+
 } // namespace Utills
