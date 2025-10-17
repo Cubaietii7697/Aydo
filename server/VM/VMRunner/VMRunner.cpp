@@ -147,7 +147,7 @@ int main(int argc, char *argv[]) {
 
   std::cout << "[12.5/15] Probing shared-folder write...\n";
   const std::string probeCmd = std::format(
-      R"({} -T ws -gu {} -gp {} runProgramInGuest {} -activeWindow -interactive {} /C type nul > {})",
+      R"({} -T ws -gu {} -gp {} runProgramInGuest {} {} /C type nul > {})",
       vmRunPath,
       std::string(GUEST_USER), std::string(GUEST_PASS),
       sandboxVmx,
@@ -166,7 +166,7 @@ int main(int argc, char *argv[]) {
       (runTimeSec > 0 ? std::format(" {}", runTimeSec) : std::string{}));
 
   const std::string cmdRunPM = std::format(
-      R"({} -T ws -gu {} -gp {} runProgramInGuest {} -activeWindow -interactive {} /C "{} > {} 2>&1")",
+      R"({} -T ws -gu {} -gp {} runProgramInGuest {} {} /C "{}" > {} 2>&1)",
       vmRunPath, std::string(GUEST_USER), std::string(GUEST_PASS),
       sandboxVmx,
       ensureQuoted(R"(C:\Windows\System32\cmd.exe)"),
