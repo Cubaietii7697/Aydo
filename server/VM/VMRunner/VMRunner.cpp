@@ -143,37 +143,53 @@ int main(int argc, char *argv[]) {
       R"(\\vmware-host\Shared Folders\{}\pm_stdout.txt)",
       std::string(SHARED_FOLDER_NAME));
 
+  // guest-side temp stdout
+  const std::string pmStdoutGuestLocal = R"(C:\Temp\pm_stdout.txt)";
   const std::string pmStdoutHostPath = (hostShared / "pm_stdout.txt").string();
 
-  std::cout << "[12.5/15] Probing shared-folder write...\n";
-  const std::string probeCmd = std::format(
-      R"({} -T ws -gu {} -gp {} runProgramInGuest {} {} /C type nul > {})",
-      vmRunPath,
-      std::string(GUEST_USER), std::string(GUEST_PASS),
-      sandboxVmx,
-      ensureQuoted(R"(C:\Windows\System32\cmd.exe)"),
-      ensureQuoted(pmStdoutGuestPath));
+  std::cout << "[12.5/15] Probing shared-folder write via local->host copy...\n";
 
-  Utills::executeAndWait(probeCmd);
+  // Use copy NUL (no spaces in the path, so no extra quoting headaches)
+  // IMPORTANT: wrap the entire command after /C in quotes
+  const std::string probeLocalCmd = std::format(
+      R"({} -T ws -gu {} -gp {} runProgramInGuest {} {} /Q /D /C "copy /Y NUL C:\Temp\pm_stdout.txt >NUL 2>&1")",
+      vmRunPath, std::string(GUEST_USER), std::string(GUEST_PASS),
+      sandboxVmx, ensureQuoted(R"(C:\Windows\System32\cmd.exe)"));
+  Utills::executeAndWait(probeLocalCmd);
+
+  // Now copy that file out to the host (this will fail if the line above didn’t actually create it)
+  const std::string probeCopyOut = std::format(
+      R"({} -T ws -gu {} -gp {} CopyFileFromGuestToHost {} {} {})",
+      vmRunPath, std::string(GUEST_USER), std::string(GUEST_PASS),
+      sandboxVmx, ensureQuoted(pmStdoutGuestLocal), ensureQuoted(pmStdoutHostPath));
+  Utills::executeAndWait(probeCopyOut);
 
   std::cout << "[13/15] Starting monitor in guest (payload + log, runTime=" << runTimeSec << "s)...\n";
 
-  std::string cmdLine = std::format(
-      R"({} {} {}{})",
-      ensureQuoted(guestPmPath),
-      ensureQuoted(guestSuspiciousPath),
-      ensureQuoted(sharedLogGuestPath),
-      (runTimeSec > 0 ? std::format(" {}", runTimeSec) : std::string{}));
+  const std::string pmExe = std::string(PM_FILE_PATH_INSIDE_VM);
+  const std::string payload = guestSuspiciousPath;
+  const std::string logCsv = sharedLogGuestPath;
+  const std::string timeArg = (runTimeSec > 0 ? std::format(" {}", runTimeSec) : std::string{});
 
+  // Build one clean command string that cmd.exe will execute as a whole
+  const std::string fullCmd = std::format(
+      R"("{}" "{}" "{}"{} 1> C:\Temp\pm_stdout.txt 2>&1)",
+      pmExe, payload, logCsv, timeArg);
+
+  // Pass it to cmd.exe with /C "…"
   const std::string cmdRunPM = std::format(
-      R"({} -T ws -gu {} -gp {} runProgramInGuest {} {} /C "{}" > {} 2>&1)",
+      R"({} -T ws -gu {} -gp {} runProgramInGuest {} {} /Q /D /C "{}")",
       vmRunPath, std::string(GUEST_USER), std::string(GUEST_PASS),
-      sandboxVmx,
-      ensureQuoted(R"(C:\Windows\System32\cmd.exe)"),
-      cmdLine,
-      ensureQuoted(pmStdoutGuestPath));
-
+      sandboxVmx, ensureQuoted(R"(C:\Windows\System32\cmd.exe)"),
+      fullCmd);
   Utills::executeAndWait(cmdRunPM);
+
+  // Pull stdout to host so you actually see what PM complained about
+  const std::string copyStdoutOut = std::format(
+      R"({} -T ws -gu {} -gp {} CopyFileFromGuestToHost {} {} {})",
+      vmRunPath, std::string(GUEST_USER), std::string(GUEST_PASS),
+      sandboxVmx, ensureQuoted(pmStdoutGuestLocal), ensureQuoted(pmStdoutHostPath));
+  Utills::executeAndWait(copyStdoutOut);
 
   std::cout << "[14/15] Launching payload in guest...\n";
   const std::string cmdRunSuspicious = std::format(
