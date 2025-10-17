@@ -37,6 +37,7 @@ void printBanner(bool isClosing) {
       Sleep(ANIMATION_SLEEP_TIME_MS);
     }
   }
+  std::cout << std::endl;
 }
 
 void executeAndWait(const std::string &command) {
