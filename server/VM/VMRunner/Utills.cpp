@@ -137,9 +137,6 @@ bool waitForTools(const std::string &vmRunPath,
     std::transform(lower.begin(), lower.end(), lower.begin(),
                    [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
-    std::cout << "[vmrun cmd] " << full << "\n";
-    std::cout << "[vmrun output] " << lower << "\n";
-
     if (lower.find("not running") == std::string::npos &&
         lower.find("running") != std::string::npos) {
       return true;

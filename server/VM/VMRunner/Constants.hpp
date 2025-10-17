@@ -11,18 +11,33 @@ constexpr std::string_view BANNER = R"(
 )";
 
 /*
- * In Real Server should be in config.json
- * In real server path should be in global zone
+ * Path in Host
  */
 constexpr std::string_view VM_RUN_PATH = R"("C:\Program Files (x86)\VMware\VMware Workstation\vmrun.exe")";
 constexpr std::string_view ANALYSIS_VM_PATH = R"("D:\SandboxAnalysis\SANDBOX1\SANDBOX1.vmx")";
 constexpr std::string_view SANDBOXES_DIRECTORY_PATH = R"(D:\SandboxAnalysis\)";
-constexpr std::string_view HOST_FOLDER_PATH = R"(C:\Shared)";
-constexpr std::string_view SHARED_FOLDER_NAME = "hostshare";
-constexpr std::string_view SHARE_FILE_NAME = "logs.log";
-constexpr std::string_view GUEST_USER = "vmuser";
-constexpr std::string_view GUEST_PASS = "vmpassword";
 constexpr std::string_view PM_FILE_PATH = R"(..\ProcessMonitor\x64\Debug\readFromVm.exe)";
-constexpr std::string_view PM_FILE_PATH_INSIDE_VM = R"(C:\Users\vmuser\Desktop\Ghost.exe)";
 
+/*
+ * Path in VM
+ */
+constexpr std::string_view PM_FILE_PATH_INSIDE_VM = R"(C:\Temp\Ghost.exe)";
+constexpr std::string_view FILE_PATH_INSIDE = R"(C:\Temp)";
+
+/*
+ * Path in BOTH
+ */
+constexpr std::string_view HOST_FOLDER_PATH = R"(D:\Shared)";
+constexpr std::string_view SHARED_FOLDER_NAME = "hostshare";
+constexpr std::string_view LOG_FILE_NAME = "logs.log";
+
+/* !!!
+ *  Must be the username and password of VM
+ */
+constexpr std::string_view GUEST_USER = R"(.\vmuser)";
+constexpr std::string_view GUEST_PASS = "StrongP@ssw0rd";
+/*-------------------------------------------------------------------------------------------*/
 constexpr unsigned int ANIMATION_SLEEP_TIME_MS = 50;
+constexpr unsigned int ANIMATION_SLEEP_TIME_S = 5;
+constexpr unsigned int BOOTUP_SLEEP_TIME_S = 20;
+constexpr unsigned int DEFUALT_TIME_CHECK = 60;
