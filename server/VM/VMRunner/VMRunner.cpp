@@ -1,6 +1,7 @@
 #include <chrono>
 #include <filesystem>
 #include <format>
+#include <fstream>
 #include <string>
 #include <thread>
 
@@ -10,6 +11,13 @@ static inline std::string ensureQuoted(std::string s) {
   if (!s.empty() && s.front() == '"' && s.back() == '"')
     return s;
   return std::format(R"("{}")", s);
+}
+
+static inline std::string psQuote(std::string s) {
+  // PowerShell single-quote escaping
+  for (size_t pos = 0; (pos = s.find('\'', pos)) != std::string::npos; pos += 2)
+    s.insert(pos, 1, '\'');
+  return std::format("'{}'", s);
 }
 
 int main(int argc, char *argv[]) {
@@ -131,18 +139,41 @@ int main(int argc, char *argv[]) {
       std::string(SHARED_FOLDER_NAME),
       std::string(LOG_FILE_NAME));
 
-  std::cout << "[13/15] Starting monitor in guest (runTime=" << runTimeSec << "s)...\n";
-  std::string cmdRunPM = std::format(
-      R"({} -T ws -gu {} -gp {} runProgramInGuest {} {})",
-      vmRunPath, std::string(GUEST_USER), std::string(GUEST_PASS),
-      sandboxVmx, ensureQuoted(guestPmPath));
-  cmdRunPM = (runTimeSec > 0)
-                 ? std::format("{} {} {}", cmdRunPM, ensureQuoted(sharedLogGuestPath), runTimeSec)
-                 : std::format("{} {}", cmdRunPM, ensureQuoted(sharedLogGuestPath));
-  Utills::executeAndWait(cmdRunPM);
+  const std::string pmStdoutGuestPath = std::format(
+      R"(\\vmware-host\Shared Folders\{}\pm_stdout.txt)",
+      std::string(SHARED_FOLDER_NAME));
 
-  std::cout << "[13.5/15] Sleeping 3s before launching payload...\n";
-  std::this_thread::sleep_for(std::chrono::seconds(3));
+  const std::string pmStdoutHostPath = (hostShared / "pm_stdout.txt").string();
+
+  std::cout << "[12.5/15] Probing shared-folder write...\n";
+  const std::string probeCmd = std::format(
+      R"({} -T ws -gu {} -gp {} runProgramInGuest {} -activeWindow -interactive {} /C type nul > {})",
+      vmRunPath,
+      std::string(GUEST_USER), std::string(GUEST_PASS),
+      sandboxVmx,
+      ensureQuoted(R"(C:\Windows\System32\cmd.exe)"),
+      ensureQuoted(pmStdoutGuestPath));
+
+  Utills::executeAndWait(probeCmd);
+
+  std::cout << "[13/15] Starting monitor in guest (payload + log, runTime=" << runTimeSec << "s)...\n";
+
+  std::string cmdLine = std::format(
+      R"({} {} {}{})",
+      ensureQuoted(guestPmPath),
+      ensureQuoted(guestSuspiciousPath),
+      ensureQuoted(sharedLogGuestPath),
+      (runTimeSec > 0 ? std::format(" {}", runTimeSec) : std::string{}));
+
+  const std::string cmdRunPM = std::format(
+      R"({} -T ws -gu {} -gp {} runProgramInGuest {} -activeWindow -interactive {} /C "{} > {} 2>&1")",
+      vmRunPath, std::string(GUEST_USER), std::string(GUEST_PASS),
+      sandboxVmx,
+      ensureQuoted(R"(C:\Windows\System32\cmd.exe)"),
+      cmdLine,
+      ensureQuoted(pmStdoutGuestPath));
+
+  Utills::executeAndWait(cmdRunPM);
 
   std::cout << "[14/15] Launching payload in guest...\n";
   const std::string cmdRunSuspicious = std::format(

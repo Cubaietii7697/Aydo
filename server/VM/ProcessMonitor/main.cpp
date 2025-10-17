@@ -31,7 +31,7 @@ int wmain(int argc, wchar_t *argv[]) {
   const std::wstring targetExe = argv[1];
   if (!Logger::Init(argv[2]))
     return EXIT_FAILURE;
-  const int TRACE_DURATION_MS = (argc == 4) ? _wtoi(argv[3]) : Constants::DEFAULT_TIME;
+  const int TRACE_DURATION_S = (argc == 4) ? _wtoi(argv[3]) : Constants::DEFAULT_TIME;
 
   Logger::Info(L"Starting ETW Monitor...");
   Logger::Info(L"Looking for process: " + targetExe);
@@ -85,8 +85,8 @@ int wmain(int argc, wchar_t *argv[]) {
   }
   Logger::Info(L"Monitoring PIDs: " + pidList + L"(" + targetExe + L")");
 
-  Logger::Info(std::format(L"Tracing for {}  seconds... ", std::to_wstring(TRACE_DURATION_MS / Constants::MS_TO_S)));
-  Sleep(TRACE_DURATION_MS);
+  Logger::Info(std::format(L"Tracing for {}  seconds... ", std::to_wstring(TRACE_DURATION_S)));
+  Sleep(TRACE_DURATION_S * Constants::MS_TO_S);
 
   Logger::Info(L"Stopping trace...");
 
