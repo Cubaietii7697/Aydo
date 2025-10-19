@@ -50,8 +50,9 @@ void printBanner(bool isClosing) {
 }
 
 static std::wstring utf8ToWide(const std::string &s) {
-  if (s.empty())
+  if (s.empty()) {
     return std::wstring();
+  }
   const int n = MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, nullptr, 0);
   std::wstring w(n - 1, L'\0');
   MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, w.data(), n);
