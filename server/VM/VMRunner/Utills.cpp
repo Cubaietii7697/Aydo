@@ -1,9 +1,7 @@
-#ifndef NOMINMAX
 #define NOMINMAX
-#endif
 #include "Utills.hpp"
 
-#include <windows.h>
+#include <Windows.h>
 
 #include <algorithm>
 #include <cctype>
@@ -13,7 +11,6 @@
 #include <iostream>
 #include <sstream>
 #include <string>
-#include <string_view>
 #include <thread>
 #include <vector>
 
@@ -143,6 +140,7 @@ int executeAndWaitRC(const std::string &cmdUtf8,
 
   int rc = -1;
   if (wr == WAIT_TIMEOUT) {
+    constexpr DWORD EXITCODE_TIMEOUT_GNU = 124;
     TerminateProcess(pi.hProcess, EXITCODE_TIMEOUT_GNU);
     WaitForSingleObject(pi.hProcess, INFINITE);
     rc = EXITCODE_TIMEOUT_GNU;

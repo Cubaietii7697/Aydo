@@ -1,4 +1,5 @@
 #pragma once
+
 #include <string_view>
 
 constexpr std::string_view BANNER = R"(
@@ -41,4 +42,5 @@ constexpr unsigned int ANIMATION_SLEEP_TIME_MS = 50;
 constexpr unsigned int ANIMATION_SLEEP_TIME_S = 5;
 constexpr unsigned int BOOTUP_SLEEP_TIME_S = 20;
 constexpr unsigned int DEFUALT_TIME_CHECK = 60;
-constexpr DWORD EXITCODE_TIMEOUT_GNU = 124;
+
+constexpr unsigned int STEPS_INTERVAL_S = 5;

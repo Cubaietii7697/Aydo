@@ -166,7 +166,7 @@ int main(int argc, char *argv[]) {
   {
     const std::string cmd = std::format(R"({} -T ws stop {} soft)", vmRunPath, sandboxVmx);
     (void)Utills::executeAndWaitRC(cmd);
-    std::this_thread::sleep_for(std::chrono::seconds(ANIMATION_SLEEP_TIME_S));
+    std::this_thread::sleep_for(std::chrono::seconds(STEPS_INTERVAL_S));
   }
 
   std::cout << "[12/12] Stop VM (hard)" << std::endl;
