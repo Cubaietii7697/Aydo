@@ -16,7 +16,7 @@ constexpr std::string_view BANNER = R"(
 constexpr std::string_view VM_RUN_PATH = R"("C:\Program Files (x86)\VMware\VMware Workstation\vmrun.exe")";
 constexpr std::string_view ANALYSIS_VM_PATH = R"("D:\SandboxAnalysis\SANDBOX1\SANDBOX1.vmx")";
 constexpr std::string_view SANDBOXES_DIRECTORY_PATH = R"(D:\SandboxAnalysis\)";
-constexpr std::string_view PM_FILE_PATH = R"(..\ProcessMonitor\bin\x64\Release\ProcessMonitor.exe)";
+constexpr std::string_view PM_FILE_PATH = R"(D:\PM\ProcessMonitor.exe)";
 constexpr std::string_view HOST_FOLDER_PATH = R"(D:\Shared)";
 
 /*
@@ -28,7 +28,7 @@ constexpr std::string_view FILE_PATH_INSIDE = R"(C:\Temp)";
 /*
  * Path in BOTH
  */
-constexpr std::string_view SHARED_FOLDER_NAME = "hostshare";
+constexpr std::string_view SHARED_FOLDER_NAME = "shared";
 constexpr std::string_view LOG_FILE_NAME = "logs.log";
 
 /* !!!
