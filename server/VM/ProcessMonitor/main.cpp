@@ -37,9 +37,15 @@ int wmain(int argc, wchar_t *argv[]) {
   Logger::Info(L"Looking for process: " + targetExe);
 
   std::set<DWORD> pids = processMonitor::FindPidByName(targetExe);
-  if (pids.empty()) {
-    Logger::Error(L"Could not find process: " + targetExe);
-    return EXIT_FAILURE;
+  const auto start_time = std::chrono::steady_clock::now();
+  while (pids.empty()) {
+    pids = processMonitor::FindPidByName(targetExe);
+    const auto end_time = std::chrono::steady_clock::now();
+    const std::chrono::duration<double> elapsedSeconds = end_time - start_time;
+    if (elapsedSeconds > std::chrono::seconds(60)) {
+      Logger::Error(L"Could not find process: " + targetExe);
+      return EXIT_FAILURE;
+    }
   }
 
   g_targetPids = pids;
