@@ -1,4 +1,3 @@
-// Utills.cpp
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
@@ -56,15 +55,16 @@ static std::wstring utf8ToWide(const std::string &s) {
   const int n = MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, nullptr, 0);
   std::wstring w(n - 1, L'\0');
   MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, w.data(), n);
+
   return w;
 }
 
 static void readPipeToString(HANDLE hPipe, std::string &out) {
-  constexpr DWORD CHUNK = 16 * 1024;
-  std::vector<char> buf(CHUNK);
+  constexpr DWORD CHUNK_SIZE = 16 * 1024;
+  std::vector<char> buf(CHUNK_SIZE);
   DWORD read = 0;
   for (;;) {
-    if (!ReadFile(hPipe, buf.data(), CHUNK, &read, nullptr) || read == 0)
+    if (!ReadFile(hPipe, buf.data(), CHUNK_SIZE, &read, nullptr) || read == 0)
       break;
     out.append(buf.data(), buf.data() + read);
   }
@@ -83,14 +83,18 @@ int executeAndWaitRC(const std::string &cmdUtf8,
   HANDLE errRead = nullptr;
   HANDLE errWrite = nullptr;
 
-  if (!CreatePipe(&outRead, &outWrite, &sa, 0))
+  if (!CreatePipe(&outRead, &outWrite, &sa, 0)) {
     return -1;
-  if (!SetHandleInformation(outRead, HANDLE_FLAG_INHERIT, 0))
+  }
+  if (!SetHandleInformation(outRead, HANDLE_FLAG_INHERIT, 0)) {
     return -1;
-  if (!CreatePipe(&errRead, &errWrite, &sa, 0))
+  }
+  if (!CreatePipe(&errRead, &errWrite, &sa, 0)) {
     return -1;
-  if (!SetHandleInformation(errRead, HANDLE_FLAG_INHERIT, 0))
+  }
+  if (!SetHandleInformation(errRead, HANDLE_FLAG_INHERIT, 0)) {
     return -1;
+  }
 
   STARTUPINFOW si{};
   si.cb = sizeof(si);
@@ -138,9 +142,9 @@ int executeAndWaitRC(const std::string &cmdUtf8,
 
   int rc = -1;
   if (wr == WAIT_TIMEOUT) {
-    TerminateProcess(pi.hProcess, 124);
+    TerminateProcess(pi.hProcess, EXITCODE_TIMEOUT_GNU);
     WaitForSingleObject(pi.hProcess, INFINITE);
-    rc = 124;
+    rc = EXITCODE_TIMEOUT_GNU;
   } else {
     DWORD code = 0;
     if (GetExitCodeProcess(pi.hProcess, &code))
@@ -174,11 +178,13 @@ bool waitForTools(const std::string &vmRunPath,
   auto dequote = [](std::string s) {
     if (s.size() >= 2 && s.front() == '"' && s.back() == '"')
       s = s.substr(1, s.size() - 2);
+
     return s;
   };
   auto ensureQuotedLocal = [](const std::string &s) {
-    if (!s.empty() && s.front() == '"' && s.back() == '"')
+    if (!s.empty() && s.front() == '"' && s.back() == '"') {
       return s;
+    }
     return std::string("\"") + s + "\"";
   };
   auto squashDoubleSlashes = [](std::string s) {
@@ -186,6 +192,7 @@ bool waitForTools(const std::string &vmRunPath,
       if (s[i] == '\\' && s[i - 1] == '\\')
         s.erase(i--, 1);
     }
+
     return s;
   };
 
@@ -265,8 +272,9 @@ bool guestPathExists(const std::string &vmRunPath,
 }
 
 std::string ensureQuoted(const std::string &s) {
-  if (!s.empty() && s.front() == '"' && s.back() == '"')
+  if (!s.empty() && s.front() == '"' && s.back() == '"') {
     return s;
+  }
   return std::format(R"("{}")", s);
 }
 

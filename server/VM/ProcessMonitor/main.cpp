@@ -31,7 +31,7 @@ int wmain(int argc, wchar_t *argv[]) {
   const std::wstring targetExe = argv[1];
   if (!Logger::Init(argv[2]))
     return EXIT_FAILURE;
-  const int TRACE_DURATION_S = (argc == 4) ? _wtoi(argv[3]) : Constants::DEFAULT_TIME;
+  const int TRACE_DURATION_S = (argc == 4) ? _wtoi(argv[3]) : Constants::DEFAULT_TIME_S;
 
   Logger::Info(L"Starting ETW Monitor...");
   Logger::Info(L"Looking for process: " + targetExe);
@@ -42,7 +42,7 @@ int wmain(int argc, wchar_t *argv[]) {
     pids = processMonitor::FindPidByName(targetExe);
     const auto end_time = std::chrono::steady_clock::now();
     const std::chrono::duration<double> elapsedSeconds = end_time - start_time;
-    if (elapsedSeconds > std::chrono::seconds(60)) {
+    if (elapsedSeconds > std::chrono::seconds(Constants::TIME_OUT_S)) {
       Logger::Error(L"Could not find process: " + targetExe);
       return EXIT_FAILURE;
     }
@@ -76,7 +76,7 @@ int wmain(int argc, wchar_t *argv[]) {
                  std::wstring(workerResult ? L"SUCCESS" : L"FAILURE"));
   });
 
-  Sleep(Constants::WAIT_TIME);
+  Sleep(Constants::WAIT_TIME_MS);
 
   if (!workerStarted) {
     Logger::Error(L"Worker thread did not start properly.");

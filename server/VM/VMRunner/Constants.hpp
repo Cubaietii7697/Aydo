@@ -41,3 +41,4 @@ constexpr unsigned int ANIMATION_SLEEP_TIME_MS = 50;
 constexpr unsigned int ANIMATION_SLEEP_TIME_S = 5;
 constexpr unsigned int BOOTUP_SLEEP_TIME_S = 20;
 constexpr unsigned int DEFUALT_TIME_CHECK = 60;
+constexpr DWORD EXITCODE_TIMEOUT_GNU = 124;
