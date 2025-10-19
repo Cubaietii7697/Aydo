@@ -1,6 +1,6 @@
 #include "LogName.hpp"
 
-inline std::string LogName::sanitizeForFilename(std::string_view s) {
+std::string LogName::sanitizeForFilename(std::string_view s) {
   std::string out;
   out.reserve(s.size());
   for (char c : s) {
@@ -26,7 +26,7 @@ inline std::string LogName::sanitizeForFilename(std::string_view s) {
   return out;
 }
 
-inline std::string LogName::makeLogFileName(std::string_view sandboxId, std::string_view base, std::string_view ext) {
+std::string LogName::makeLogFileName(std::string_view sandboxId, std::string_view base, std::string_view ext) {
   const auto now = floor<std::chrono::seconds>(std::chrono::system_clock::now());
 
 #if defined(_MSC_VER) && _MSC_VER >= 1930
