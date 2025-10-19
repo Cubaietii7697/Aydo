@@ -6,6 +6,7 @@
 #include <thread>
 
 #include "Constants.hpp"
+#include "LogName.hpp"
 #include "Utills.hpp"
 
 int main(int argc, char *argv[]) {
@@ -43,8 +44,8 @@ int main(int argc, char *argv[]) {
       (std::filesystem::path(guestWorkDir) / std::filesystem::path(suspiciousHostPath).filename()).string();
 
   const std::string guestLogPath = R"(C:\Temp\pm_log.csv)";
-  const std::string hostLogPath = (hostShared / std::string(LOG_FILE_NAME)).string();
-
+  const std::string hostLogPath =
+      (hostShared / LogName::makeLogFileName(sandboxId, "pm_log", "log")).string();
   std::cout << "[1/12] Clone linked VM" << std::endl;
   {
     const std::string cmd = std::format(R"({} -T ws clone {} {} linked -cloneName={})",
@@ -161,21 +162,26 @@ int main(int argc, char *argv[]) {
       std::cout << "\tLog copied to: " << hostLogPath << std::endl;
     }
   }
-
+  // did or didnt work to stop vm
+  bool rs = false;
   std::cout << "[11/12] Stop VM (soft)" << std::endl;
   {
     const std::string cmd = std::format(R"({} -T ws stop {} soft)", vmRunPath, sandboxVmx);
-    (void)Utills::executeAndWaitRC(cmd);
+    rs = Utills::executeAndWaitRC(cmd);
     std::this_thread::sleep_for(std::chrono::seconds(STEPS_INTERVAL_S));
   }
 
   std::cout << "[12/12] Stop VM (hard)" << std::endl;
   {
     const std::string cmd = std::format(R"({} -T ws stop {} hard)", vmRunPath, sandboxVmx);
-    (void)Utills::executeAndWaitRC(cmd);
+    rs = rs || Utills::executeAndWaitRC(cmd);
   }
 
+  if (!rs) {
+    std::wcerr << "Something went wrong with stop." << std::endl;
+    Utills::printBanner(true);
+    return EXIT_FAILURE;
+  }
   std::cout << "Done." << std::endl;
   Utills::printBanner(true);
-  return EXIT_SUCCESS;
 }

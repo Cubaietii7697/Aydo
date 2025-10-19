@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "Constants.hpp"
+#include "LogName.hpp"
 
 namespace Utills {
 

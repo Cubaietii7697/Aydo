@@ -30,8 +30,6 @@ constexpr std::string_view FILE_PATH_INSIDE = R"(C:\Temp)";
  * Path in BOTH
  */
 constexpr std::string_view SHARED_FOLDER_NAME = "shared";
-constexpr std::string_view LOG_FILE_NAME = "logs.log";
-
 /* !!!
  *  Must be the username and password of VM
  */
@@ -42,5 +40,4 @@ constexpr unsigned int ANIMATION_SLEEP_TIME_MS = 50;
 constexpr unsigned int ANIMATION_SLEEP_TIME_S = 5;
 constexpr unsigned int BOOTUP_SLEEP_TIME_S = 20;
 constexpr unsigned int DEFUALT_TIME_CHECK = 60;
-
 constexpr unsigned int STEPS_INTERVAL_S = 5;
