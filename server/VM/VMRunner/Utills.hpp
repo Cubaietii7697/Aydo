@@ -26,6 +26,7 @@ std::string winQuote(std::string_view s);
 int runPSInGuest(const std::string &vmRunPath,
                  const std::string &sandboxVmx,
                  std::string_view psCommand);
+std::string dequote(std::string s);
 
 bool guestPathExists(const std::string &vmRunPath,
                      const std::string &sandboxVmx,

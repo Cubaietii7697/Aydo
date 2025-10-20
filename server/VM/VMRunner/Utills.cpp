@@ -170,17 +170,17 @@ int executeAndWaitRC(const std::string &cmdUtf8,
     *err = std::move(errBuf);
   return rc;
 }
+std::string dequote(std::string s) {
+  if (s.size() >= 2 && s.front() == '"' && s.back() == '"')
+    s = s.substr(1, s.size() - 2);
+
+  return s;
+}
 
 bool waitForTools(const std::string &vmRunPath,
                   const std::string &sandboxPath,
                   int maxRetries,
                   int sleepMs) {
-  auto dequote = [](std::string s) {
-    if (s.size() >= 2 && s.front() == '"' && s.back() == '"')
-      s = s.substr(1, s.size() - 2);
-
-    return s;
-  };
   auto ensureQuotedLocal = [](const std::string &s) {
     if (!s.empty() && s.front() == '"' && s.back() == '"') {
       return s;
