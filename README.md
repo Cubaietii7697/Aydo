@@ -2,6 +2,94 @@
 
 The best anti virus, ever!!
 
+## Server
+
+The server is a simple C++ server that uses [drogon](https://github.com/drogonframework/drogon) to handle HTTP requests.
+
+### Note about the server
+
+Remember to change the following constants in the config.json file:
+
+- Database
+- JWT Secret
+
+To your own constants!
+
+
+### Standard error message
+
+```json
+{
+    "message": "Error message"
+}
+```
+
+Along with a status code (e.g. 400 Bad Request).
+
+### Routes
+
+| Route | Method | Description |
+|-------|--------|-------------|
+| /api/auth/register | POST | Register a new user |
+| /api/auth/login | POST | Login a user |
+| /api/auth/refresh-token | POST | Refresh a user's access token |
+| /api/auth/me | GET | Get the current user |
+
+#### /api/auth/register
+
+Expects a JSON body with the following fields:
+
+- email
+- nickname
+- password
+
+Returns a JSON body with the following fields:
+
+- message
+- accessToken
+- refreshToken
+
+or **standard error message**
+
+#### /api/auth/login
+
+Expects a JSON body with the following fields:
+
+- email
+- password
+
+Returns a JSON body with the following fields:
+
+- message
+- accessToken
+- refreshToken
+
+or **standard error message**
+
+#### /api/auth/refresh-token
+
+Expects a JSON body with the following fields:
+
+- refreshToken
+
+Returns a JSON body with the following fields:
+
+- accessToken
+
+or **standard error message**
+
+#### /api/auth/me
+
+Expects a header with the following fields:
+
+- Authorization: Bearer `<accessToken>`
+
+Returns a JSON body with the following fields:
+
+- nickname
+
+or **standard error message**
+
 ## VMRunner
 
 VMRunner is a simple tool that allows you to run a virtual machine in a sandbox environment.
