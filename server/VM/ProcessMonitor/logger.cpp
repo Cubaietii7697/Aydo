@@ -1,4 +1,4 @@
-#include "logger.hpp"
+#include "Logger.hpp"
 
 bool Logger::Init(const std::wstring &logPath, bool alsoConsole) {
   instance().m_console = alsoConsole;
