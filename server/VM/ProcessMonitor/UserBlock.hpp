@@ -3,6 +3,8 @@
 
 struct UserBlock {
   krabs::user_trace trace{L"AydoUserTrace"};
+
+  // TODO: fix providers ots kernel not user
   krabs::provider<> apiCalls{L"Microsoft-Windows-Kernel-Audit-API-Calls"};
   krabs::provider<> dns{L"Microsoft-Windows-DNS-Client"};
   krabs::provider<> winhttp{L"Microsoft-Windows-WinHTTP"};
