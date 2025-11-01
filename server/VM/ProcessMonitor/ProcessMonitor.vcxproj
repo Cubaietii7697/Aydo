@@ -108,7 +108,7 @@
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>C:\Program Files %28x86%29\Windows Kits\10\Include\10.0.26100.0\um;C:\Program Files %28x86%29\Windows Kits\10\Include\10.0.26100.0\shared;C:\Program Files %28x86%29\Windows Kits\10\Include\10.0.26100.0\ucrt;D:\שולחן עבודה\aydo\third_party\krabsetw\krabs;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp23</LanguageStandard>
-      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -127,13 +127,14 @@
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp23</LanguageStandard>
-      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <AdditionalIncludeDirectories>D:\שולחן עבודה\aydo\third_party\krabsetw\krabs;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalDependencies>advapi32.lib;tdh.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <UACExecutionLevel>RequireAdministrator</UACExecutionLevel>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -143,10 +144,14 @@
     <ClCompile Include="ProcessMonitor.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Caches.hpp" />
     <ClInclude Include="Constants.hpp" />
+    <ClInclude Include="KernelBlock.hpp" />
     <ClInclude Include="Logger.hpp" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="ProcessMonitor.hpp" />
+    <ClInclude Include="Threads.hpp" />
+    <ClInclude Include="UserBlock.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

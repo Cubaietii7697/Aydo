@@ -34,29 +34,18 @@ int wmain(int argc, wchar_t *argv[]) {
   }
 
   const int TRACE_DURATION_MS = (argc == 4) ? _wtoi(argv[3]) : Constants::DEFAULT_TIME;
-
-  ProcessMonitor pm;
-
-  // Find and seed initial PIDs
-  std::set<DWORD> initialPids = pm.FindPidByName(targetExe);
-  if (initialPids.empty()) {
-    Logger::Error(L"Could not find process: " + targetExe);
-    Logger::Shutdown();
-    return EXIT_FAILURE;
-  }
-
-  g_targetPids = initialPids;
-
   const std::wstring sessionName = L"NTKernelLogger";
 
+  auto pm = std::make_unique<ProcessMonitor>(targetExe);
+
   // Start monitor
-  pm.start();
+  pm->start();
 
   // Run for the requested duration
   std::this_thread::sleep_for(std::chrono::milliseconds(TRACE_DURATION_MS));
 
   // Stop and clean up
-  pm.stop();
+  pm->stop();
   Logger::Info(L"Shutdown complete.");
   Logger::Shutdown();
 
