@@ -1,14 +1,38 @@
 #pragma once
 #include <krabs.hpp>
+#include <memory>
+#include <thread>
+#include <vector>
 
-struct UserBlock {
-  krabs::user_trace trace{L"AydoUserTrace"};
+class UserBlock {
+public:
+  using Callback = std::function<void(const EVENT_RECORD &, const krabs::trace_context &)>;
+  explicit UserBlock(const std::wstring &userSessionName);
+  void start(Callback on_event);
+  void stop();
 
-  // TODO: fix providers ots kernel not user
-  krabs::provider<> apiCalls{L"Microsoft-Windows-Kernel-Audit-API-Calls"};
-  krabs::provider<> dns{L"Microsoft-Windows-DNS-Client"};
-  krabs::provider<> winhttp{L"Microsoft-Windows-WinHTTP"};
-  krabs::provider<> wmi{L"Microsoft-Windows-WMI-Activity"};
-  krabs::provider<> powershell{L"Microsoft-Windows-PowerShell"};
-  krabs::provider<> dotnet{L"Microsoft-Windows-DotNETRuntime"};
+  void add_api_calls_provider(UCHAR level,
+                              ULONGLONG any,
+                              ULONGLONG all);
+
+  void add_provider(const wchar_t *name,
+                    UCHAR level,
+                    ULONGLONG any,
+                    ULONGLONG all);
+
+  void add_provider(const GUID &id,
+                    UCHAR level,
+                    ULONGLONG any,
+                    ULONGLONG all);
+
+private:
+  static bool try_parse_guid_string(const wchar_t *s, GUID &out);
+  static bool try_resolve_provider_guid_by_name(const wchar_t *name, GUID &out);
+
+private:
+  std::unique_ptr<krabs::user_trace> m_trace;
+  std::vector<std::unique_ptr<krabs::provider<>>> m_providers;
+  std::wstring m_sessionName;
+  std::thread m_thread;
+  Callback m_cb;
 };

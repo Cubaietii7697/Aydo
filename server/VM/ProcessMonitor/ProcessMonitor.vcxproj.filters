@@ -13,6 +13,12 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Header Files\structs">
+      <UniqueIdentifier>{31fc50e2-1ed9-4a51-a330-849ae657cc8c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\structs">
+      <UniqueIdentifier>{b904ac31-f48c-4157-ad20-2d74457be7f6}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="processMonitor.cpp">
@@ -21,18 +27,24 @@
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Logger.cpp">
+    <ClCompile Include="EventWriter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="EtwGuids.cpp">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="UserBlock.cpp">
+      <Filter>Source Files\structs</Filter>
+    </ClCompile>
+    <ClCompile Include="KernelBlock.cpp">
+      <Filter>Source Files\structs</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="processMonitor.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Logger.hpp">
+    <ClInclude Include="EventWriter.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Constants.hpp">
@@ -40,6 +52,18 @@
     </ClInclude>
     <ClInclude Include="pch.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Caches.hpp">
+      <Filter>Header Files\structs</Filter>
+    </ClInclude>
+    <ClInclude Include="KernelBlock.hpp">
+      <Filter>Header Files\structs</Filter>
+    </ClInclude>
+    <ClInclude Include="Threads.hpp">
+      <Filter>Header Files\structs</Filter>
+    </ClInclude>
+    <ClInclude Include="UserBlock.hpp">
+      <Filter>Header Files\structs</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

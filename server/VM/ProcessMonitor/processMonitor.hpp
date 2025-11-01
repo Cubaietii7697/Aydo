@@ -1,21 +1,11 @@
 #pragma once
 
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
 #ifndef _WIN32_WINNT
 #define _WIN32_WINNT 0x0A00
 #endif
 
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#include <windows.h>
+#include "pch.h"
 
-#include <evntrace.h>
-#include <tdh.h>
 #include <TlHelp32.h>
 #include <evntcons.h>
 
@@ -23,9 +13,9 @@
 #include <string>
 
 #include <krabs.hpp>
-#include "Logger.hpp"
 
 #include "Caches.hpp"
+#include "EventWriter.hpp"
 #include "KernelBlock.hpp"
 #include "Threads.hpp"
 #include "UserBlock.hpp"
@@ -36,11 +26,11 @@ extern TRACEHANDLE g_hSession;
 
 class ProcessMonitor {
 public:
-  explicit ProcessMonitor(const std::wstring &exeName) noexcept;
-  explicit ProcessMonitor(const std::set<DWORD> &initialPids) noexcept;
+  explicit ProcessMonitor(const std::wstring &exeName, const std::wstring &sessionNameKernel, const std::wstring &sessionNameUser, const std::wstring &outPath) noexcept;
+  explicit ProcessMonitor(const std::set<DWORD> &initialPids, const std::wstring &sessionNameKernel, const std::wstring &sessionNameUser, std::wstring outPath) noexcept;
 
   std::set<DWORD> FindPidByName(const std::wstring &exeName) const;
-  static void LogEvent(const EVENT_RECORD &record, const krabs::trace_context &ctx);
+  void LogEvent(const EVENT_RECORD &record, const krabs::trace_context &ctx);
 
   void start();
   void stop();
@@ -50,14 +40,12 @@ private:
   UserBlock m_user;
   Caches m_caches;
   Threads m_threads;
+  std::unique_ptr<EventWriter> m_writer = nullptr;
 
 private:
   void enableKernelProviders();
   void enableUserProviders();
-  void runKernel();
-  void runUser();
-
-  static void onKernelEvent(const EVENT_RECORD &record, const krabs::trace_context &ctx);
-  static void onUserEvent(const EVENT_RECORD &record, const krabs::trace_context &ctx);
-  static bool pid_allowed(DWORD pid);
+  void onKernelEvent(const EVENT_RECORD &record, const krabs::trace_context &ctx);
+  void onUserEvent(const EVENT_RECORD &record, const krabs::trace_context &ctx);
+  bool pid_allowed(DWORD pid) const;
 };

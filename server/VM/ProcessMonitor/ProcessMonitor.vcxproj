@@ -139,15 +139,17 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="EtwGuids.cpp" />
-    <ClCompile Include="Logger.cpp" />
+    <ClCompile Include="KernelBlock.cpp" />
+    <ClCompile Include="EventWriter.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="ProcessMonitor.cpp" />
+    <ClCompile Include="UserBlock.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Caches.hpp" />
     <ClInclude Include="Constants.hpp" />
     <ClInclude Include="KernelBlock.hpp" />
-    <ClInclude Include="Logger.hpp" />
+    <ClInclude Include="EventWriter.hpp" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="ProcessMonitor.hpp" />
     <ClInclude Include="Threads.hpp" />

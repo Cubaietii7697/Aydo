@@ -10,7 +10,6 @@
 #include <thread>
 
 #include "Constants.hpp"
-#include "Logger.hpp"
 #include "ProcessMonitor.hpp"
 
 static std::wstring widen_utf8(const std::string &s) {
@@ -29,25 +28,21 @@ int wmain(int argc, wchar_t *argv[]) {
   }
 
   const std::wstring targetExe = argv[1];
-  if (!Logger::Init(argv[2])) {
+
+  const int TRACE_DURATION_S = (argc == 4) ? _wtoi(argv[3]) : Constants::DEFAULT_TIME_S;
+  const std::wstring sessionNameKernel = L"NTKernelLogger";
+  const std::wstring sessionNameUser = L"NTUserLogger";
+  try {
+    auto pm = std::make_unique<ProcessMonitor>(targetExe, sessionNameKernel, sessionNameUser, argv[2]);
+    // Start monitor
+    pm->start();
+
+    std::this_thread::sleep_for(std::chrono::seconds(TRACE_DURATION_S));
+
+    pm->stop();
+  } catch (...) {
     return EXIT_FAILURE;
   }
-
-  const int TRACE_DURATION_MS = (argc == 4) ? _wtoi(argv[3]) : Constants::DEFAULT_TIME;
-  const std::wstring sessionName = L"NTKernelLogger";
-
-  auto pm = std::make_unique<ProcessMonitor>(targetExe);
-
-  // Start monitor
-  pm->start();
-
-  // Run for the requested duration
-  std::this_thread::sleep_for(std::chrono::milliseconds(TRACE_DURATION_MS));
-
-  // Stop and clean up
-  pm->stop();
-  Logger::Info(L"Shutdown complete.");
-  Logger::Shutdown();
 
   return EXIT_SUCCESS;
 }
