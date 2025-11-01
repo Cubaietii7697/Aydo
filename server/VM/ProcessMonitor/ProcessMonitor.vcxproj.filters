@@ -39,6 +39,9 @@
     <ClCompile Include="KernelBlock.cpp">
       <Filter>Source Files\structs</Filter>
     </ClCompile>
+    <ClCompile Include="Utils.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="processMonitor.hpp">
@@ -64,6 +67,9 @@
     </ClInclude>
     <ClInclude Include="UserBlock.hpp">
       <Filter>Header Files\structs</Filter>
+    </ClInclude>
+    <ClInclude Include="Utils.hpp">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

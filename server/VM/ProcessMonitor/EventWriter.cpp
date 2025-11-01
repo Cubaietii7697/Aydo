@@ -3,6 +3,7 @@
 #include <iomanip>
 #include <objbase.h>
 #include <sstream>
+#include "Utils.hpp"
 
 using nlohmann::json;
 
@@ -14,15 +15,6 @@ EventWriter::EventWriter(std::wstring path)
 void EventWriter::flush() {
   std::scoped_lock<std::mutex> lk(mtx_);
   out_.flush();
-}
-
-std::string EventWriter::narrow_utf8(const std::wstring &w) {
-  if (w.empty())
-    return {};
-  int n = ::WideCharToMultiByte(CP_UTF8, 0, w.c_str(), (int)w.size(), nullptr, 0, nullptr, nullptr);
-  std::string s(n, '\0');
-  ::WideCharToMultiByte(CP_UTF8, 0, w.c_str(), (int)w.size(), s.data(), n, nullptr, nullptr);
-  return s;
 }
 
 static inline const wchar_t *info_wstr(const TRACE_EVENT_INFO *info, ULONG offset) {
@@ -52,7 +44,7 @@ void EventWriter::fill_props_via_tdh(nlohmann::json &props,
   for (ULONG i = 0; i < info->TopLevelPropertyCount; ++i) {
     auto const &epi = info->EventPropertyInfoArray[i];
     const wchar_t *wname = info_wstr(info, epi.NameOffset);
-    const std::string name = narrow_utf8(wname);
+    const std::string name = Utils::narrow_utf8(wname);
 
     auto inType = epi.nonStructType.InType;
 
@@ -60,7 +52,7 @@ void EventWriter::fill_props_via_tdh(nlohmann::json &props,
       switch (inType) {
       case TDH_INTYPE_UNICODESTRING: {
         auto w = parser.parse<std::wstring>(wname);
-        props[name] = narrow_utf8(w);
+        props[name] = Utils::narrow_utf8(w);
         break;
       }
       case TDH_INTYPE_ANSISTRING: {
@@ -107,7 +99,7 @@ void EventWriter::fill_props_via_tdh(nlohmann::json &props,
         GUID g = parser.parse<GUID>(wname);
         wchar_t buf[64];
         ::StringFromGUID2(g, buf, 64);
-        props[name] = narrow_utf8(buf);
+        props[name] = Utils::narrow_utf8(buf);
         break;
       }
       case TDH_INTYPE_POINTER:
@@ -129,7 +121,7 @@ void EventWriter::fill_props_via_tdh(nlohmann::json &props,
       default:
         try {
           auto w = parser.parse<std::wstring>(wname);
-          props[name] = narrow_utf8(w);
+          props[name] = Utils::narrow_utf8(w);
         } catch (...) {
           props[name] = "<unsupported>";
         }
@@ -145,7 +137,7 @@ std::string EventWriter::guid_to_string(const GUID &g) {
   wchar_t buf[64];
   if (int n = ::StringFromGUID2(g, buf, 64); n <= 0)
     return {};
-  return narrow_utf8(buf);
+  return Utils::narrow_utf8(buf);
 }
 
 std::string EventWriter::iso8601_from_large_integer_timestamp(const LARGE_INTEGER &ts) {
@@ -174,13 +166,13 @@ void EventWriter::add_property(json &props,
                                krabs::parser &parser,
                                const krabs::property &prop) const {
   const std::wstring wname = prop.name();
-  const std::string name = narrow_utf8(wname);
+  const std::string name = Utils::narrow_utf8(wname);
 
   try {
     switch (prop.type()) {
     case TDH_INTYPE_UNICODESTRING: {
       auto w = parser.parse<std::wstring>(wname);
-      props[name] = narrow_utf8(w);
+      props[name] = Utils::narrow_utf8(w);
       break;
     }
     case TDH_INTYPE_ANSISTRING: {
@@ -251,7 +243,7 @@ void EventWriter::add_property(json &props,
     default: {
       try {
         auto w = parser.parse<std::wstring>(wname);
-        props[name] = narrow_utf8(w);
+        props[name] = Utils::narrow_utf8(w);
       } catch (...) {
         props[name] = "<unsupported>";
       }
@@ -263,78 +255,93 @@ void EventWriter::add_property(json &props,
   }
 }
 
+static std::string GetHostCached() {
+  static std::string cached;
+  if (!cached.empty())
+    return cached;
+  wchar_t wbuf[256];
+  if (auto len = (DWORD)std::size(wbuf); !::GetComputerNameExW(ComputerNamePhysicalDnsHostname, wbuf, &len)) {
+    len = (DWORD)std::size(wbuf);
+    if (!::GetComputerNameW(wbuf, &len))
+      wbuf[0] = L'\0';
+  }
+  cached = Utils::narrow_utf8(wbuf);
+  if (cached.empty())
+    cached = "unknown-host";
+  return cached;
+}
+
 void EventWriter::write_event_json(const EVENT_RECORD &rec,
                                    const krabs::trace_context &ctx) {
   krabs::schema schema(rec, ctx.schema_locator);
-  krabs::parser parser(schema);
 
   json j;
+  // time & host
   j["ts"] = iso8601_from_large_integer_timestamp(rec.EventHeader.TimeStamp);
-  j["provider"] = narrow_utf8(schema.provider_name());
-  j["provider_guid"] = guid_to_string(rec.EventHeader.ProviderId);
+  j["raw_ts_100ns"] = static_cast<unsigned long long>(rec.EventHeader.TimeStamp.QuadPart);
+  j["host"] = GetHostCached();
 
-  std::wstring ev;
-
-  ev = schema.event_name();
-
-  if (ev.empty()) {
-    std::wstring task;
-    std::wstring op;
-    try {
-      task = schema.task_name();
-    } catch (...) {
-    }
-    try {
-      op = schema.opcode_name();
-    } catch (...) {
-    }
-    if (!task.empty() || !op.empty()) {
-      if (!task.empty())
-        ev += task;
-      if (!op.empty()) {
-        if (!ev.empty())
-          ev += L"/";
-        ev += op;
-      }
-    } else {
-      ev = L"#";
-      ev += std::to_wstring(schema.event_opcode());
-    }
-  }
-  j["event"] = narrow_utf8(ev);
-
+  // provider & event naming
+  std::wstring providerW;
   try {
-    j["task_name"] = narrow_utf8(schema.task_name());
+    providerW = schema.provider_name();
   } catch (...) {
   }
-  try {
-    j["opcode_name"] = narrow_utf8(schema.opcode_name());
-  } catch (...) {
-  }
+  j["provider"] = Utils::narrow_utf8(providerW);
 
-  j["id"] = schema.event_id();
-  j["version"] = static_cast<int>(schema.event_version());
-  j["level"] = static_cast<int>(rec.EventHeader.EventDescriptor.Level);
-  j["opcode"] = schema.event_opcode();
+  const std::wstring taskW = [&] { std::wstring t; try { t = schema.task_name(); }  catch(...) {} return t; }();
+  const std::wstring opcodeW = [&] { std::wstring o; try { o = schema.opcode_name(); } catch(...) {} return o; }();
+  const std::wstring eventW = Utils::ComposeEvent(schema);
 
-  auto norm = [](ULONG v) -> json {
-    return v == 0xFFFFFFFFu ? json(nullptr) : json(v);
-  };
-  j["pid"] = norm(rec.EventHeader.ProcessId);
-  j["tid"] = norm(rec.EventHeader.ThreadId);
+  j["event"] = Utils::narrow_utf8(eventW);
+  j["event_id"] = schema.event_id();
+  j["category"] = Utils::InferCategory(providerW, taskW);
+
+  // ids
+  j["pid"] = Utils::NormUintOrNull(rec.EventHeader.ProcessId);
+  j["tid"] = Utils::NormUintOrNull(rec.EventHeader.ThreadId);
 
   if (!IsEqualGUID(rec.EventHeader.ActivityId, GUID{})) {
     j["activity"] = guid_to_string(rec.EventHeader.ActivityId);
   }
 
-  {
-    ULONGLONG kw = rec.EventHeader.EventDescriptor.Keyword;
-    j["keywords"] = std::format("0x{:016X}", kw);
-  }
+  j["task_name"] = Utils::narrow_utf8(taskW);
 
+  // raw props
   json props = json::object();
   fill_props_via_tdh(props, rec, ctx);
-  j["props"] = std::move(props);
+  j["props"] = props;
+
+  // proc
+  {
+    json proc;
+    Utils::SetIfFound(proc, "name", props, {"ProcessName", "ImageName", "ImageFileName"});
+    Utils::SetIfFound(proc, "path", props, {"ImagePath", "ProcessPath", "FilePath", "ObjectName"});
+    Utils::SetIfFound(proc, "ppid", props, {"ParentProcessId", "ParentPid", "PPID"});
+    Utils::SetIfFound(proc, "bitness", props, {"Bitness"});
+    Utils::SetIfFound(proc, "user_sid", props, {"UserSid", "SID"});
+    Utils::SetIfFound(proc, "integrity", props, {"IntegrityLevel", "IL"});
+    Utils::SetIfFound(proc, "elevated", props, {"Elevated"});
+    Utils::SetIfFound(proc, "signer", props, {"Signer", "SignatureSigner", "Company"});
+    Utils::SetIfFound(proc, "sig_status", props, {"SignatureStatus", "SigStatus"});
+    Utils::SetIfFound(proc, "sha256", props, {"SHA256", "Sha256", "ImageHash"});
+
+    if (!proc.contains("name") || !proc.contains("path")) {
+      json fallback = Utils::BestEffortProcFromPid(rec.EventHeader.ProcessId);
+      for (auto &kv : fallback.items())
+        proc[kv.key()] = kv.value();
+    }
+    if (!proc.empty())
+      j["proc"] = std::move(proc);
+  }
+
+  // projections
+  if (json net = Utils::ExtractNet(props); !net.empty())
+    j["net"] = std::move(net);
+  if (json dns = Utils::ExtractDns(props); !dns.empty())
+    j["dns"] = std::move(dns);
+  if (json fil = Utils::ExtractFile(props, taskW, opcodeW); !fil.empty())
+    j["file"] = std::move(fil);
 
   const std::string line = pretty_ ? (j.dump(2) + "\n") : (j.dump() + "\n");
   std::scoped_lock<std::mutex> lk(mtx_);

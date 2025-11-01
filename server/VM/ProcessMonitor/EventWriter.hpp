@@ -24,7 +24,6 @@ private:
   static void fill_props_via_tdh(nlohmann::json &props,
                                  const EVENT_RECORD &rec,
                                  const krabs::trace_context &ctx);
-  static std::string narrow_utf8(const std::wstring &w);
   static std::string guid_to_string(const GUID &g);
   static std::string iso8601_from_large_integer_timestamp(const LARGE_INTEGER &ts);
 

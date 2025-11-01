@@ -116,6 +116,7 @@
       <AdditionalDependencies>advapi32.lib; tdh.lib; uuid.lib</AdditionalDependencies>
       <AdditionalLibraryDirectories>C:\Program Files %28x86%29\Windows Kits\10\Lib\10.0.26100.0\um\x64</AdditionalLibraryDirectories>
       <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
+      <UACExecutionLevel>RequireAdministrator</UACExecutionLevel>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -144,6 +145,7 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="ProcessMonitor.cpp" />
     <ClCompile Include="UserBlock.cpp" />
+    <ClCompile Include="Utils.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Caches.hpp" />
@@ -154,6 +156,7 @@
     <ClInclude Include="ProcessMonitor.hpp" />
     <ClInclude Include="Threads.hpp" />
     <ClInclude Include="UserBlock.hpp" />
+    <ClInclude Include="Utils.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
