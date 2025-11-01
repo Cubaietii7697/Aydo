@@ -32,20 +32,20 @@ ProcessMonitor::ProcessMonitor(const std::set<DWORD> &initialPids, const std::ws
   g_targetPids = initialPids;
 }
 
-bool ProcessMonitor::pid_allowed(DWORD pid) const {
+bool ProcessMonitor::pidAllowed(DWORD pid) const {
   return g_targetPids.empty() || g_targetPids.contains(pid);
 }
 
 void ProcessMonitor::onKernelEvent(const EVENT_RECORD &record,
                                    const krabs::trace_context &ctx) {
-  if (!pid_allowed(record.EventHeader.ProcessId))
+  if (!pidAllowed(record.EventHeader.ProcessId))
     return;
   LogEvent(record, ctx);
 }
 
 void ProcessMonitor::onUserEvent(const EVENT_RECORD &record,
                                  const krabs::trace_context &ctx) {
-  if (!pid_allowed(record.EventHeader.ProcessId))
+  if (!pidAllowed(record.EventHeader.ProcessId))
     return;
   LogEvent(record, ctx);
 }

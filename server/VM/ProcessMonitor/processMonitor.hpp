@@ -47,5 +47,5 @@ private:
   void enableUserProviders();
   void onKernelEvent(const EVENT_RECORD &record, const krabs::trace_context &ctx);
   void onUserEvent(const EVENT_RECORD &record, const krabs::trace_context &ctx);
-  bool pid_allowed(DWORD pid) const;
+  bool pidAllowed(DWORD pid) const;
 };

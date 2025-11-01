@@ -17,38 +17,36 @@ public:
   explicit EventWriter(std::wstring path,
                        WireFormat fmt = WireFormat::JsonLines,
                        bool pretty = false,
-                       bool length_prefixed = true);
+                       bool lengthPrefixed = true);
 
   void flush();
   void operator()(const EVENT_RECORD &rec, const krabs::trace_context &ctx);
 
-  void set_format(WireFormat f, bool length_prefixed = true) {
-    std::scoped_lock<std::mutex> lk(mtx_);
-    fmt_ = f;
-    length_prefixed_ = length_prefixed;
+  void setFormat(WireFormat f, bool lengthPrefixed = true) {
+    std::scoped_lock<std::mutex> lk(m_mtx);
+    m_wireFornat = f;
+    m_lengthPrefixed = lengthPrefixed;
   }
 
-  static std::string guid_to_string(const GUID &g);
+private:
+  void add_property(nlohmann::json &props,
+                    [[maybe_unused]] const krabs::schema &schema,
+                    krabs::parser &parser,
+                    const krabs::property &prop) const;
+  void writeEventJson(const EVENT_RECORD &rec, const krabs::trace_context &ctx);
+
+  void writeOut(const nlohmann::json &j);
+
+  void fillPropsViaTdh(nlohmann::json &props,
+                       const EVENT_RECORD &rec,
+                       const krabs::trace_context &ctx) const;
 
 private:
-  void write_event_json(const EVENT_RECORD &rec, const krabs::trace_context &ctx);
+  std::mutex m_mtx;
+  std::ofstream m_out;
+  std::wstring m_path;
+  bool m_pretty = false;
 
-  void write_out(const nlohmann::json &j);
-
-  void fill_props_via_tdh(nlohmann::json &props,
-                          const EVENT_RECORD &rec,
-                          const krabs::trace_context &ctx) const;
-
-  static std::string iso8601_from_large_integer_timestamp(const LARGE_INTEGER &ts);
-  static unsigned long long ts100ns_from_large_integer(const LARGE_INTEGER &ts);
-  static std::string host_name();
-
-private:
-  std::mutex mtx_;
-  std::ofstream out_;
-  std::wstring path_;
-  bool pretty_ = false;
-
-  WireFormat fmt_ = WireFormat::JsonLines;
-  bool length_prefixed_ = true;
+  WireFormat m_wireFornat = WireFormat::JsonLines;
+  bool m_lengthPrefixed = true;
 };

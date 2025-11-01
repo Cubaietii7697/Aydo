@@ -39,4 +39,8 @@ nlohmann::json BestEffortProcFromPid(DWORD pid);
 
 nlohmann::json NormUintOrNull(ULONG v);
 
+unsigned long long ts100nsFromLargeInteger(const LARGE_INTEGER &ts);
+std::string getHostName();
+std::string iso8601FromLargeIntegerTimestamp(const LARGE_INTEGER &ts);
+std::string guidToString(const GUID &g);
 } // namespace Utils

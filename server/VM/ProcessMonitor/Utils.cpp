@@ -241,3 +241,49 @@ nlohmann::json Utils::BestEffortProcFromPid(DWORD pid) {
 nlohmann::json Utils::NormUintOrNull(ULONG v) {
   return (v == 0xFFFFFFFFuL) ? nlohmann::json(nullptr) : nlohmann::json(v);
 }
+
+unsigned long long Utils::ts100nsFromLargeInteger(const LARGE_INTEGER &ts) {
+  ULARGE_INTEGER u;
+  u.LowPart = ts.LowPart;
+  u.HighPart = ts.HighPart;
+  return u.QuadPart;
+}
+
+std::string Utils::getHostName() {
+  wchar_t buf[256]{};
+  DWORD len = (DWORD)std::size(buf);
+  if (GetComputerNameExW(ComputerNamePhysicalDnsHostname, buf, &len))
+    return Utils::narrow_utf8(std::wstring(buf, len));
+  len = (DWORD)std::size(buf);
+  if (GetComputerNameW(buf, &len))
+    return Utils::narrow_utf8(std::wstring(buf, len));
+  return {};
+}
+
+std::string Utils::iso8601FromLargeIntegerTimestamp(const LARGE_INTEGER &ts) {
+  ULARGE_INTEGER uli{};
+  uli.QuadPart = static_cast<ULONGLONG>(ts.QuadPart);
+  FILETIME ft{.dwLowDateTime = ts.LowPart, .dwHighDateTime = uli.HighPart};
+  SYSTEMTIME st_utc{};
+
+  if (!FileTimeToSystemTime(&ft, &st_utc)) {
+    return {};
+  }
+  std::ostringstream oss;
+  oss << std::setfill('0')
+      << std::setw(4) << st_utc.wYear << "-"
+      << std::setw(2) << st_utc.wMonth << "-"
+      << std::setw(2) << st_utc.wDay << "T"
+      << std::setw(2) << st_utc.wHour << ":"
+      << std::setw(2) << st_utc.wMinute << ":"
+      << std::setw(2) << st_utc.wSecond << "."
+      << std::setw(3) << st_utc.wMilliseconds << "Z";
+  return oss.str();
+}
+
+std::string Utils::guidToString(const GUID &g) {
+  wchar_t buf[64];
+  if (int n = ::StringFromGUID2(g, buf, 64); n <= 0)
+    return {};
+  return Utils::narrow_utf8(buf);
+}
