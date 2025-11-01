@@ -7,8 +7,14 @@
 
 using nlohmann::json;
 
-EventWriter::EventWriter(std::wstring path)
-    : path_(std::move(path)) {
+EventWriter::EventWriter(std::wstring path,
+                         WireFormat fmt,
+                         bool pretty,
+                         bool length_prefixed)
+    : path_(std::move(path))
+    , pretty_(pretty)
+    , fmt_(fmt)
+    , length_prefixed_(length_prefixed) {
   out_.open(path_, std::ios::out | std::ios::app | std::ios::binary);
 }
 
@@ -24,7 +30,7 @@ static inline const wchar_t *info_wstr(const TRACE_EVENT_INFO *info, ULONG offse
 
 void EventWriter::fill_props_via_tdh(nlohmann::json &props,
                                      const EVENT_RECORD &rec,
-                                     const krabs::trace_context &ctx) {
+                                     const krabs::trace_context &ctx) const {
   ULONG size = 0;
   auto status = ::TdhGetEventInformation(const_cast<EVENT_RECORD *>(&rec),
                                          0, nullptr, nullptr, &size);
@@ -141,12 +147,12 @@ std::string EventWriter::guid_to_string(const GUID &g) {
 }
 
 std::string EventWriter::iso8601_from_large_integer_timestamp(const LARGE_INTEGER &ts) {
-  FILETIME ft;
-  ft.dwLowDateTime = ts.LowPart;
-  ft.dwHighDateTime = ts.HighPart;
-
+  ULARGE_INTEGER uli{};
+  uli.QuadPart = static_cast<ULONGLONG>(ts.QuadPart);
+  FILETIME ft{.dwLowDateTime = ts.LowPart, .dwHighDateTime = uli.HighPart};
   SYSTEMTIME st_utc{};
-  if (!::FileTimeToSystemTime(&ft, &st_utc)) {
+
+  if (!FileTimeToSystemTime(&ft, &st_utc)) {
     return {};
   }
   std::ostringstream oss;
@@ -161,7 +167,25 @@ std::string EventWriter::iso8601_from_large_integer_timestamp(const LARGE_INTEGE
   return oss.str();
 }
 
-void EventWriter::add_property(json &props,
+unsigned long long EventWriter::ts100ns_from_large_integer(const LARGE_INTEGER &ts) {
+  ULARGE_INTEGER u;
+  u.LowPart = ts.LowPart;
+  u.HighPart = ts.HighPart;
+  return u.QuadPart;
+}
+
+std::string EventWriter::host_name() {
+  wchar_t buf[256]{};
+  DWORD len = (DWORD)std::size(buf);
+  if (GetComputerNameExW(ComputerNamePhysicalDnsHostname, buf, &len))
+    return Utils::narrow_utf8(std::wstring(buf, len));
+  len = (DWORD)std::size(buf);
+  if (GetComputerNameW(buf, &len))
+    return Utils::narrow_utf8(std::wstring(buf, len));
+  return {};
+}
+
+/* void EventWriter::add_property(json &props,
                                [[maybe_unused]] const krabs::schema &schema,
                                krabs::parser &parser,
                                const krabs::property &prop) const {
@@ -254,22 +278,7 @@ void EventWriter::add_property(json &props,
     props[name] = "<parse_error>";
   }
 }
-
-static std::string GetHostCached() {
-  static std::string cached;
-  if (!cached.empty())
-    return cached;
-  wchar_t wbuf[256];
-  if (auto len = (DWORD)std::size(wbuf); !::GetComputerNameExW(ComputerNamePhysicalDnsHostname, wbuf, &len)) {
-    len = (DWORD)std::size(wbuf);
-    if (!::GetComputerNameW(wbuf, &len))
-      wbuf[0] = L'\0';
-  }
-  cached = Utils::narrow_utf8(wbuf);
-  if (cached.empty())
-    cached = "unknown-host";
-  return cached;
-}
+*/
 
 void EventWriter::write_event_json(const EVENT_RECORD &rec,
                                    const krabs::trace_context &ctx) {
@@ -279,7 +288,7 @@ void EventWriter::write_event_json(const EVENT_RECORD &rec,
   // time & host
   j["ts"] = iso8601_from_large_integer_timestamp(rec.EventHeader.TimeStamp);
   j["raw_ts_100ns"] = static_cast<unsigned long long>(rec.EventHeader.TimeStamp.QuadPart);
-  j["host"] = GetHostCached();
+  j["host"] = host_name();
 
   // provider & event naming
   std::wstring providerW;
@@ -343,9 +352,26 @@ void EventWriter::write_event_json(const EVENT_RECORD &rec,
   if (json fil = Utils::ExtractFile(props, taskW, opcodeW); !fil.empty())
     j["file"] = std::move(fil);
 
-  const std::string line = pretty_ ? (j.dump(2) + "\n") : (j.dump() + "\n");
+  write_out(j);
+}
+
+void EventWriter::write_out(const nlohmann::json &j) {
   std::scoped_lock<std::mutex> lk(mtx_);
-  out_.write(line.data(), static_cast<std::streamsize>(line.size()));
+  if (!out_)
+    return;
+
+  if (fmt_ == WireFormat::Msgpack) {
+    std::vector<std::uint8_t> buf = nlohmann::json::to_msgpack(j);
+    if (length_prefixed_) {
+      const std::uint32_t n = static_cast<std::uint32_t>(buf.size());
+      out_.write(reinterpret_cast<const char *>(&n), sizeof(n));
+    }
+    out_.write(reinterpret_cast<const char *>(buf.data()),
+               static_cast<std::streamsize>(buf.size()));
+  } else {
+    const std::string line = pretty_ ? (j.dump(2) + "\n") : (j.dump() + "\n");
+    out_.write(line.data(), static_cast<std::streamsize>(line.size()));
+  }
 }
 
 void EventWriter::operator()(const EVENT_RECORD &rec, const krabs::trace_context &ctx) {

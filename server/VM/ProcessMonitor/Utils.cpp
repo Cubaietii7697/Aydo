@@ -238,6 +238,6 @@ nlohmann::json Utils::BestEffortProcFromPid(DWORD pid) {
   return p;
 }
 
-nlohmann::json Utils::NormUintOrNull(unsigned long v) {
+nlohmann::json Utils::NormUintOrNull(ULONG v) {
   return (v == 0xFFFFFFFFuL) ? nlohmann::json(nullptr) : nlohmann::json(v);
 }
