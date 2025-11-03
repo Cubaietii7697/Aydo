@@ -13,48 +13,96 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
-    <Filter Include="Header Files\Helpers">
-      <UniqueIdentifier>{dd1ff84d-8649-469a-a469-f3a129da9027}</UniqueIdentifier>
+    <Filter Include="Source Files\AhoCorasick">
+      <UniqueIdentifier>{146d4bd8-e12f-4101-afe5-93eae401b368}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Header Files\Communication">
-      <UniqueIdentifier>{e73c926a-57f6-4fd5-a466-d70be6b764f6}</UniqueIdentifier>
+    <Filter Include="Header Files\AhoCorasick">
+      <UniqueIdentifier>{c54e873a-69f9-48bd-98d4-706a0d21540a}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\Helpers">
-      <UniqueIdentifier>{8599fceb-c883-42c8-9df1-fbbcedc2d85f}</UniqueIdentifier>
+    <Filter Include="Source Files\Regex">
+      <UniqueIdentifier>{61d34d64-19b8-430b-a2b3-25a41f0ba1b2}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\Communication">
-      <UniqueIdentifier>{d4715e3b-0a2d-47dd-a877-f8bda43b61e4}</UniqueIdentifier>
+    <Filter Include="Header Files\Regex">
+      <UniqueIdentifier>{83304708-7888-4849-8b3a-f74456234c0f}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="helpers\Utils.hpp">
-      <Filter>Header Files\Helpers</Filter>
-    </ClInclude>
-    <ClInclude Include="KernelCommunication\Error.hpp">
-      <Filter>Header Files\Communication</Filter>
-    </ClInclude>
-    <ClInclude Include="KernelCommunication\FailureInfo.hpp">
-      <Filter>Header Files\Communication</Filter>
-    </ClInclude>
-    <ClInclude Include="KernelCommunication\KernelCommunication.hpp">
-      <Filter>Header Files\Communication</Filter>
-    </ClInclude>
-    <ClInclude Include="..\IOCTLDefs.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Service.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="helpers\Utils.cpp">
-      <Filter>Source Files\Helpers</Filter>
-    </ClCompile>
-    <ClCompile Include="KernelCommunication\KernelCommunication.cpp">
-      <Filter>Source Files\Communication</Filter>
-    </ClCompile>
-    <ClCompile Include="Service.cpp">
+    <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Utils.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="AhoCorasick\AhoCorasick.cpp">
+      <Filter>Source Files\AhoCorasick</Filter>
+    </ClCompile>
+    <ClCompile Include="AhoCorasick\ACUtils.cpp">
+      <Filter>Source Files\AhoCorasick</Filter>
+    </ClCompile>
+    <ClCompile Include="AhoCorasick\ACScanningEngine.cpp">
+      <Filter>Source Files\AhoCorasick</Filter>
+    </ClCompile>
+    <ClCompile Include="Regex\RScanningEngine.cpp">
+      <Filter>Source Files\Regex</Filter>
+    </ClCompile>
+    <ClCompile Include="AhoCorasick\SCAScanningEngine.cpp">
+      <Filter>Source Files\AhoCorasick</Filter>
+    </ClCompile>
+    <ClCompile Include="Databases\HashesDatabase.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Databases\SignaturesDatabase.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="KernelCommunications\KernelCommunications.cpp">
+      <Filter>Header Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="AhoCorasick\ACUtils.hpp">
+      <Filter>Header Files\AhoCorasick</Filter>
+    </ClInclude>
+    <ClInclude Include="AhoCorasick\AhoCorasick.hpp">
+      <Filter>Header Files\AhoCorasick</Filter>
+    </ClInclude>
+    <ClInclude Include="AhoCorasick\ACNode.hpp">
+      <Filter>Header Files\AhoCorasick</Filter>
+    </ClInclude>
+    <ClInclude Include="Errors.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="AhoCorasick\ACScanningEngine.hpp">
+      <Filter>Header Files\AhoCorasick</Filter>
+    </ClInclude>
+    <ClInclude Include="Regex\RScanningEngine.hpp">
+      <Filter>Header Files\Regex</Filter>
+    </ClInclude>
+    <ClInclude Include="IScanningEngine.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="AhoCorasick\SCAScanningEngine.hpp">
+      <Filter>Header Files\AhoCorasick</Filter>
+    </ClInclude>
+    <ClInclude Include="jsonTypes.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Utils.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Databases\HashesDatabase.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="IOCTLs.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Databases\SignaturesDatabase.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Types.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="KernelCommunications\KernelCommunications.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

@@ -14,9 +14,9 @@ constexpr std::string_view BANNER = R"(
  * Path in Host
  */
 constexpr std::string_view VM_RUN_PATH = R"("C:\Program Files (x86)\VMware\VMware Workstation\vmrun.exe")";
-constexpr std::string_view ANALYSIS_VM_PATH = R"("D:\SandboxAnalysis\SANDBOX1\SANDBOX1.vmx")";
-constexpr std::string_view SANDBOXES_DIRECTORY_PATH = R"(D:\SandboxAnalysis\)";
-constexpr std::string_view PM_FILE_PATH = R"(D:\PM\ProcessMonitor.exe)";
+constexpr std::string_view ANALYSIS_VM_PATH = R"("D:\veeeertoooaaalll\SANDBOX1\SANDBOX1.vmx")";
+constexpr std::string_view SANDBOXES_DIRECTORY_PATH = R"(D:\veeeertoooaaalll\)";
+constexpr std::string_view PM_FILE_PATH = R"(C:\Dev\Magshii\Project\aydo\Server\VM\ProcessMonitor\bin\x64\Release\ProcessMonitor.exe)";
 constexpr std::string_view HOST_FOLDER_PATH = R"(D:\Shared)";
 
 /*
@@ -34,8 +34,8 @@ constexpr std::string_view LOG_FILE_NAME = "logs.log";
 /* !!!
  *  Must be the username and password of VM
  */
-constexpr std::string_view GUEST_USER = R"(.\vmuser)";
-constexpr std::string_view GUEST_PASS = "StrongP@ssw0rd";
+constexpr std::string_view GUEST_USER = R"(KAN12)";
+constexpr std::string_view GUEST_PASS = "1234";
 /*-------------------------------------------------------------------------------------------*/
 constexpr unsigned int ANIMATION_SLEEP_TIME_MS = 50;
 constexpr unsigned int ANIMATION_SLEEP_TIME_S = 5;
