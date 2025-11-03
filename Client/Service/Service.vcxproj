@@ -108,6 +108,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>wintrust.lib;Psapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -125,6 +126,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>wintrust.lib;Psapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -140,6 +142,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>wintrust.lib;Psapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -157,6 +160,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>wintrust.lib;Psapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -167,6 +171,7 @@
     <ClCompile Include="KernelCommunications\KernelCommunications.cpp" />
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="Databases\HashesDatabase.cpp" />
+    <ClCompile Include="ProcessMonitor.cpp" />
     <ClCompile Include="Regex\RScanningEngine.cpp" />
     <ClCompile Include="Databases\SignaturesDatabase.cpp" />
     <ClCompile Include="Utils.cpp" />
@@ -177,12 +182,14 @@
     <ClInclude Include="AhoCorasick\AhoCorasick.hpp" />
     <ClInclude Include="AhoCorasick\ACUtils.hpp" />
     <ClInclude Include="AhoCorasick\SCAScanningEngine.hpp" />
+    <ClInclude Include="Constants.hpp" />
     <ClInclude Include="Errors.hpp" />
     <ClInclude Include="Databases\HashesDatabase.hpp" />
     <ClInclude Include="IOCTLs.hpp" />
     <ClInclude Include="IScanningEngine.hpp" />
     <ClInclude Include="JsonTypes.hpp" />
     <ClInclude Include="KernelCommunications\KernelCommunications.hpp" />
+    <ClInclude Include="ProcessMonitor.hpp" />
     <ClInclude Include="Regex\RScanningEngine.hpp" />
     <ClInclude Include="Databases\SignaturesDatabase.hpp" />
     <ClInclude Include="Types.hpp" />

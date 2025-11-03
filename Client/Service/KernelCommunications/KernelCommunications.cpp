@@ -12,7 +12,7 @@ KernelCommunications::~KernelCommunications() {
 
 bool KernelCommunications::connect(const std::wstring &devicePath) {
   // Already connected
-  if (m_hDevice != INVALID_HANDLE_VALUE) {
+  if (isConnected()) {
     return true;
   }
 
@@ -29,10 +29,12 @@ bool KernelCommunications::connect(const std::wstring &devicePath) {
 }
 
 void KernelCommunications::disconnect() {
-  if (m_hDevice != INVALID_HANDLE_VALUE) {
-    CloseHandle(m_hDevice);
-    m_hDevice = INVALID_HANDLE_VALUE;
+  if (!isConnected()) {
+    return;
   }
+
+  CloseHandle(m_hDevice);
+  m_hDevice = INVALID_HANDLE_VALUE;
 }
 
 bool KernelCommunications::isConnected() const {
@@ -78,10 +80,8 @@ std::optional<IOCTL_GET_PROCESS_NOTIFICATION_OUTPUT> KernelCommunications::getPr
   IOCTL_GET_PROCESS_NOTIFICATION_OUTPUT output;
   DWORD bytesReturned = 0;
 
-  if (sendIoctl(IOCTL_GET_PROCESS_NOTIFICATION, nullptr, 0, &output, sizeof(output), &bytesReturned)) {
-    if (bytesReturned == sizeof(output)) {
-      return output;
-    }
+  if (sendIoctl(IOCTL_GET_PROCESS_NOTIFICATION, nullptr, 0, &output, sizeof(output), &bytesReturned) && bytesReturned == sizeof(output)) {
+    return output;
   }
 
   return std::nullopt;

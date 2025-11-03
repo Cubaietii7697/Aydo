@@ -4,19 +4,12 @@
 #include <cwctype>
 #include <fstream>
 #include <psapi.h>
-#include <vector>
 #include <softpub.h>
+#include <vector>
 #include <wintrust.h>
-#ifndef BOTAN_INCLUDED
 #include <botan/hash.h>
 #include <botan/hex.h>
-#endif
 #include "Errors.hpp"
-
-#ifdef _MSC_VER
-#pragma comment(lib, "Psapi.lib")
-#pragma comment(lib, "wintrust.lib")
-#endif
 
 using namespace Utils::Const;
 
@@ -34,6 +27,7 @@ bool Utils::is_nt_device_path(const std::wstring &p) {
   return p.rfind(L"\\Device\\", 0) == 0 || p.rfind(L"\\??\\", 0) == 0;
 }
 
+// check if its a standard dos path (c:\windows and not \??\c:\windows)
 bool Utils::is_dos_path(const std::wstring &p) {
   return p.size() > 2 && std::iswalpha(static_cast<unsigned char>(p[0])) &&
          p[1] == L':' && (p[2] == L'\\' || p[2] == L'/');
@@ -185,14 +179,14 @@ bool Utils::isWindowsSigned(const std::string &path) {
   winTrustData.cbStruct = sizeof(WINTRUST_DATA);
   winTrustData.pPolicyCallbackData = nullptr;
   winTrustData.pSIPClientData = nullptr;
-  winTrustData.dwUIChoice = WTD_UI_NONE;                    // No UI
-  winTrustData.fdwRevocationChecks = WTD_REVOKE_NONE;       // Skip revocation check for performance
+  winTrustData.dwUIChoice = WTD_UI_NONE;              // No UI
+  winTrustData.fdwRevocationChecks = WTD_REVOKE_NONE; // Skip revocation check for performance
   winTrustData.dwUnionChoice = WTD_CHOICE_FILE;
   winTrustData.pFile = &fileInfo;
   winTrustData.dwStateAction = WTD_STATEACTION_VERIFY;
   winTrustData.hWVTStateData = nullptr;
   winTrustData.pwszURLReference = nullptr;
-  winTrustData.dwProvFlags = WTD_CACHE_ONLY_URL_RETRIEVAL;  // Use cache only for better performance
+  winTrustData.dwProvFlags = WTD_CACHE_ONLY_URL_RETRIEVAL; // Use cache only for better performance
   winTrustData.dwUIContext = 0;
 
   // GUID for WinVerifyTrust action (WINTRUST_ACTION_GENERIC_VERIFY_V2)

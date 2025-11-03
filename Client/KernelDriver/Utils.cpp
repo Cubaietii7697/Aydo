@@ -58,7 +58,7 @@ bool Utils::isProcessKillable(ULONG pid) {
     }
   }
 
-  // Check if the process is critical
+  // Find the process
   PEPROCESS process;
   if (!NT_SUCCESS(PsLookupProcessByProcessId(ULongToHandle(pid), &process))) {
     LOG_ERROR("Failed to find process by PID: %lu", pid);
