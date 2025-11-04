@@ -21,9 +21,9 @@ public:
   explicit KernelBlock(const std::wstring &userSessionName);
   using Callback = std::function<void(const EVENT_RECORD &, const krabs::trace_context &)>;
 
-  void add_default_kernel_providers();
+  void addDefaultKernelProviders();
   template <class Prov, class... Args>
-  void add_provider(Args &&...args) {
+  void addProvider(Args &&...args) {
     m_provs.emplace_back(std::make_unique<KProv<Prov>>(std::forward<Args>(args)...));
   }
 

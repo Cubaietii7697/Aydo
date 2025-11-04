@@ -3,36 +3,18 @@
 #include <cwctype>
 #include <ranges>
 #include <string_view>
+#include "Utils.hpp"
 
 UserBlock::UserBlock(const std::wstring &userSessionName)
     : m_sessionName(userSessionName) {}
 
-std::wstring_view UserBlock::trim(std::wstring_view x) {
-  auto is_space = [](wchar_t ch) {
-    return std::iswspace(static_cast<wint_t>(ch)) != 0;
-  };
-
-  // first non-space
-  auto first = std::ranges::find_if_not(x, is_space);
-  if (first == x.end()) {
-    return {};
-  }
-
-  // last non-space
-  auto r = x | std::views::reverse;
-  auto rpos = std::ranges::find_if_not(r, is_space); // iterator into the reversed view
-  auto last = rpos.base();                           // convert back to forward iterator
-
-  return {std::to_address(first), static_cast<size_t>(last - first)};
-}
-
-bool UserBlock::try_parse_guid_string(const wchar_t *s, GUID &out) {
+bool UserBlock::tryParseGuidString(const wchar_t *s, GUID &out) {
   if (!s || !*s) {
     return false;
   }
 
   std::wstring t = s;
-  t = trim(t);
+  t = Utils::trim(t);
 
   if (!t.empty() && t.front() != L'{') {
     t = L"{" + t + L"}";
@@ -41,7 +23,7 @@ bool UserBlock::try_parse_guid_string(const wchar_t *s, GUID &out) {
   return SUCCEEDED(CLSIDFromString(t.c_str(), &out));
 }
 
-bool UserBlock::try_resolve_provider_guid_by_name(const wchar_t *name, GUID &out) {
+bool UserBlock::tryResolveProviderGuidByName(const wchar_t *name, GUID &out) {
   if (!name || !*name) {
     return false;
   }
@@ -76,21 +58,21 @@ bool UserBlock::try_resolve_provider_guid_by_name(const wchar_t *name, GUID &out
   return false;
 }
 
-void UserBlock::add_provider(const wchar_t *name,
-                             UCHAR level,
-                             ULONGLONG any,
-                             ULONGLONG all) {
+void UserBlock::addProvider(const wchar_t *name,
+                            UCHAR level,
+                            ULONGLONG any,
+                            ULONGLONG all) {
   GUID gid{};
-  if (try_parse_guid_string(name, gid) || try_resolve_provider_guid_by_name(name, gid)) {
-    add_provider(gid, level, any, all);
+  if (tryParseGuidString(name, gid) || tryResolveProviderGuidByName(name, gid)) {
+    addProvider(gid, level, any, all);
 
     return;
   }
 }
-void UserBlock::add_provider(const GUID &id,
-                             UCHAR level,
-                             ULONGLONG any,
-                             ULONGLONG all) {
+void UserBlock::addProvider(const GUID &id,
+                            UCHAR level,
+                            ULONGLONG any,
+                            ULONGLONG all) {
   auto p = std::make_unique<krabs::provider<>>(id);
   p->level(level);
   if (any) {
@@ -103,15 +85,15 @@ void UserBlock::add_provider(const GUID &id,
   m_providers.emplace_back(std::move(p));
 }
 
-void UserBlock::add_api_calls_provider(UCHAR level,
-                                       ULONGLONG any,
-                                       ULONGLONG all) {
-  add_provider(L"Microsoft-Windows-DNS-Client", level, any, all);
-  add_provider(L"Microsoft-Windows-WinHTTP", level, any, all);
-  add_provider(L"Microsoft-Windows-WMI-Activity", level, any, all);
-  add_provider(L"Microsoft-Windows-PowerShell", level, any, all);
-  add_provider(L"Microsoft-Windows-DotNETRuntime", level, any, all);
-  add_provider(L"Microsoft-Windows-Kernel-Audit-API-Calls", level, any, all);
+void UserBlock::addApiCallsProvider(UCHAR level,
+                                    ULONGLONG any,
+                                    ULONGLONG all) {
+  addProvider(L"Microsoft-Windows-DNS-Client", level, any, all);
+  addProvider(L"Microsoft-Windows-WinHTTP", level, any, all);
+  addProvider(L"Microsoft-Windows-WMI-Activity", level, any, all);
+  addProvider(L"Microsoft-Windows-PowerShell", level, any, all);
+  addProvider(L"Microsoft-Windows-DotNETRuntime", level, any, all);
+  addProvider(L"Microsoft-Windows-Kernel-Audit-API-Calls", level, any, all);
 }
 
 void UserBlock::start(Callback on_event) {

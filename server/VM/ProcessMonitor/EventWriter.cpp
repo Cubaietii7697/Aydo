@@ -1,5 +1,6 @@
 #include "EventWriter.hpp"
 #include <tdh.h>
+#include <botan/hex.h>
 #include <iomanip>
 #include <objbase.h>
 #include <sstream>
@@ -102,9 +103,10 @@ void EventWriter::fillPropsViaTdh(nlohmann::json &props,
         break;
       }
       case TDH_INTYPE_GUID: {
+
         GUID g = parser.parse<GUID>(wname);
-        wchar_t buf[64];
-        ::StringFromGUID2(g, buf, 64);
+        wchar_t buf[Utils::GUID_SIZE];
+        ::StringFromGUID2(g, buf, Utils::GUID_SIZE);
         props[name] = Utils::narrow_utf8(buf);
         break;
       }
@@ -140,10 +142,10 @@ void EventWriter::fillPropsViaTdh(nlohmann::json &props,
 }
 
 // old way
-void EventWriter::add_property(nlohmann::json &props,
-                               [[maybe_unused]] const krabs::schema &schema,
-                               krabs::parser &parser,
-                               const krabs::property &prop) const {
+void EventWriter::addProperty(nlohmann::json &props,
+                              [[maybe_unused]] const krabs::schema &schema,
+                              krabs::parser &parser,
+                              const krabs::property &prop) const {
   const std::wstring wname = prop.name();
   const std::string name = Utils::narrow_utf8(wname);
 
@@ -209,13 +211,7 @@ void EventWriter::add_property(nlohmann::json &props,
     }
     case TDH_INTYPE_BINARY: {
       auto bin = parser.parse<std::vector<uint8_t>>(wname);
-      static const char *kHex = "0123456789abcdef"; // all hex options
-      std::string hex;
-      hex.reserve(2 * bin.size());
-      for (auto b : bin) {
-        hex.push_back(kHex[(b >> 4) & 0xF]);
-        hex.push_back(kHex[b & 0xF]);
-      }
+      std::string hex = Botan::hex_encode(bin.data(), bin.size(), false);
       props[name] = nlohmann::json{{"_type", "bytes"}, {"hex", hex}};
       break;
     }
@@ -255,15 +251,15 @@ void EventWriter::writeEventJson(const EVENT_RECORD &rec,
 
   const std::wstring taskW = [&] { std::wstring t; try { t = schema.task_name(); }  catch(...) {} return t; }();
   const std::wstring opcodeW = [&] { std::wstring o; try { o = schema.opcode_name(); } catch(...) {} return o; }();
-  const std::wstring eventW = Utils::ComposeEvent(schema);
+  const std::wstring eventW = Utils::composeEvent(schema);
 
   j["event"] = Utils::narrow_utf8(eventW);
   j["event_id"] = schema.event_id();
-  j["category"] = Utils::InferCategory(providerW, taskW);
+  j["category"] = Utils::inferCategory(providerW, taskW);
 
   // ids
-  j["pid"] = Utils::NormUintOrNull(rec.EventHeader.ProcessId);
-  j["tid"] = Utils::NormUintOrNull(rec.EventHeader.ThreadId);
+  j["pid"] = Utils::normUintOrNull(rec.EventHeader.ProcessId);
+  j["tid"] = Utils::normUintOrNull(rec.EventHeader.ThreadId);
 
   if (!IsEqualGUID(rec.EventHeader.ActivityId, GUID{})) {
     j["activity"] = Utils::guidToString(rec.EventHeader.ActivityId);
@@ -278,19 +274,19 @@ void EventWriter::writeEventJson(const EVENT_RECORD &rec,
 
   // proc
   nlohmann::json proc;
-  Utils::SetIfFound(proc, "name", props, {"ProcessName", "ImageName", "ImageFileName"});
-  Utils::SetIfFound(proc, "path", props, {"ImagePath", "ProcessPath", "FilePath", "ObjectName"});
-  Utils::SetIfFound(proc, "ppid", props, {"ParentProcessId", "ParentPid", "PPID"});
-  Utils::SetIfFound(proc, "bitness", props, {"Bitness"});
-  Utils::SetIfFound(proc, "user_sid", props, {"UserSid", "SID"});
-  Utils::SetIfFound(proc, "integrity", props, {"IntegrityLevel", "IL"});
-  Utils::SetIfFound(proc, "elevated", props, {"Elevated"});
-  Utils::SetIfFound(proc, "signer", props, {"Signer", "SignatureSigner", "Company"});
-  Utils::SetIfFound(proc, "sig_status", props, {"SignatureStatus", "SigStatus"});
-  Utils::SetIfFound(proc, "sha256", props, {"SHA256", "Sha256", "ImageHash"});
+  Utils::setIfFound(proc, "name", props, {"ProcessName", "ImageName", "ImageFileName"});
+  Utils::setIfFound(proc, "path", props, {"ImagePath", "ProcessPath", "FilePath", "ObjectName"});
+  Utils::setIfFound(proc, "ppid", props, {"ParentProcessId", "ParentPid", "PPID"});
+  Utils::setIfFound(proc, "bitness", props, {"Bitness"});
+  Utils::setIfFound(proc, "user_sid", props, {"UserSid", "SID"});
+  Utils::setIfFound(proc, "integrity", props, {"IntegrityLevel", "IL"});
+  Utils::setIfFound(proc, "elevated", props, {"Elevated"});
+  Utils::setIfFound(proc, "signer", props, {"Signer", "SignatureSigner", "Company"});
+  Utils::setIfFound(proc, "sig_status", props, {"SignatureStatus", "SigStatus"});
+  Utils::setIfFound(proc, "sha256", props, {"SHA256", "Sha256", "ImageHash"});
 
   if (!proc.contains("name") || !proc.contains("path")) {
-    nlohmann::json fallback = Utils::BestEffortProcFromPid(rec.EventHeader.ProcessId);
+    nlohmann::json fallback = Utils::bestEffortProcFromPid(rec.EventHeader.ProcessId);
     for (auto &kv : fallback.items()) {
       proc[kv.key()] = kv.value();
     }
@@ -300,15 +296,15 @@ void EventWriter::writeEventJson(const EVENT_RECORD &rec,
   }
 
   // projections
-  if (nlohmann::json net = Utils::ExtractNet(props); !net.empty()) {
+  if (nlohmann::json net = Utils::extractNet(props); !net.empty()) {
     j["net"] = std::move(net);
   }
 
-  if (nlohmann::json dns = Utils::ExtractDns(props); !dns.empty()) {
+  if (nlohmann::json dns = Utils::extractDns(props); !dns.empty()) {
     j["dns"] = std::move(dns);
   }
 
-  if (nlohmann::json fil = Utils::ExtractFile(props, taskW, opcodeW); !fil.empty()) {
+  if (nlohmann::json fil = Utils::extractFile(props, taskW, opcodeW); !fil.empty()) {
     j["file"] = std::move(fil);
   }
 
@@ -330,7 +326,8 @@ void EventWriter::writeOut(const nlohmann::json &j) {
     m_out.write(reinterpret_cast<const char *>(buf.data()),
                 static_cast<std::streamsize>(buf.size()));
   } else {
-    const std::string line = m_pretty ? (j.dump(2) + "\n") : (j.dump() + "\n");
+
+    const std::string line = m_pretty ? (j.dump(Utils::jsonIndentWidth) + "\n") : (j.dump() + "\n");
     m_out.write(line.data(), static_cast<std::streamsize>(line.size()));
   }
 }

@@ -1,6 +1,6 @@
 #include "Utils.hpp"
 
-std::wstring Utils::TrimWs(std::wstring s) {
+std::wstring Utils::trimWs(std::wstring s) {
   auto is_space = [](wchar_t c) { return c == L' ' || c == L'\t' || c == L'\n' || c == L'\r'; };
   size_t b = 0;
   size_t e = s.size();
@@ -23,13 +23,13 @@ std::wstring Utils::ToLower(std::wstring s) {
   return s;
 }
 
-std::wstring Utils::ComposeEvent(const krabs::schema &s) {
+std::wstring Utils::composeEvent(const krabs::schema &s) {
   std::wstring ev;
   try {
     ev = s.event_name();
   } catch (...) {
   }
-  ev = TrimWs(ev);
+  ev = trimWs(ev);
   if (!ev.empty())
     return ev;
 
@@ -43,8 +43,8 @@ std::wstring Utils::ComposeEvent(const krabs::schema &s) {
     op = s.opcode_name();
   } catch (...) {
   }
-  task = TrimWs(task);
-  op = TrimWs(op);
+  task = trimWs(task);
+  op = trimWs(op);
 
   if (!task.empty() || !op.empty()) {
     std::wstring out = task;
@@ -60,7 +60,7 @@ std::wstring Utils::ComposeEvent(const krabs::schema &s) {
   return L"#" + std::to_wstring(s.event_opcode());
 }
 
-std::string Utils::InferCategory(const std::wstring &providerW, const std::wstring &taskW) {
+std::string Utils::inferCategory(const std::wstring &providerW, const std::wstring &taskW) {
   auto p = ToLower(providerW);
   auto t = ToLower(taskW);
   if (p.contains(L"dotnetruntime")) {
@@ -123,7 +123,7 @@ std::string Utils::InferCategory(const std::wstring &providerW, const std::wstri
   return "other";
 }
 
-void Utils::SetIfFound(nlohmann::json &dst, const char *key, const nlohmann::json &src, std::initializer_list<const char *> names) {
+void Utils::setIfFound(nlohmann::json &dst, const char *key, const nlohmann::json &src, std::initializer_list<const char *> names) {
   for (auto n : names) {
     auto it = src.find(n);
     if (it != src.end() && !it->is_null()) {
@@ -134,7 +134,26 @@ void Utils::SetIfFound(nlohmann::json &dst, const char *key, const nlohmann::jso
   }
 }
 
-nlohmann::json Utils::NormalizeProto(const nlohmann::json &props) {
+std::wstring_view Utils::trim(std::wstring_view x) {
+  auto is_space = [](wchar_t ch) {
+    return std::iswspace(static_cast<wint_t>(ch)) != 0;
+  };
+
+  // first non-space
+  auto first = std::ranges::find_if_not(x, is_space);
+  if (first == x.end()) {
+    return {};
+  }
+
+  // last non-space
+  auto r = x | std::views::reverse;
+  auto rpos = std::ranges::find_if_not(r, is_space); // iterator into the reversed view
+  auto last = rpos.base();                           // convert back to forward iterator
+
+  return {std::to_address(first), static_cast<size_t>(last - first)};
+}
+
+nlohmann::json Utils::normalizeProto(const nlohmann::json &props) {
   auto it = props.find("Protocol");
   if (it != props.end()) {
     if (it->is_number_integer()) {
@@ -160,18 +179,18 @@ nlohmann::json Utils::NormalizeProto(const nlohmann::json &props) {
   return nlohmann::json();
 }
 
-nlohmann::json Utils::ExtractNet(const nlohmann::json &props) {
+nlohmann::json Utils::extractNet(const nlohmann::json &props) {
   nlohmann::json net;
-  SetIfFound(net, "dst", props, {"daddr", "DestAddress", "DestIp", "RemoteIP", "DestinationIp", "dstIp"});
-  SetIfFound(net, "dport", props, {"dport", "DestPort", "RemotePort", "DestinationPort", "dstPort"});
-  if (auto proto = NormalizeProto(props); !proto.is_null()) {
+  setIfFound(net, "dst", props, {"daddr", "DestAddress", "DestIp", "RemoteIP", "DestinationIp", "dstIp"});
+  setIfFound(net, "dport", props, {"dport", "DestPort", "RemotePort", "DestinationPort", "dstPort"});
+  if (auto proto = normalizeProto(props); !proto.is_null()) {
     net["proto"] = proto;
   }
 
   return net;
 }
 
-std::string Utils::NtstatusToText(const nlohmann::json &v) {
+std::string Utils::ntStatusToText(const nlohmann::json &v) {
   if (v.is_number_integer()) {
     auto code = (unsigned long)v.get<long long>();
     if (code == 0) {
@@ -189,22 +208,22 @@ std::string Utils::NtstatusToText(const nlohmann::json &v) {
   return "UNKNOWN";
 }
 
-nlohmann::json Utils::ExtractDns(const nlohmann::json &props) {
+nlohmann::json Utils::extractDns(const nlohmann::json &props) {
   nlohmann::json dns;
-  SetIfFound(dns, "qname", props, {"QueryName", "Name", "Query", "DomainName"});
-  SetIfFound(dns, "qtype", props, {"QueryType", "Type"});
-  SetIfFound(dns, "rcode", props, {"QueryStatus", "Status", "ResponseCode", "RCode"});
+  setIfFound(dns, "qname", props, {"QueryName", "Name", "Query", "DomainName"});
+  setIfFound(dns, "qtype", props, {"QueryType", "Type"});
+  setIfFound(dns, "rcode", props, {"QueryStatus", "Status", "ResponseCode", "RCode"});
   return dns;
 }
 
-nlohmann::json Utils::ExtractFile(const nlohmann::json &props, const std::wstring &task, const std::wstring &opname) {
+nlohmann::json Utils::extractFile(const nlohmann::json &props, const std::wstring &task, const std::wstring &opname) {
   nlohmann::json f;
-  SetIfFound(f, "path", props, {"FileName", "FilePath", "ObjectName", "ImagePath", "Path"});
-  SetIfFound(f, "op", props, {"Operation", "IrpOp"});
+  setIfFound(f, "path", props, {"FileName", "FilePath", "ObjectName", "ImagePath", "Path"});
+  setIfFound(f, "op", props, {"Operation", "IrpOp"});
 
   if (!f.contains("op")) {
-    std::wstring op = TrimWs(opname);
-    std::wstring tk = TrimWs(task);
+    std::wstring op = trimWs(opname);
+    std::wstring tk = trimWs(task);
     std::wstring combo = tk;
     if (!op.empty()) {
       if (!combo.empty())
@@ -217,16 +236,16 @@ nlohmann::json Utils::ExtractFile(const nlohmann::json &props, const std::wstrin
   }
 
   if (auto it = props.find("Status"); it != props.end()) {
-    f["status"] = NtstatusToText(*it);
+    f["status"] = ntStatusToText(*it);
   } else if (auto it2 = props.find("NtStatus"); it2 != props.end()) {
-    f["status"] = NtstatusToText(*it2);
+    f["status"] = ntStatusToText(*it2);
   } else if (auto it3 = props.find("ReturnValue"); it3 != props.end()) {
-    f["status"] = NtstatusToText(*it3);
+    f["status"] = ntStatusToText(*it3);
   }
   return f;
 }
 
-int Utils::ResolveBitness(HANDLE h) {
+int Utils::resolveBitness(HANDLE h) {
   HMODULE k32 = ::GetModuleHandleW(L"kernel32.dll");
   if (auto pIsWow64Process2 = reinterpret_cast<IsWow64Process2_t>(
           GetProcAddress(k32, "IsWow64Process2"));
@@ -271,7 +290,7 @@ std::string Utils::narrow_utf8(const std::wstring &w) {
   return s;
 }
 
-std::wstring Utils::widen_utf8(const std::string &s) {
+std::wstring Utils::widenUtf8(const std::string &s) {
   if (s.empty()) {
     return L"";
   }
@@ -282,7 +301,7 @@ std::wstring Utils::widen_utf8(const std::string &s) {
   return w;
 }
 
-nlohmann::json Utils::BestEffortProcFromPid(DWORD pid) {
+nlohmann::json Utils::bestEffortProcFromPid(DWORD pid) {
   nlohmann::json p;
   if (pid == 0 || pid == 0xFFFFFFFFu) {
     return p;
@@ -296,13 +315,13 @@ nlohmann::json Utils::BestEffortProcFromPid(DWORD pid) {
       auto pos = wpath.find_last_of(L"\\/");
       p["name"] = narrow_utf8(pos == std::wstring::npos ? wpath : wpath.substr(pos + 1));
     }
-    p["bitness"] = ResolveBitness(h);
+    p["bitness"] = resolveBitness(h);
     ::CloseHandle(h);
   }
   return p;
 }
 
-nlohmann::json Utils::NormUintOrNull(ULONG v) {
+nlohmann::json Utils::normUintOrNull(ULONG v) {
   return (v == 0xFFFFFFFFuL) ? nlohmann::json(nullptr) : nlohmann::json(v);
 }
 

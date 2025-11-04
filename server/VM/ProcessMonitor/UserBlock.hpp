@@ -11,24 +11,23 @@ public:
   void start(Callback on_event);
   void stop();
 
-  void add_api_calls_provider(UCHAR level,
-                              ULONGLONG any,
-                              ULONGLONG all);
+  void addApiCallsProvider(UCHAR level,
+                           ULONGLONG any,
+                           ULONGLONG all);
 
-  void add_provider(const wchar_t *name,
-                    UCHAR level,
-                    ULONGLONG any,
-                    ULONGLONG all);
+  void addProvider(const wchar_t *name,
+                   UCHAR level,
+                   ULONGLONG any,
+                   ULONGLONG all);
 
-  void add_provider(const GUID &id,
-                    UCHAR level,
-                    ULONGLONG any,
-                    ULONGLONG all);
+  void addProvider(const GUID &id,
+                   UCHAR level,
+                   ULONGLONG any,
+                   ULONGLONG all);
 
 private:
-  static bool try_parse_guid_string(const wchar_t *s, GUID &out);
-  static bool try_resolve_provider_guid_by_name(const wchar_t *name, GUID &out);
-  static std::wstring_view trim(std::wstring_view x);
+  static bool tryParseGuidString(const wchar_t *s, GUID &out);
+  static bool tryResolveProviderGuidByName(const wchar_t *name, GUID &out);
 
 private:
   std::unique_ptr<krabs::user_trace> m_trace;

@@ -29,10 +29,10 @@ public:
   }
 
 private:
-  void add_property(nlohmann::json &props,
-                    [[maybe_unused]] const krabs::schema &schema,
-                    krabs::parser &parser,
-                    const krabs::property &prop) const;
+  void addProperty(nlohmann::json &props,
+                   [[maybe_unused]] const krabs::schema &schema,
+                   krabs::parser &parser,
+                   const krabs::property &prop) const;
   void writeEventJson(const EVENT_RECORD &rec, const krabs::trace_context &ctx);
 
   void writeOut(const nlohmann::json &j);

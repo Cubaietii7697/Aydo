@@ -93,14 +93,14 @@ void ProcessMonitor::stop() {
 }
 
 void ProcessMonitor::enableKernelProviders() {
-  m_kernel.add_default_kernel_providers();
+  m_kernel.addDefaultKernelProviders();
   m_kernel.start([this](const EVENT_RECORD &rec, const krabs::trace_context &ctx) {
     this->onKernelEvent(rec, ctx);
   });
 }
 
 void ProcessMonitor::enableUserProviders() {
-  m_user.add_api_calls_provider(TRACE_LEVEL_INFORMATION, 0, 0);
+  m_user.addApiCallsProvider(TRACE_LEVEL_INFORMATION, 0, 0);
   m_user.start([this](const EVENT_RECORD &rec, const krabs::trace_context &ctx) {
     this->onUserEvent(rec, ctx);
   });

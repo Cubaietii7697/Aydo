@@ -4,17 +4,17 @@ KernelBlock::KernelBlock(const std::wstring &userSessionName)
     : m_sessionName(userSessionName) {
 }
 
-void KernelBlock::add_default_kernel_providers() {
-  add_provider<krabs::kernel::process_provider>();
-  add_provider<krabs::kernel::thread_provider>();
-  add_provider<krabs::kernel::image_load_provider>();
-  add_provider<krabs::kernel::registry_provider>();
-  add_provider<krabs::kernel::file_io_provider>();
-  add_provider<krabs::kernel::network_tcpip_provider>();
-  add_provider<krabs::kernel::file_init_io_provider>();
-  add_provider<krabs::kernel::disk_io_provider>();
-  add_provider<krabs::kernel::disk_file_io_provider>();
-  add_provider<krabs::kernel::context_switch_provider>();
+void KernelBlock::addDefaultKernelProviders() {
+  addProvider<krabs::kernel::process_provider>();
+  addProvider<krabs::kernel::thread_provider>();
+  addProvider<krabs::kernel::image_load_provider>();
+  addProvider<krabs::kernel::registry_provider>();
+  addProvider<krabs::kernel::file_io_provider>();
+  addProvider<krabs::kernel::network_tcpip_provider>();
+  addProvider<krabs::kernel::file_init_io_provider>();
+  addProvider<krabs::kernel::disk_io_provider>();
+  addProvider<krabs::kernel::disk_file_io_provider>();
+  addProvider<krabs::kernel::context_switch_provider>();
 }
 
 void KernelBlock::start(const Callback &cb) {
