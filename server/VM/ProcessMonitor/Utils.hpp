@@ -11,6 +11,8 @@
 namespace Utils {
 constexpr int GUID_SIZE = 64;
 constexpr int jsonIndentWidth = 2;
+constexpr int IPPROTO_TCP = 6;
+constexpr int IPPROTO_UDP = 17;
 std::wstring trimWs(std::wstring s);
 std::wstring ToLower(std::wstring s);
 std::wstring widenUtf8(const std::string &s);

@@ -158,11 +158,11 @@ nlohmann::json Utils::normalizeProto(const nlohmann::json &props) {
   if (it != props.end()) {
     if (it->is_number_integer()) {
       int v = *it;
-      if (v == 6) {
+      if (v == IPPROTO_TCP) {
         return "TCP";
       }
 
-      if (v == 17) {
+      if (v == IPPROTO_UDP) {
         return "UDP";
       }
 
