@@ -4,6 +4,7 @@
 #include <iomanip>
 #include <objbase.h>
 #include <sstream>
+#include "Constants.hpp"
 #include "Utils.hpp"
 
 EventWriter::EventWriter(std::wstring path,
@@ -105,8 +106,8 @@ void EventWriter::fillPropsViaTdh(nlohmann::json &props,
       case TDH_INTYPE_GUID: {
 
         GUID g = parser.parse<GUID>(wname);
-        wchar_t buf[Utils::GUID_SIZE];
-        ::StringFromGUID2(g, buf, Utils::GUID_SIZE);
+        wchar_t buf[Constants::GUID_SIZE];
+        ::StringFromGUID2(g, buf, Constants::GUID_SIZE);
         props[name] = Utils::narrow_utf8(buf);
         break;
       }
@@ -138,95 +139,6 @@ void EventWriter::fillPropsViaTdh(nlohmann::json &props,
     } catch (...) {
       props[name] = "<parse_error>";
     }
-  }
-}
-
-// old way
-void EventWriter::addProperty(nlohmann::json &props,
-                              [[maybe_unused]] const krabs::schema &schema,
-                              krabs::parser &parser,
-                              const krabs::property &prop) const {
-  const std::wstring wname = prop.name();
-  const std::string name = Utils::narrow_utf8(wname);
-
-  try {
-    switch (prop.type()) {
-    case TDH_INTYPE_UNICODESTRING: {
-      auto w = parser.parse<std::wstring>(wname);
-      props[name] = Utils::narrow_utf8(w);
-      break;
-    }
-    case TDH_INTYPE_ANSISTRING: {
-      props[name] = parser.parse<std::string>(wname);
-      break;
-    }
-    case TDH_INTYPE_INT8:
-      props[name] = parser.parse<int8_t>(wname);
-      break;
-    case TDH_INTYPE_UINT8:
-      props[name] = parser.parse<uint8_t>(wname);
-      break;
-    case TDH_INTYPE_INT16:
-      props[name] = parser.parse<int16_t>(wname);
-      break;
-    case TDH_INTYPE_UINT16:
-      props[name] = parser.parse<uint16_t>(wname);
-      break;
-    case TDH_INTYPE_INT32:
-      props[name] = parser.parse<int32_t>(wname);
-      break;
-    case TDH_INTYPE_UINT32:
-      props[name] = parser.parse<uint32_t>(wname);
-      break;
-    case TDH_INTYPE_INT64:
-      props[name] = parser.parse<int64_t>(wname);
-      break;
-    case TDH_INTYPE_UINT64:
-      props[name] = parser.parse<uint64_t>(wname);
-      break;
-    case TDH_INTYPE_BOOLEAN: {
-      props[name] = parser.parse<bool>(wname);
-      break;
-    }
-    case TDH_INTYPE_GUID: {
-      GUID g = parser.parse<GUID>(wname);
-      props[name] = Utils::guidToString(g);
-      break;
-    }
-    case TDH_INTYPE_POINTER:
-    case TDH_INTYPE_HEXINT32:
-    case TDH_INTYPE_HEXINT64: {
-      try {
-        auto v = parser.parse<uint64_t>(wname);
-        std::ostringstream oss;
-        oss << "0x" << std::hex << std::nouppercase << v;
-        props[name] = oss.str();
-      } catch (...) {
-        auto v = parser.parse<uint32_t>(wname);
-        std::ostringstream oss;
-        oss << "0x" << std::hex << std::nouppercase << v;
-        props[name] = oss.str();
-      }
-      break;
-    }
-    case TDH_INTYPE_BINARY: {
-      auto bin = parser.parse<std::vector<uint8_t>>(wname);
-      std::string hex = Botan::hex_encode(bin.data(), bin.size(), false);
-      props[name] = nlohmann::json{{"_type", "bytes"}, {"hex", hex}};
-      break;
-    }
-    default: {
-      try {
-        auto w = parser.parse<std::wstring>(wname);
-        props[name] = Utils::narrow_utf8(w);
-      } catch (...) {
-        props[name] = "<unsupported>";
-      }
-      break;
-    }
-    }
-  } catch (...) {
-    props[name] = "<parse_error>";
   }
 }
 
@@ -327,7 +239,7 @@ void EventWriter::writeOut(const nlohmann::json &j) {
                 static_cast<std::streamsize>(buf.size()));
   } else {
 
-    const std::string line = m_pretty ? (j.dump(Utils::jsonIndentWidth) + "\n") : (j.dump() + "\n");
+    const std::string line = m_pretty ? (j.dump(Constants::jsonIndentWidth) + "\n") : (j.dump() + "\n");
     m_out.write(line.data(), static_cast<std::streamsize>(line.size()));
   }
 }

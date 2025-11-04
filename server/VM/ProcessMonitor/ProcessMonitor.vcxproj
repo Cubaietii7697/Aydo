@@ -139,7 +139,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="EtwGuids.cpp" />
+    <ClCompile Include="EtwGuids.hpp" />
     <ClCompile Include="KernelBlock.cpp" />
     <ClCompile Include="EventWriter.cpp" />
     <ClCompile Include="main.cpp" />

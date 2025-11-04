@@ -1,4 +1,5 @@
 #include "Utils.hpp"
+#include "Constants.hpp"
 
 std::wstring Utils::trimWs(std::wstring s) {
   auto is_space = [](wchar_t c) { return c == L' ' || c == L'\t' || c == L'\n' || c == L'\r'; };
@@ -333,7 +334,7 @@ unsigned long long Utils::ts100nsFromLargeInteger(const LARGE_INTEGER &ts) {
 }
 
 std::string Utils::getHostName() {
-  wchar_t buf[256]{};
+  wchar_t buf[Constants::HOST_MAX_NAME]{};
   DWORD len = (DWORD)std::size(buf);
   if (GetComputerNameExW(ComputerNamePhysicalDnsHostname, buf, &len)) {
     return Utils::narrow_utf8(std::wstring(buf, len));
@@ -370,8 +371,8 @@ std::string Utils::iso8601FromLargeIntegerTimestamp(const LARGE_INTEGER &ts) {
 }
 
 std::string Utils::guidToString(const GUID &g) {
-  wchar_t buf[64];
-  if (int n = ::StringFromGUID2(g, buf, 64); n <= 0) {
+  wchar_t buf[Constants::GUID_SIZE];
+  if (int n = ::StringFromGUID2(g, buf, Constants::GUID_SIZE); n <= 0) {
     return {};
   }
 
