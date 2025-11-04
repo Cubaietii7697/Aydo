@@ -34,15 +34,17 @@ void EventWriter::fillPropsViaTdh(nlohmann::json &props,
   ULONG size = 0;
   auto status = ::TdhGetEventInformation(const_cast<EVENT_RECORD *>(&rec),
                                          0, nullptr, nullptr, &size);
-  if (status != ERROR_INSUFFICIENT_BUFFER || size == 0)
+  if (status != ERROR_INSUFFICIENT_BUFFER || size == 0) {
     return;
+  }
 
   std::vector<BYTE> buf(size);
   auto info = reinterpret_cast<TRACE_EVENT_INFO *>(buf.data());
-  status = ::TdhGetEventInformation(const_cast<EVENT_RECORD *>(&rec),
-                                    0, nullptr, info, &size);
-  if (status != ERROR_SUCCESS)
+  status = TdhGetEventInformation(const_cast<EVENT_RECORD *>(&rec),
+                                  0, nullptr, info, &size);
+  if (status != ERROR_SUCCESS) {
     return;
+  }
 
   krabs::schema schema(rec, ctx.schema_locator);
   krabs::parser parser(schema);
@@ -250,6 +252,7 @@ void EventWriter::writeEventJson(const EVENT_RECORD &rec,
     providerW = schema.provider_name();
   } catch (...) {
   }
+
   j["provider"] = Utils::narrow_utf8(providerW);
 
   const std::wstring taskW = [&] { std::wstring t; try { t = schema.task_name(); }  catch(...) {} return t; }();
@@ -276,43 +279,49 @@ void EventWriter::writeEventJson(const EVENT_RECORD &rec,
   j["props"] = props;
 
   // proc
-  {
-    json proc;
-    Utils::SetIfFound(proc, "name", props, {"ProcessName", "ImageName", "ImageFileName"});
-    Utils::SetIfFound(proc, "path", props, {"ImagePath", "ProcessPath", "FilePath", "ObjectName"});
-    Utils::SetIfFound(proc, "ppid", props, {"ParentProcessId", "ParentPid", "PPID"});
-    Utils::SetIfFound(proc, "bitness", props, {"Bitness"});
-    Utils::SetIfFound(proc, "user_sid", props, {"UserSid", "SID"});
-    Utils::SetIfFound(proc, "integrity", props, {"IntegrityLevel", "IL"});
-    Utils::SetIfFound(proc, "elevated", props, {"Elevated"});
-    Utils::SetIfFound(proc, "signer", props, {"Signer", "SignatureSigner", "Company"});
-    Utils::SetIfFound(proc, "sig_status", props, {"SignatureStatus", "SigStatus"});
-    Utils::SetIfFound(proc, "sha256", props, {"SHA256", "Sha256", "ImageHash"});
+  json proc;
+  Utils::SetIfFound(proc, "name", props, {"ProcessName", "ImageName", "ImageFileName"});
+  Utils::SetIfFound(proc, "path", props, {"ImagePath", "ProcessPath", "FilePath", "ObjectName"});
+  Utils::SetIfFound(proc, "ppid", props, {"ParentProcessId", "ParentPid", "PPID"});
+  Utils::SetIfFound(proc, "bitness", props, {"Bitness"});
+  Utils::SetIfFound(proc, "user_sid", props, {"UserSid", "SID"});
+  Utils::SetIfFound(proc, "integrity", props, {"IntegrityLevel", "IL"});
+  Utils::SetIfFound(proc, "elevated", props, {"Elevated"});
+  Utils::SetIfFound(proc, "signer", props, {"Signer", "SignatureSigner", "Company"});
+  Utils::SetIfFound(proc, "sig_status", props, {"SignatureStatus", "SigStatus"});
+  Utils::SetIfFound(proc, "sha256", props, {"SHA256", "Sha256", "ImageHash"});
 
-    if (!proc.contains("name") || !proc.contains("path")) {
-      json fallback = Utils::BestEffortProcFromPid(rec.EventHeader.ProcessId);
-      for (auto &kv : fallback.items())
-        proc[kv.key()] = kv.value();
+  if (!proc.contains("name") || !proc.contains("path")) {
+    json fallback = Utils::BestEffortProcFromPid(rec.EventHeader.ProcessId);
+    for (auto &kv : fallback.items()) {
+      proc[kv.key()] = kv.value();
     }
-    if (!proc.empty())
-      j["proc"] = std::move(proc);
+  }
+  if (!proc.empty()) {
+    j["proc"] = std::move(proc);
   }
 
   // projections
-  if (json net = Utils::ExtractNet(props); !net.empty())
+  if (json net = Utils::ExtractNet(props); !net.empty()) {
     j["net"] = std::move(net);
-  if (json dns = Utils::ExtractDns(props); !dns.empty())
+  }
+
+  if (json dns = Utils::ExtractDns(props); !dns.empty()) {
     j["dns"] = std::move(dns);
-  if (json fil = Utils::ExtractFile(props, taskW, opcodeW); !fil.empty())
+  }
+
+  if (json fil = Utils::ExtractFile(props, taskW, opcodeW); !fil.empty()) {
     j["file"] = std::move(fil);
+  }
 
   writeOut(j);
 }
 
 void EventWriter::writeOut(const nlohmann::json &j) {
   std::scoped_lock<std::mutex> lk(m_mtx);
-  if (!m_out)
+  if (!m_out) {
     return;
+  }
 
   if (m_wireFornat == WireFormat::Msgpack) {
     std::vector<std::uint8_t> buf = nlohmann::json::to_msgpack(j);

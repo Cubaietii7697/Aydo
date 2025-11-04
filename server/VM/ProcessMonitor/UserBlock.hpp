@@ -28,6 +28,7 @@ public:
 private:
   static bool try_parse_guid_string(const wchar_t *s, GUID &out);
   static bool try_resolve_provider_guid_by_name(const wchar_t *name, GUID &out);
+  static std::wstring_view trim(std::wstring_view x);
 
 private:
   std::unique_ptr<krabs::user_trace> m_trace;

@@ -13,8 +13,10 @@
 #include "ProcessMonitor.hpp"
 
 static std::wstring widen_utf8(const std::string &s) {
-  if (s.empty())
+  if (s.empty()) {
     return L"";
+  }
+
   int n = MultiByteToWideChar(CP_UTF8, 0, s.c_str(), (int)s.size(), nullptr, 0);
   std::wstring w(n, 0);
   MultiByteToWideChar(CP_UTF8, 0, s.c_str(), (int)s.size(), w.data(), n);
@@ -24,6 +26,7 @@ static std::wstring widen_utf8(const std::string &s) {
 int wmain(int argc, wchar_t *argv[]) {
   if (argc < 3 || argc > 4) {
     std::wcerr << L"Usage: " << argv[0] << L" <exefile> <logFile> [TraceTime]" << std::endl;
+
     return EXIT_FAILURE;
   }
 

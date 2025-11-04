@@ -38,23 +38,28 @@ bool ProcessMonitor::pidAllowed(DWORD pid) const {
 
 void ProcessMonitor::onKernelEvent(const EVENT_RECORD &record,
                                    const krabs::trace_context &ctx) {
-  if (!pidAllowed(record.EventHeader.ProcessId))
+  if (!pidAllowed(record.EventHeader.ProcessId)) {
     return;
+  }
+
   LogEvent(record, ctx);
 }
 
 void ProcessMonitor::onUserEvent(const EVENT_RECORD &record,
                                  const krabs::trace_context &ctx) {
-  if (!pidAllowed(record.EventHeader.ProcessId))
+  if (!pidAllowed(record.EventHeader.ProcessId)) {
     return;
+  }
+
   LogEvent(record, ctx);
 }
 
 std::set<DWORD> ProcessMonitor::FindPidByName(const std::wstring &exeName) const {
   std::set<DWORD> pids;
   HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-  if (snap == INVALID_HANDLE_VALUE)
+  if (snap == INVALID_HANDLE_VALUE) {
     return pids;
+  }
 
   PROCESSENTRY32W pe{};
   pe.dwSize = sizeof(pe);
@@ -78,10 +83,13 @@ void ProcessMonitor::start() {
 void ProcessMonitor::stop() {
   m_kernel.stop();
   m_user.stop();
-  if (m_threads.kernel.joinable())
+  if (m_threads.kernel.joinable()) {
     m_threads.kernel.join();
-  if (m_threads.user.joinable())
+  }
+
+  if (m_threads.user.joinable()) {
     m_threads.user.join();
+  }
 }
 
 void ProcessMonitor::enableKernelProviders() {
