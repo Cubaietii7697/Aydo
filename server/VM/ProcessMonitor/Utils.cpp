@@ -271,6 +271,17 @@ std::string Utils::narrow_utf8(const std::wstring &w) {
   return s;
 }
 
+std::wstring Utils::widen_utf8(const std::string &s) {
+  if (s.empty()) {
+    return L"";
+  }
+
+  int n = MultiByteToWideChar(CP_UTF8, 0, s.c_str(), (int)s.size(), nullptr, 0);
+  std::wstring w(n, 0);
+  MultiByteToWideChar(CP_UTF8, 0, s.c_str(), (int)s.size(), w.data(), n);
+  return w;
+}
+
 nlohmann::json Utils::BestEffortProcFromPid(DWORD pid) {
   nlohmann::json p;
   if (pid == 0 || pid == 0xFFFFFFFFu) {

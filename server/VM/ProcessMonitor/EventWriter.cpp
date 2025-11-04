@@ -5,8 +5,6 @@
 #include <sstream>
 #include "Utils.hpp"
 
-using nlohmann::json;
-
 EventWriter::EventWriter(std::wstring path,
                          WireFormat fmt,
                          bool pretty,
@@ -142,7 +140,7 @@ void EventWriter::fillPropsViaTdh(nlohmann::json &props,
 }
 
 // old way
-void EventWriter::add_property(json &props,
+void EventWriter::add_property(nlohmann::json &props,
                                [[maybe_unused]] const krabs::schema &schema,
                                krabs::parser &parser,
                                const krabs::property &prop) const {
@@ -218,7 +216,7 @@ void EventWriter::add_property(json &props,
         hex.push_back(kHex[(b >> 4) & 0xF]);
         hex.push_back(kHex[b & 0xF]);
       }
-      props[name] = json{{"_type", "bytes"}, {"hex", hex}};
+      props[name] = nlohmann::json{{"_type", "bytes"}, {"hex", hex}};
       break;
     }
     default: {
@@ -240,7 +238,7 @@ void EventWriter::writeEventJson(const EVENT_RECORD &rec,
                                  const krabs::trace_context &ctx) {
   krabs::schema schema(rec, ctx.schema_locator);
 
-  json j;
+  nlohmann::json j;
   // time & host
   j["ts"] = Utils::iso8601FromLargeIntegerTimestamp(rec.EventHeader.TimeStamp);
   j["raw_ts_100ns"] = static_cast<unsigned long long>(rec.EventHeader.TimeStamp.QuadPart);
@@ -274,12 +272,12 @@ void EventWriter::writeEventJson(const EVENT_RECORD &rec,
   j["task_name"] = Utils::narrow_utf8(taskW);
 
   // raw props
-  json props = json::object();
+  nlohmann::json props = nlohmann::json::object();
   fillPropsViaTdh(props, rec, ctx);
   j["props"] = props;
 
   // proc
-  json proc;
+  nlohmann::json proc;
   Utils::SetIfFound(proc, "name", props, {"ProcessName", "ImageName", "ImageFileName"});
   Utils::SetIfFound(proc, "path", props, {"ImagePath", "ProcessPath", "FilePath", "ObjectName"});
   Utils::SetIfFound(proc, "ppid", props, {"ParentProcessId", "ParentPid", "PPID"});
@@ -292,7 +290,7 @@ void EventWriter::writeEventJson(const EVENT_RECORD &rec,
   Utils::SetIfFound(proc, "sha256", props, {"SHA256", "Sha256", "ImageHash"});
 
   if (!proc.contains("name") || !proc.contains("path")) {
-    json fallback = Utils::BestEffortProcFromPid(rec.EventHeader.ProcessId);
+    nlohmann::json fallback = Utils::BestEffortProcFromPid(rec.EventHeader.ProcessId);
     for (auto &kv : fallback.items()) {
       proc[kv.key()] = kv.value();
     }
@@ -302,15 +300,15 @@ void EventWriter::writeEventJson(const EVENT_RECORD &rec,
   }
 
   // projections
-  if (json net = Utils::ExtractNet(props); !net.empty()) {
+  if (nlohmann::json net = Utils::ExtractNet(props); !net.empty()) {
     j["net"] = std::move(net);
   }
 
-  if (json dns = Utils::ExtractDns(props); !dns.empty()) {
+  if (nlohmann::json dns = Utils::ExtractDns(props); !dns.empty()) {
     j["dns"] = std::move(dns);
   }
 
-  if (json fil = Utils::ExtractFile(props, taskW, opcodeW); !fil.empty()) {
+  if (nlohmann::json fil = Utils::ExtractFile(props, taskW, opcodeW); !fil.empty()) {
     j["file"] = std::move(fil);
   }
 
