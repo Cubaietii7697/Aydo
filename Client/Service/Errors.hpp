@@ -77,11 +77,29 @@ public:
   }
 };
 
-
 class FailedToGetHashNameException : public std::exception {
 public:
   [[nodiscard]] const char *what() const noexcept override {
     return "Failed to get hash name";
   }
 };
+
+class FailedToLoadCompiledRulesException : public std::exception {
+public:
+  FailedToLoadCompiledRulesException()
+      : m_message("Failed to load compiled rules") {}
+
+  explicit FailedToLoadCompiledRulesException(std::string originalErrorMessage)
+      : m_originalErrorMessage(std::move(originalErrorMessage))
+      , m_message("Failed to load compiled rules: " + m_originalErrorMessage) {}
+
+  [[nodiscard]] const char *what() const noexcept override {
+    return m_message.c_str();
+  }
+
+private:
+  std::string m_originalErrorMessage;
+  std::string m_message;
+};
+
 } // namespace Errors

@@ -71,20 +71,24 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <ExternalIncludePath>%USERPROFILE%\Downloads\yara-x-main\yara-x-main\target\x86_64-pc-windows-msvc\release\include;$(ExternalIncludePath)</ExternalIncludePath>
-    <LibraryPath>C:\Users\tzema\Downloads\yara-x-main\yara-x-main\target\x86_64-pc-windows-msvc\release\yara_x_capi.lib;$(LibraryPath)</LibraryPath>
+    <ExternalIncludePath>$(ExternalIncludePath)</ExternalIncludePath>
+    <LibraryPath>C:\Users\tzema\Downloads\yara-x-main\yara-x-main\target\x86_64-pc-windows-msvc\release;$(LibraryPath)</LibraryPath>
+    <IncludePath>C:\Users\tzema\Downloads\yara-x-main\yara-x-main\target\x86_64-pc-windows-msvc\release\include;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <ExternalIncludePath>%USERPROFILE%\Downloads\yara-x-main\yara-x-main\target\x86_64-pc-windows-msvc\release\include;$(ExternalIncludePath)</ExternalIncludePath>
-    <LibraryPath>C:\Users\tzema\Downloads\yara-x-main\yara-x-main\target\x86_64-pc-windows-msvc\release\yara_x_capi.lib;$(LibraryPath)</LibraryPath>
+    <ExternalIncludePath>$(ExternalIncludePath)</ExternalIncludePath>
+    <LibraryPath>C:\Users\tzema\Downloads\yara-x-main\yara-x-main\target\x86_64-pc-windows-msvc\release;$(LibraryPath)</LibraryPath>
+    <IncludePath>C:\Users\tzema\Downloads\yara-x-main\yara-x-main\target\x86_64-pc-windows-msvc\release\include;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <ExternalIncludePath>%USERPROFILE%\Downloads\yara-x-main\yara-x-main\target\x86_64-pc-windows-msvc\release\include;$(ExternalIncludePath)</ExternalIncludePath>
-    <LibraryPath>C:\Users\tzema\Downloads\yara-x-main\yara-x-main\target\x86_64-pc-windows-msvc\release\yara_x_capi.lib;$(LibraryPath)</LibraryPath>
+    <ExternalIncludePath>$(ExternalIncludePath)</ExternalIncludePath>
+    <LibraryPath>C:\Users\tzema\Downloads\yara-x-main\yara-x-main\target\x86_64-pc-windows-msvc\release;$(LibraryPath)</LibraryPath>
+    <IncludePath>C:\Users\tzema\Downloads\yara-x-main\yara-x-main\target\x86_64-pc-windows-msvc\release\include;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <ExternalIncludePath>%USERPROFILE%\Downloads\yara-x-main\yara-x-main\target\x86_64-pc-windows-msvc\release\include;$(ExternalIncludePath)</ExternalIncludePath>
-    <LibraryPath>C:\Users\tzema\Downloads\yara-x-main\yara-x-main\target\x86_64-pc-windows-msvc\release\yara_x_capi.lib;$(LibraryPath)</LibraryPath>
+    <ExternalIncludePath>$(ExternalIncludePath)</ExternalIncludePath>
+    <LibraryPath>C:\Users\tzema\Downloads\yara-x-main\yara-x-main\target\x86_64-pc-windows-msvc\release;$(LibraryPath)</LibraryPath>
+    <IncludePath>C:\Users\tzema\Downloads\yara-x-main\yara-x-main\target\x86_64-pc-windows-msvc\release\include;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Label="Vcpkg">
     <VcpkgEnableManifest>true</VcpkgEnableManifest>
@@ -108,7 +112,8 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>wintrust.lib;Psapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>yara_x_capi.lib;wintrust.lib;Psapi.lib;ws2_32.lib;advapi32.lib;userenv.lib;bcrypt.lib;ntdll.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>C:\Users\tzema\Downloads\yara-x-main\yara-x-main\target\x86_64-pc-windows-msvc\release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -126,7 +131,8 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>wintrust.lib;Psapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>yara_x_capi.lib;wintrust.lib;Psapi.lib;ws2_32.lib;advapi32.lib;userenv.lib;bcrypt.lib;ntdll.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>C:\Users\tzema\Downloads\yara-x-main\yara-x-main\target\x86_64-pc-windows-msvc\release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -142,7 +148,8 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>wintrust.lib;Psapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>yara_x_capi.lib;wintrust.lib;Psapi.lib;ws2_32.lib;advapi32.lib;userenv.lib;bcrypt.lib;ntdll.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>C:\Users\tzema\Downloads\yara-x-main\yara-x-main\target\x86_64-pc-windows-msvc\release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -160,7 +167,8 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>wintrust.lib;Psapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>yara_x_capi.lib;wintrust.lib;Psapi.lib;ws2_32.lib;advapi32.lib;userenv.lib;bcrypt.lib;ntdll.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>C:\Users\tzema\Downloads\yara-x-main\yara-x-main\target\x86_64-pc-windows-msvc\release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -175,6 +183,7 @@
     <ClCompile Include="Regex\RScanningEngine.cpp" />
     <ClCompile Include="Databases\SignaturesDatabase.cpp" />
     <ClCompile Include="Utils.cpp" />
+    <ClCompile Include="Yara\YScanningEngine.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AhoCorasick\ACNode.hpp" />
@@ -194,11 +203,7 @@
     <ClInclude Include="Databases\SignaturesDatabase.hpp" />
     <ClInclude Include="Types.hpp" />
     <ClInclude Include="Utils.hpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="Service\Service.vcxproj">
-      <Project>{364ee06f-19be-4202-b917-f783a0e54248}</Project>
-    </ProjectReference>
+    <ClInclude Include="Yara\YScanningEngine.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

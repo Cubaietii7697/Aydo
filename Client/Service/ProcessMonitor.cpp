@@ -8,10 +8,9 @@
 #include "Utils.hpp"
 
 ProcessMonitor::ProcessMonitor(std::shared_ptr<KernelCommunications> driver,
-                               RScanningEngine &rse,
-                               SCAScanningEngine &sca,
+                               YScanningEngine &yara,
                                const HashesDatabase &hashDb)
-    : m_driver(std::move(driver)), m_rse(rse), m_sca(sca), m_hashDb(hashDb) {}
+    : m_driver(std::move(driver)), m_yara(yara), m_hashDb(hashDb) {}
 
 ProcessMonitor::~ProcessMonitor() {
   stop();
@@ -67,31 +66,25 @@ bool ProcessMonitor::isThreat(const std::string &path) {
   const auto resHASH = m_hashDb.getHashName(hexHash);
 
   if (resHASH && !resHASH->empty()) {
+    std::cout << "  -> [HASH] MATCH: " << *resHASH << std::endl;
     m_scannedHashes[hexHash] = true;
+
     return true;
   }
 
   std::cout << "  -> [HASH] Not found" << std::endl;
 
-  // Check regex signatures
-  const auto resRSE = m_rse.scanFile(path);
+  // Check YARA signatures
+  const auto resYARA = m_yara.scanFile(path);
 
-  if (resRSE && !resRSE->empty()) {
+  if (resYARA && !resYARA->empty()) {
+    std::cout << "  -> [YARA] MATCH: " << *resYARA << std::endl;
     m_scannedHashes[hexHash] = true;
+    
     return true;
   }
 
-  std::cout << "  -> [RSE] Not found" << std::endl;
-
-  // Check Aho-Corasick signatures
-  const auto resSCA = m_sca.scanFile(path);
-
-  if (resSCA && !resSCA->empty()) {
-    m_scannedHashes[hexHash] = true;
-    return true;
-  }
-
-  std::cout << "  -> [SCA] Not found" << std::endl;
+  std::cout << "  -> [YARA] Not found" << std::endl;
 
   // Add to scanned hashes (file is clean)
   m_scannedHashes[hexHash] = false;

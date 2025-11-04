@@ -60,6 +60,9 @@
     <ClCompile Include="ProcessMonitor.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Yara\YScanningEngine.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AhoCorasick\ACUtils.hpp">
@@ -111,6 +114,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Constants.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Yara\YScanningEngine.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

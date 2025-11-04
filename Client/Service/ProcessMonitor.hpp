@@ -6,16 +6,14 @@
 #include <thread>
 #include <unordered_map>
 
-#include "AhoCorasick/SCAScanningEngine.hpp"
 #include "Databases/HashesDatabase.hpp"
 #include "KernelCommunications/KernelCommunications.hpp"
-#include "Regex/RScanningEngine.hpp"
+#include "Yara/YScanningEngine.hpp"
 
 class ProcessMonitor {
 private:
   std::shared_ptr<KernelCommunications> m_driver;
-  RScanningEngine &m_rse;
-  SCAScanningEngine &m_sca;
+  YScanningEngine &m_yara;
   const HashesDatabase &m_hashDb;
 
   std::atomic<bool> m_stopMonitoring{false};
@@ -24,8 +22,7 @@ private:
 
 public:
   ProcessMonitor(std::shared_ptr<KernelCommunications> driver,
-                 RScanningEngine &rse,
-                 SCAScanningEngine &sca,
+                 YScanningEngine &yara,
                  const HashesDatabase &hashDb);
   ~ProcessMonitor();
 
