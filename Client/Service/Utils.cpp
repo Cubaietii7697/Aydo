@@ -10,8 +10,8 @@
 #include <vector>
 #include <wintrust.h>
 
-#include "Errors.hpp"
 #include "Constants.hpp"
+#include "Errors.hpp"
 
 using namespace Utils::Const;
 
@@ -96,7 +96,7 @@ std::optional<std::wstring> Utils::full_image_path_from_pid(DWORD pid) {
   // Fallback: PSAPI device-style path
   h = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid);
   if (h) {
-    if (wchar_t wbuf[MAX_PATH * kPsapiPathReserveMultiplier] = {0}; GetProcessImageFileNameW(h, wbuf, static_cast<DWORD>(std::size(wbuf)))) {
+    if (wchar_t wbuf[MAX_PATH *kPsapiPathReserveMultiplier] = {0}; GetProcessImageFileNameW(h, wbuf, static_cast<DWORD>(std::size(wbuf)))) {
       CloseHandle(h);
       return device_to_dos_path(wbuf);
     }
@@ -155,8 +155,14 @@ double Utils::calculateEntropy(const std::vector<int> &countedBytes, std::stream
   double entropy = 0.0;
   double temp;
 
+  // Check if the input is valid
+  if (countedBytes.size() != 256 || totalLength == 0) {
+    return 0.0;
+  }
+
+  // For every ASCII character, calculate the probability of it appearing and add it to the entropy
   for (int i = 0; i < 256; i++) {
-    temp = countedBytes[i] / static_cast<double>(totalLength);
+    temp = static_cast<double>(countedBytes[i]) / static_cast<double>(totalLength);
 
     if (temp > 0.0) {
       entropy += temp * fabs(log2(temp));
