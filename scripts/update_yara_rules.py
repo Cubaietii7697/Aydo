@@ -159,19 +159,31 @@ def main() -> None:
 
     if args.download:
         print("Downloading YARA rules...")
-        download_yara_rules()
+        try:
+            download_yara_rules()
+        except Exception as e:
+            print(f"Failed to download YARA rules: {e}")
 
     if args.extract:
         print("Extracting YARA rules...")
-        extract_yara_rules_batch()
+        try:
+            extract_yara_rules_batch()
+        except Exception as e:
+            print(f"Failed to extract YARA rules: {e}")
 
     if args.compile:
         print("Compiling YARA rules...")
-        compile_yara_rules()
+        try:
+            compile_yara_rules()
+        except Exception as e:
+            print(f"Failed to compile YARA rules: {e}")
 
     if args.remove_files:
         print("Removing leftover files...")
-        remove_downloaded_zip_files()
+        try:
+            remove_downloaded_zip_files()
+        except Exception as e:
+            print(f"Failed to remove leftover files: {e}")
 
 
 if __name__ == "__main__":
