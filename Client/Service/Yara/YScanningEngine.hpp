@@ -10,7 +10,7 @@ extern "C" {
 
 class YScanningEngine : public IScanningEngine {
 private:
-  std::vector<std::shared_ptr<YRX_RULES>> _rulesSets;
+  std::vector<std::shared_ptr<YRX_RULES>> m_rulesSets;
 
 public:
   explicit YScanningEngine(const std::vector<std::string> &compiledRulesFiles);

@@ -12,7 +12,7 @@ extern "C" {
 
 YScanningEngine::YScanningEngine(const std::vector<std::string> &compiledRulesFiles) {
   for (const auto &file : compiledRulesFiles) {
-    _rulesSets.push_back(_loadCompiledRulesFromFile(file));
+    m_rulesSets.push_back(_loadCompiledRulesFromFile(file));
   }
 }
 
@@ -66,13 +66,13 @@ void YScanningEngine::_onMatchingRuleCallback(const struct YRX_RULE *rule, void 
 }
 
 SearchResult YScanningEngine::scanMemory(const std::vector<uint8_t> &data) {
-  if (_rulesSets.empty()) {
+  if (m_rulesSets.empty()) {
     throw Errors::NoPatternsProvidedException();
   }
 
   MatchCollector collector;
 
-  for (const auto &rules_ptr : _rulesSets) {
+  for (const auto &rules_ptr : m_rulesSets) {
     if (!rules_ptr)
       continue;
 
@@ -129,7 +129,7 @@ SearchResult YScanningEngine::scanFile(const std::string &filePath) {
 
   MatchCollector collector;
 
-  for (const auto &rules_ptr : _rulesSets) {
+  for (const auto &rules_ptr : m_rulesSets) {
     if (!rules_ptr)
       continue;
 
