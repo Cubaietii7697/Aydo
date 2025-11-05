@@ -11,6 +11,7 @@
 #include <wintrust.h>
 
 #include "Errors.hpp"
+#include "Constants.hpp"
 
 using namespace Utils::Const;
 
@@ -139,7 +140,7 @@ std::string Utils::computeSHA256(const std::string &path) {
   }
 
   auto hasher = Botan::HashFunction::create_or_throw("SHA-256");
-  std::vector<uint8_t> buf(64 * 1024);
+  std::vector<uint8_t> buf(Constants::SHA256_BUFFER_SIZE);
   while (file) {
     file.read(reinterpret_cast<char *>(buf.data()), buf.size());
     std::streamsize bytesRead = file.gcount();
