@@ -5,10 +5,10 @@
 #include <cstdlib>
 #include <iostream>
 
+#include "Constants.hpp"
 #include "Databases/HashesDatabase.hpp"
 #include "KernelCommunications/KernelCommunications.hpp"
 #include "ProcessMonitor.hpp"
-#include "Constants.hpp"
 #include "Yara/YScanningEngine.hpp"
 
 static std::atomic<bool> g_stopMonitoring{false};
@@ -20,7 +20,7 @@ static BOOL WINAPI CtrlHandler(DWORD t) {
     if (g_monitor) {
       g_monitor->stop();
     }
-    
+
     return TRUE;
   }
 
@@ -40,7 +40,8 @@ int main() {
 
   auto driver = KernelCommunications::getInstance();
 
-  if (!driver->connect(L"\\\\.\\AydoDriver")) {
+  std::wstring devicePath{Constants::AYDO_DRIVER_DEVICE_PATH.begin(), Constants::AYDO_DRIVER_DEVICE_PATH.end()};
+  if (!driver->connect(devicePath)) {
     std::cerr << "Failed to open driver device. Error: " << GetLastError() << std::endl;
     std::cerr << "Make sure the driver is loaded!" << std::endl;
     std::cout << "\nPress Enter to exit...";
@@ -59,7 +60,8 @@ int main() {
     std::cout << "  -> Initialized YARA scanning engine" << std::endl;
 
     // Initialize hashes database
-    HashesDatabase hashDb("file_hashes.db");
+    std::string hashesDbPath{Constants::HASHES_DB_PATH.begin(), Constants::HASHES_DB_PATH.end()};
+    HashesDatabase hashDb(hashesDbPath);
     std::cout << "  -> Loaded hashes database" << std::endl;
 
     std::cout << "All scanning engines initialized successfully!" << std::endl
