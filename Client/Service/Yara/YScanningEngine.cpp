@@ -103,8 +103,9 @@ SearchResult YScanningEngine::scanMemory(const std::vector<uint8_t> &data) {
       std::string result;
       for (size_t i = 0; i < collector.matches.size(); ++i) {
         result += collector.matches[i];
-        if (i < collector.matches.size() - 1)
+        if (i < collector.matches.size() - 1) {
           result += ", ";
+        }
       }
 
       return result;
@@ -173,8 +174,9 @@ SearchResult YScanningEngine::scanFile(const std::string &filePath) {
 
       for (size_t i = 0; i < collector.matches.size(); ++i) {
         result += collector.matches[i];
-        if (i < collector.matches.size() - 1)
+        if (i < collector.matches.size() - 1) {
           result += ", ";
+        }
       }
 
       return result;
