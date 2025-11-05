@@ -14,16 +14,16 @@ constexpr std::string_view BANNER = R"(
  * Path in Host
  */
 constexpr std::string_view VM_RUN_PATH = R"("C:\Program Files (x86)\VMware\VMware Workstation\vmrun.exe")";
-constexpr std::string_view ANALYSIS_VM_PATH = R"("D:\veeeertoooaaalll\SANDBOX1\SANDBOX1.vmx")";
-constexpr std::string_view SANDBOXES_DIRECTORY_PATH = R"(D:\veeeertoooaaalll\)";
-constexpr std::string_view PM_FILE_PATH = R"(C:\Dev\Magshii\Project\aydo\Server\VM\ProcessMonitor\bin\x64\Release\ProcessMonitor.exe)";
+constexpr std::string_view ANALYSIS_VM_PATH = R"("D:\SandboxAnalysis\SANDBOX1\SANDBOX1.vmx")";
+constexpr std::string_view SANDBOXES_DIRECTORY_PATH = R"(D:\SandboxAnalysis\)";
+constexpr std::string_view PM_FILE_PATH = R"(D:\PM\ProcessMonitor.exe)";
 constexpr std::string_view HOST_FOLDER_PATH = R"(D:\Shared)";
 
 /*
  * Path in VM
  */
-constexpr std::string_view PM_FILE_PATH_INSIDE_VM = R"(C:\Temp\Ghost.exe)";
-constexpr std::string_view FILE_PATH_INSIDE = R"(C:\Temp)";
+constexpr std::string_view GUEST_USER = R"(.\vmuser)";
+constexpr std::string_view GUEST_PASS = "StrongP@ssw0rd";
 
 /*
  * Path in BOTH
