@@ -57,8 +57,9 @@ SearchResult RScanningEngine::scanFile(const std::string &filePath) {
     const char *end = begin + buffer.size();
     std::cmatch match;
     const bool any = std::regex_search(begin, end, match, m_masterRegex, std::regex_constants::match_default);
-    if (!any)
+    if (!any) {
       return std::nullopt;
+    }
 
     std::regex_search(begin, end, match, m_masterRegex);
     return std::string(match[0].first, match[0].second);
@@ -77,8 +78,9 @@ SearchResult RScanningEngine::scanMemory(const std::vector<uint8_t> &data) {
 
   std::cmatch match;
   const bool any = std::regex_search(begin, end, match, m_masterRegex, std::regex_constants::match_default);
-  if (!any)
+  if (!any) {
     return std::nullopt;
+  }
 
   std::regex_search(begin, end, match, m_masterRegex);
   return std::string(match[0].first, match[0].second);
@@ -143,8 +145,9 @@ std::string RScanningEngine::_orJoinRegexParts(const std::vector<std::string> &p
   std::ostringstream master;
 
   for (size_t i = 0; i < parts.size(); ++i) {
-    if (i > 0)
-      master << '|';
+    if (i > 0) {
+        master << '|';
+    }
     master << "(?:" << parts[i] << ")";
   }
 

@@ -1,14 +1,15 @@
 #define NOMINMAX
 #include "Utils.hpp"
 
+#include <botan/hash.h>
+#include <botan/hex.h>
 #include <cwctype>
 #include <fstream>
 #include <psapi.h>
 #include <softpub.h>
 #include <vector>
 #include <wintrust.h>
-#include <botan/hash.h>
-#include <botan/hex.h>
+
 #include "Errors.hpp"
 
 using namespace Utils::Const;
@@ -34,8 +35,9 @@ bool Utils::is_dos_path(const std::wstring &p) {
 }
 
 std::wstring Utils::device_to_dos_path(const std::wstring &devicePath) {
-  if (devicePath.empty())
+  if (devicePath.empty()) {
     return devicePath;
+  }
 
   // Fast path: \??\C:\Windows\...  -> C:\Windows\...
   if (devicePath.rfind(L"\\??\\", 0) == 0 && devicePath.size() >= 4) {
@@ -63,12 +65,15 @@ std::wstring Utils::device_to_dos_path(const std::wstring &devicePath) {
 }
 
 std::optional<std::wstring> Utils::resolve_from_image_only(const std::wstring &imageFromDriver) {
-  if (imageFromDriver.empty())
+  if (imageFromDriver.empty()) {
     return std::nullopt;
-  if (is_dos_path(imageFromDriver))
+  }
+  if (is_dos_path(imageFromDriver)) {
     return imageFromDriver;
-  if (is_nt_device_path(imageFromDriver))
+  }
+  if (is_nt_device_path(imageFromDriver)) {
     return device_to_dos_path(imageFromDriver);
+  }
 
   // Base name like "foo.exe" cannot be resolved uniquely without PID.
   return std::nullopt;
@@ -90,7 +95,7 @@ std::optional<std::wstring> Utils::full_image_path_from_pid(DWORD pid) {
   // Fallback: PSAPI device-style path
   h = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid);
   if (h) {
-    if (wchar_t wbuf[MAX_PATH *kPsapiPathReserveMultiplier] = {0}; GetProcessImageFileNameW(h, wbuf, static_cast<DWORD>(std::size(wbuf)))) {
+    if (wchar_t wbuf[MAX_PATH * kPsapiPathReserveMultiplier] = {0}; GetProcessImageFileNameW(h, wbuf, static_cast<DWORD>(std::size(wbuf)))) {
       CloseHandle(h);
       return device_to_dos_path(wbuf);
     }
@@ -113,12 +118,14 @@ std::wstring Utils::resolve_process_path(DWORD pid, const std::wstring &imageFro
 }
 
 std::string Utils::wstring_to_utf8(const std::wstring &w) {
-  if (w.empty())
+  if (w.empty()) {
     return {};
+  }
   int sz = WideCharToMultiByte(CP_UTF8, 0, w.c_str(), static_cast<int>(w.size()),
                                nullptr, 0, nullptr, nullptr);
-  if (sz <= 0)
+  if (sz <= 0) {
     return {};
+  }
   std::string out(static_cast<size_t>(sz), '\0');
   WideCharToMultiByte(CP_UTF8, 0, w.c_str(), static_cast<int>(w.size()),
                       out.data(), sz, nullptr, nullptr);
@@ -127,19 +134,19 @@ std::string Utils::wstring_to_utf8(const std::wstring &w) {
 
 std::string Utils::computeSHA256(const std::string &path) {
   std::ifstream file(path, std::ios::binary);
-  if (!file)
+  if (!file) {
     return "";
+  }
 
   auto hasher = Botan::HashFunction::create_or_throw("SHA-256");
   std::vector<uint8_t> buf(64 * 1024);
-
   while (file) {
     file.read(reinterpret_cast<char *>(buf.data()), buf.size());
     std::streamsize bytesRead = file.gcount();
-    if (bytesRead > 0)
+    if (bytesRead > 0) {
       hasher->update(buf.data(), static_cast<size_t>(bytesRead));
+    }
   }
-
   return Botan::hex_encode(hasher->final());
 }
 
@@ -150,8 +157,9 @@ double Utils::calculateEntropy(const std::vector<int> &countedBytes, const std::
   for (int i = 0; i < 256; i++) {
     temp = countedBytes[i] / static_cast<double>(totalLength);
 
-    if (temp > 0.0)
+    if (temp > 0.0) {
       entropy += temp * fabs(log2(temp));
+    }
   }
 
   return entropy;
@@ -160,8 +168,9 @@ double Utils::calculateEntropy(const std::vector<int> &countedBytes, const std::
 bool Utils::isWindowsSigned(const std::string &path) {
   // Convert UTF-8 path to wide string
   int sz = MultiByteToWideChar(CP_UTF8, 0, path.c_str(), -1, nullptr, 0);
-  if (sz <= 0)
+  if (sz <= 0) {
     return false;
+  }
 
   std::wstring wpath(static_cast<size_t>(sz), L'\0');
   MultiByteToWideChar(CP_UTF8, 0, path.c_str(), -1, wpath.data(), sz);

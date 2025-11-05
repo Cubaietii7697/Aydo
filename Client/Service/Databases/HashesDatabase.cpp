@@ -50,10 +50,12 @@ HashesDatabase::HashesDatabase(std::string filePath)
 }
 
 std::optional<std::string> HashesDatabase::getHashName(const std::string &hash) const {
-  if (hash.empty())
+  if (hash.empty()) {
     return std::nullopt;
-  if (!std::filesystem::exists(m_filePath))
+  }
+  if (!std::filesystem::exists(m_filePath)) {
     return std::nullopt;
+  }
 
   try {
     auto &storage = storageFor(m_filePath);

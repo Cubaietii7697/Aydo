@@ -33,7 +33,7 @@ VOID onProcessStart(PEPROCESS Process, HANDLE ProcessId, PPS_CREATE_NOTIFY_INFO 
 
     // Copy the image file name if available
     if (CreateInfo->ImageFileName != nullptr) {
-      SIZE_T lengthToCopy = min(CreateInfo->ImageFileName->Length / sizeof(WCHAR), 259);
+      SIZE_T lengthToCopy = min(CreateInfo->ImageFileName->Length / sizeof(WCHAR), MAX_PATH - 1);
       RtlCopyMemory(
           notification->ImageFileName,
           CreateInfo->ImageFileName->Buffer,
@@ -45,7 +45,7 @@ VOID onProcessStart(PEPROCESS Process, HANDLE ProcessId, PPS_CREATE_NOTIFY_INFO 
 
     // Copy the command line if available
     if (CreateInfo->CommandLine != nullptr && CreateInfo->CommandLine->Length > 0) {
-      SIZE_T lengthToCopy = min(CreateInfo->CommandLine->Length / sizeof(WCHAR), 511);
+      SIZE_T lengthToCopy = min(CreateInfo->CommandLine->Length / sizeof(WCHAR), MAX_COMMANDLINE - 1);
       RtlCopyMemory(
           notification->CommandLine,
           CreateInfo->CommandLine->Buffer,
