@@ -1,4 +1,6 @@
 #pragma once
+#include <cstdlib>
+#include <string>
 #include <string_view>
 
 constexpr std::string_view BANNER = R"(
@@ -10,19 +12,17 @@ constexpr std::string_view BANNER = R"(
       /____/              
 )";
 
-/*
- * In Real Server should be in config.json
- * In real server path should be in global zone
- */
-constexpr std::string_view VM_RUN_PATH = R"("C:\Program Files (x86)\VMware\VMware Workstation\vmrun.exe")";
-constexpr std::string_view ANALYSIS_VM_PATH = R"("D:\veeeertoooaaalll\SANDBOX1\SANDBOX1.vmx")";
-constexpr std::string_view SANDBOXES_DIRECTORY_PATH = R"(D:\veeeertoooaaalll\copy.me.here.plz)";
-constexpr std::string_view HOST_FOLDER_PATH = R"(C:\Shared)";
-constexpr std::string_view SHARE_FILE_NAME = "logs.log";
-constexpr std::string_view GUEST_USER = "vmuser";
-constexpr std::string_view GUEST_PASS = "vmpassword";
-constexpr std::string_view PM_FILE_PATH = R"(C:\Projects\ProcessMonitor\x64\Debug\readFromVm.exe)";
-constexpr std::string_view PM_FILE_PATH_GUEST = R"(C:\Users\vmuser\Desktop\Ghost.exe)";
-constexpr std::string_view SUSPICIOUS_FILE_PATH = R"(C:\Users\vmuser\Desktop\filetoplot.exe)";
+std::string getEnvOrDefault(const char *name, std::string_view def);
+
+extern const std::string VM_RUN_PATH;
+extern const std::string ANALYSIS_VM_PATH;
+extern const std::string SANDBOXES_DIRECTORY_PATH;
+extern const std::string HOST_FOLDER_PATH;
+extern const std::string SHARE_FILE_NAME;
+extern const std::string GUEST_USER;
+extern const std::string GUEST_PASS;
+extern const std::string PM_FILE_PATH;
+extern const std::string PM_FILE_PATH_GUEST;
+extern const std::string SUSPICIOUS_FILE_PATH;
 
 constexpr unsigned int ANIMATION_SLEEP_TIME_MS = 50;
