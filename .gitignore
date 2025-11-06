@@ -441,3 +441,4 @@ FodyWeavers.xsd
 /vcpkg
 vcpkg
 x64/
+.env
