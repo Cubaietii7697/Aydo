@@ -239,7 +239,7 @@ void EventWriter::writeOut(const nlohmann::json &j) {
                 static_cast<std::streamsize>(buf.size()));
   } else {
 
-    const std::string line = m_pretty ? (j.dump(Constants::jsonIndentWidth) + "\n") : (j.dump() + "\n");
+    const std::string line = m_pretty ? (j.dump(Constants::JSON_INDENT_WIDTH) + "\n") : (j.dump() + "\n");
     m_out.write(line.data(), static_cast<std::streamsize>(line.size()));
   }
 }

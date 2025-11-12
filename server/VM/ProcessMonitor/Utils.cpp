@@ -16,7 +16,7 @@ std::wstring Utils::trimWs(std::wstring s) {
   return s.substr(b, e - b);
 }
 
-std::wstring Utils::ToLower(std::wstring s) {
+std::wstring Utils::toLower(std::wstring s) {
   for (auto &c : s) {
     c = (wchar_t)towlower(c);
   }
@@ -62,8 +62,8 @@ std::wstring Utils::composeEvent(const krabs::schema &s) {
 }
 
 std::string Utils::inferCategory(const std::wstring &providerW, const std::wstring &taskW) {
-  auto p = ToLower(providerW);
-  auto t = ToLower(taskW);
+  auto p = toLower(providerW);
+  auto t = toLower(taskW);
   if (p.contains(L"dotnetruntime")) {
     return ".net";
   }

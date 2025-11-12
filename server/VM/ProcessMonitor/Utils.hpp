@@ -11,7 +11,7 @@
 namespace Utils {
 
 std::wstring trimWs(std::wstring s);
-std::wstring ToLower(std::wstring s);
+std::wstring toLower(std::wstring s);
 std::wstring widenUtf8(const std::string &s);
 std::wstring composeEvent(const krabs::schema &s);
 
