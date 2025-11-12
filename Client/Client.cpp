@@ -87,6 +87,7 @@ static bool isThreat(const std::string &path,
                      RScanningEngine &RSE,
                      SCAScanningEngine &SCA,
                      HashesDatabase const &hs) {
+
   const auto resRSE = RSE.scanFile(path);
   const auto resSCA = SCA.scanFile(path);
   const auto hexHash = Utils::computeSHA256(path);

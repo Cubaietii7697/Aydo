@@ -145,3 +145,17 @@ std::string Utils::computeSHA256(const std::string &path) {
 
   return Botan::hex_encode(hasher->final());
 }
+
+double Utils::calculateEntropy(const std::vector<int> &countedBytes, const std::streamsize totalLength) {
+  double entropy = 0.0;
+  double temp;
+
+  for (int i = 0; i < 256; i++) {
+    temp = countedBytes[i] / static_cast<double>(totalLength);
+
+    if (temp > 0.0)
+      entropy += temp * fabs(log2(temp));
+  }
+
+  return entropy;
+}
