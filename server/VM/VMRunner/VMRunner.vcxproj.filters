@@ -39,9 +39,4 @@
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
-  <ItemGroup>
-    <None Include=".env">
-      <Filter>Resource Files</Filter>
-    </None>
-  </ItemGroup>
 </Project>
