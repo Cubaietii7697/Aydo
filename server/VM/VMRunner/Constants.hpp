@@ -1,5 +1,6 @@
 #pragma once
-
+#include <cstdlib>
+#include <string>
 #include <string_view>
 
 constexpr std::string_view BANNER = R"(
@@ -11,20 +12,18 @@ constexpr std::string_view BANNER = R"(
       /____/              
 )";
 
-/*
- * Path in Host
- */
-constexpr std::string_view VM_RUN_PATH = R"("C:\Program Files (x86)\VMware\VMware Workstation\vmrun.exe")";
-constexpr std::string_view ANALYSIS_VM_PATH = R"("D:\SandboxAnalysis\SANDBOX1\SANDBOX1.vmx")";
-constexpr std::string_view SANDBOXES_DIRECTORY_PATH = R"(D:\SandboxAnalysis\)";
-constexpr std::string_view PM_FILE_PATH = R"(D:\PM\ProcessMonitor.exe)";
-constexpr std::string_view HOST_FOLDER_PATH = R"(D:\Shared)";
+std::string getEnvOrDefault(const char *name, std::string_view def);
 
-/*
- * Path in VM
- */
-constexpr std::string_view GUEST_USER = R"(.\vmuser)";
-constexpr std::string_view GUEST_PASS = "StrongP@ssw0rd";
+extern const std::string VM_RUN_PATH;
+extern const std::string ANALYSIS_VM_PATH;
+extern const std::string SANDBOXES_DIRECTORY_PATH;
+extern const std::string HOST_FOLDER_PATH;
+extern const std::string SHARE_FILE_NAME;
+extern const std::string GUEST_USER;
+extern const std::string GUEST_PASS;
+extern const std::string PM_FILE_PATH;
+extern const std::string PM_FILE_PATH_GUEST;
+extern const std::string SUSPICIOUS_FILE_PATH;
 
 /*
  * Path in BOTH
@@ -33,8 +32,8 @@ constexpr std::string_view SHARED_FOLDER_NAME = "shared";
 /* !!!
  *  Must be the username and password of VM
  */
-constexpr std::string_view GUEST_USER = R"(KAN12)";
-constexpr std::string_view GUEST_PASS = "1234";
+constexpr std::string_view GUEST_USER = R"(.\vmuser)";
+constexpr std::string_view GUEST_PASS = "StrongP@ssw0rd";
 /*-------------------------------------------------------------------------------------------*/
 constexpr unsigned int ANIMATION_SLEEP_TIME_MS = 50;
 constexpr unsigned int ANIMATION_SLEEP_TIME_S = 5;

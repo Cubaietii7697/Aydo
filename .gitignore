@@ -442,3 +442,4 @@ FodyWeavers.xsd
 vcpkg
 x64/
 *.json
+.env

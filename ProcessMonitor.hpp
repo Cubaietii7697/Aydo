@@ -36,10 +36,11 @@ public:
   void stop();
 
 private:
-  KernelBlock m_kernel;
   UserBlock m_user;
-  Caches m_caches;
+  KernelBlock m_kernel;
   Threads m_threads;
+  Caches m_caches;
+
   std::unique_ptr<EventWriter> m_writer = nullptr;
 
 private:
