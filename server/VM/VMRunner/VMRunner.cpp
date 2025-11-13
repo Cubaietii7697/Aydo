@@ -38,8 +38,8 @@ int main(int argc, char *argv[]) {
   const std::string suspiciousHostAbs = std::filesystem::absolute(suspiciousHostPath).string();
 
   // Guest paths
-  const auto guestWorkDir = std::string(FILE_PATH_INSIDE);
-  const auto guestPmPath = std::string(PM_FILE_PATH_INSIDE_VM);
+  const auto guestWorkDir = std::string(SUSPICIOUS_FILE_PATH);
+  const auto guestPmPath = std::string(PM_FILE_PATH_GUEST);
   const std::string guestPayloadPath =
       (std::filesystem::path(guestWorkDir) / std::filesystem::path(suspiciousHostPath).filename()).string();
 
