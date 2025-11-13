@@ -1,0 +1,3 @@
+[INFO] Starting ETW Monitor...
+[INFO] Looking for process: chorme.exe
+[ERROR] Could not find process: chorme.exe

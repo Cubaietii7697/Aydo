@@ -1,5 +1,0 @@
-#include <windows.h>
-
-// GUID for the NT Kernel Logger (the kernel-mode ETW provider)
-extern "C" const GUID KERNEL_LOGGER_GUID =
-    {0x9e814aad, 0x3204, 0x11d2, {0x9a, 0x82, 0x00, 0x60, 0x97, 0xc3, 0x9a, 0x0f}};
