@@ -18,26 +18,12 @@
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="..\IOCTLDefs.h" />
-    <ClInclude Include="helpers\Utils.hpp" />
-    <ClInclude Include="KernelCommunication\Error.hpp" />
-    <ClInclude Include="KernelCommunication\FailureInfo.hpp" />
-    <ClInclude Include="KernelCommunication\KernelCommunication.hpp" />
-    <ClInclude Include="Service.hpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="helpers\Utils.cpp" />
-    <ClCompile Include="Service.cpp" />
-    <ClCompile Include="KernelCommunication\KernelCommunication.cpp" />
-  </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{364ee06f-19be-4202-b917-f783a0e54248}</ProjectGuid>
-    <RootNamespace>client</RootNamespace>
+    <ProjectGuid>{40c927e3-3c8c-4a61-a88a-9e17273929ab}</ProjectGuid>
+    <RootNamespace>Service</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
-    <ProjectName>Service</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -54,7 +40,7 @@
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
-    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v143</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
@@ -84,16 +70,50 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ExternalIncludePath>$(ExternalIncludePath)</ExternalIncludePath>
+    <LibraryPath>C:\Users\tzema\Downloads\yara-x-main\yara-x-main\target\x86_64-pc-windows-msvc\release;$(LibraryPath)</LibraryPath>
+    <IncludePath>C:\Users\tzema\Downloads\yara-x-main\yara-x-main\target\x86_64-pc-windows-msvc\release\include;$(IncludePath)</IncludePath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ExternalIncludePath>$(ExternalIncludePath)</ExternalIncludePath>
+    <LibraryPath>C:\Users\tzema\Downloads\yara-x-main\yara-x-main\target\x86_64-pc-windows-msvc\release;$(LibraryPath)</LibraryPath>
+    <IncludePath>C:\Users\tzema\Downloads\yara-x-main\yara-x-main\target\x86_64-pc-windows-msvc\release\include;$(IncludePath)</IncludePath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ExternalIncludePath>$(ExternalIncludePath)</ExternalIncludePath>
+    <LibraryPath>C:\Users\tzema\Downloads\yara-x-main\yara-x-main\target\x86_64-pc-windows-msvc\release;$(LibraryPath)</LibraryPath>
+    <IncludePath>C:\Users\tzema\Downloads\yara-x-main\yara-x-main\target\x86_64-pc-windows-msvc\release\include;$(IncludePath)</IncludePath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ExternalIncludePath>$(ExternalIncludePath)</ExternalIncludePath>
+    <LibraryPath>C:\Users\tzema\Downloads\yara-x-main\yara-x-main\target\x86_64-pc-windows-msvc\release;$(LibraryPath)</LibraryPath>
+    <IncludePath>C:\Users\tzema\Downloads\yara-x-main\yara-x-main\target\x86_64-pc-windows-msvc\release\include;$(IncludePath)</IncludePath>
+  </PropertyGroup>
+  <PropertyGroup Label="Vcpkg">
+    <VcpkgEnableManifest>true</VcpkgEnableManifest>
+  </PropertyGroup>
+  <PropertyGroup Label="Vcpkg" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <VcpkgUseStatic>true</VcpkgUseStatic>
+  </PropertyGroup>
+  <PropertyGroup Label="Vcpkg" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <VcpkgUseStatic>true</VcpkgUseStatic>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <LanguageStandard_C>stdc17</LanguageStandard_C>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>yara_x_capi.lib;wintrust.lib;Psapi.lib;ws2_32.lib;advapi32.lib;userenv.lib;bcrypt.lib;ntdll.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>C:\Users\tzema\Downloads\yara-x-main\yara-x-main\target\x86_64-pc-windows-msvc\release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -104,10 +124,15 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <LanguageStandard_C>stdc17</LanguageStandard_C>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>yara_x_capi.lib;wintrust.lib;Psapi.lib;ws2_32.lib;advapi32.lib;userenv.lib;bcrypt.lib;ntdll.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>C:\Users\tzema\Downloads\yara-x-main\yara-x-main\target\x86_64-pc-windows-msvc\release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -117,10 +142,14 @@
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
+      <LanguageStandard_C>stdc17</LanguageStandard_C>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>yara_x_capi.lib;wintrust.lib;Psapi.lib;ws2_32.lib;advapi32.lib;userenv.lib;bcrypt.lib;ntdll.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>C:\Users\tzema\Downloads\yara-x-main\yara-x-main\target\x86_64-pc-windows-msvc\release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -131,12 +160,51 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <LanguageStandard_C>stdc17</LanguageStandard_C>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>yara_x_capi.lib;wintrust.lib;Psapi.lib;ws2_32.lib;advapi32.lib;userenv.lib;bcrypt.lib;ntdll.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>C:\Users\tzema\Downloads\yara-x-main\yara-x-main\target\x86_64-pc-windows-msvc\release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="AhoCorasick\ACScanningEngine.cpp" />
+    <ClCompile Include="AhoCorasick\AhoCorasick.cpp" />
+    <ClCompile Include="AhoCorasick\ACUtils.cpp" />
+    <ClCompile Include="AhoCorasick\SCAScanningEngine.cpp" />
+    <ClCompile Include="KernelCommunications\KernelCommunications.cpp" />
+    <ClCompile Include="Main.cpp" />
+    <ClCompile Include="Databases\HashesDatabase.cpp" />
+    <ClCompile Include="ProcessMonitor.cpp" />
+    <ClCompile Include="Regex\RScanningEngine.cpp" />
+    <ClCompile Include="Databases\SignaturesDatabase.cpp" />
+    <ClCompile Include="Utils.cpp" />
+    <ClCompile Include="Yara\YScanningEngine.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="AhoCorasick\ACNode.hpp" />
+    <ClInclude Include="AhoCorasick\ACScanningEngine.hpp" />
+    <ClInclude Include="AhoCorasick\AhoCorasick.hpp" />
+    <ClInclude Include="AhoCorasick\ACUtils.hpp" />
+    <ClInclude Include="AhoCorasick\SCAScanningEngine.hpp" />
+    <ClInclude Include="Constants.hpp" />
+    <ClInclude Include="Errors.hpp" />
+    <ClInclude Include="Databases\HashesDatabase.hpp" />
+    <ClInclude Include="IOCTLs.hpp" />
+    <ClInclude Include="IScanningEngine.hpp" />
+    <ClInclude Include="JsonTypes.hpp" />
+    <ClInclude Include="KernelCommunications\KernelCommunications.hpp" />
+    <ClInclude Include="ProcessMonitor.hpp" />
+    <ClInclude Include="Regex\RScanningEngine.hpp" />
+    <ClInclude Include="Databases\SignaturesDatabase.hpp" />
+    <ClInclude Include="Types.hpp" />
+    <ClInclude Include="Utils.hpp" />
+    <ClInclude Include="Yara\YScanningEngine.hpp" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

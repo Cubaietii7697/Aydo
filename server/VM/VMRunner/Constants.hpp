@@ -25,6 +25,16 @@ extern const std::string PM_FILE_PATH;
 extern const std::string PM_FILE_PATH_GUEST;
 extern const std::string SUSPICIOUS_FILE_PATH;
 
+/*
+ * Path in BOTH
+ */
+constexpr std::string_view SHARED_FOLDER_NAME = "shared";
+/* !!!
+ *  Must be the username and password of VM
+ */
+constexpr std::string_view GUEST_USER = R"(.\vmuser)";
+constexpr std::string_view GUEST_PASS = "StrongP@ssw0rd";
+/*-------------------------------------------------------------------------------------------*/
 constexpr unsigned int ANIMATION_SLEEP_TIME_MS = 50;
 constexpr unsigned int ANIMATION_SLEEP_TIME_S = 5;
 constexpr unsigned int BOOTUP_SLEEP_TIME_S = 20;
