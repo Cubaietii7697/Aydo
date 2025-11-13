@@ -23,8 +23,8 @@ constexpr std::string_view HOST_FOLDER_PATH = R"(D:\Shared)";
 /*
  * Path in VM
  */
-constexpr std::string_view PM_FILE_PATH_INSIDE_VM = R"(C:\Temp\Ghost.exe)";
-constexpr std::string_view FILE_PATH_INSIDE = R"(C:\Temp)";
+constexpr std::string_view GUEST_USER = R"(.\vmuser)";
+constexpr std::string_view GUEST_PASS = "StrongP@ssw0rd";
 
 /*
  * Path in BOTH
@@ -33,8 +33,8 @@ constexpr std::string_view SHARED_FOLDER_NAME = "shared";
 /* !!!
  *  Must be the username and password of VM
  */
-constexpr std::string_view GUEST_USER = R"(.\vmuser)";
-constexpr std::string_view GUEST_PASS = "StrongP@ssw0rd";
+constexpr std::string_view GUEST_USER = R"(KAN12)";
+constexpr std::string_view GUEST_PASS = "1234";
 /*-------------------------------------------------------------------------------------------*/
 constexpr unsigned int ANIMATION_SLEEP_TIME_MS = 50;
 constexpr unsigned int ANIMATION_SLEEP_TIME_S = 5;
