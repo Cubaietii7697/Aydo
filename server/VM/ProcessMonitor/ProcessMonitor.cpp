@@ -16,7 +16,7 @@ ProcessMonitor::ProcessMonitor(const std::wstring &exeName, const std::wstring &
     , m_kernel{sessionNameKernel}
     , m_threads{}
     , m_caches{}
-    , m_writer(std::make_unique<EventWriter>(outPath, EventWriter::WireFormat::Msgpack, false, true)) {
+    , m_writer(std::make_unique<EventWriter>(outPath, EventWriter::WireFormat::Sqlite, false, true)) {
   g_hTrace = 0;
   g_hSession = 0;
   g_targetPids = FindPidByName(exeName);
@@ -26,7 +26,7 @@ ProcessMonitor::ProcessMonitor(const std::set<DWORD> &initialPids, const std::ws
     , m_kernel{sessionNameKernel}
     , m_threads{}
     , m_caches{}
-    , m_writer(std::make_unique<EventWriter>(outPath, EventWriter::WireFormat::Msgpack, false, true)) {
+    , m_writer(std::make_unique<EventWriter>(outPath, EventWriter::WireFormat::Sqlite, false, true)) {
   g_hTrace = 0;
   g_hSession = 0;
   g_targetPids = initialPids;

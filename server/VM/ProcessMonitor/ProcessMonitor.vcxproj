@@ -75,7 +75,7 @@
     <OutDir>$(ProjectDir)bin\$(Platform)\$(Configuration)\</OutDir>
   </PropertyGroup>
   <PropertyGroup Label="Vcpkg">
-    <VcpkgEnableManifest>true</VcpkgEnableManifest>
+    <VcpkgEnableManifest>false</VcpkgEnableManifest>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -147,6 +147,7 @@
     <ClCompile Include="EventWriter.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="ProcessMonitor.cpp" />
+    <ClCompile Include="SqlRequests.hpp" />
     <ClCompile Include="UserBlock.cpp" />
     <ClCompile Include="Utils.cpp" />
   </ItemGroup>

@@ -42,6 +42,9 @@
     <ClCompile Include="EtwGuids.hpp">
       <Filter>Header Files</Filter>
     </ClCompile>
+    <ClCompile Include="SqlRequests.hpp">
+      <Filter>Header Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="processMonitor.hpp">

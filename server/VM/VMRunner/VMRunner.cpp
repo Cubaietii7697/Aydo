@@ -98,7 +98,7 @@ int main(int argc, char *argv[]) {
       return EXIT_FAILURE;
     }
   }
-
+  // TODO : add dll & processRunner to guest
   std::cout << "[6/12] Copy payload -> guest" << std::endl;
   {
     const std::string cmd = std::format(R"({} -T ws -gu {} -gp {} CopyFileFromHostToGuest {} {} {})",
@@ -129,7 +129,7 @@ int main(int argc, char *argv[]) {
       return EXIT_FAILURE;
     }
   }
-
+  // TODO : run processRunner
   std::cout << "[8/12] Start payload in guest" << std::endl;
   {
     const std::string cmd = std::format(
