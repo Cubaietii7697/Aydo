@@ -99,7 +99,7 @@ int main(int argc, char *argv[]) {
     }
   }
   // TODO : add dll & processRunner to guest
-  std::cout << "[6/12] Copy payload -> guest" << std::endl;
+  std::cout << "[6/12] Copy payload(sus into path) -> guest" << std::endl;
   {
     const std::string cmd = std::format(R"({} -T ws -gu {} -gp {} CopyFileFromHostToGuest {} {} {})",
                                         vmRunPath, std::string(GUEST_USER), std::string(GUEST_PASS),
@@ -129,8 +129,8 @@ int main(int argc, char *argv[]) {
       return EXIT_FAILURE;
     }
   }
-  // TODO : run processRunner
-  std::cout << "[8/12] Start payload in guest" << std::endl;
+  // TODO : replace run sus to run processRunner that run sus with dll injection.
+  std::cout << "[8/12] Start payload in guest(run sus file)" << std::endl;
   {
     const std::string cmd = std::format(
         R"({} -T ws -gu {} -gp {} runProgramInGuest  {} -noWait {})",
@@ -157,13 +157,12 @@ int main(int argc, char *argv[]) {
     int rc = Utills::executeAndWaitRC(cmd);
     if (rc != 0) {
       std::cerr << "\tWARN: copy log rc=" << rc << std::endl;
-    } // non-fatal
-    else {
+    } else {
       std::cout << "\tLog copied to: " << hostLogPath << std::endl;
     }
   }
-  // did or didnt work to stop vm
-  bool rs = false;
+
+  bool rs = false; // did or didnt work to stop vm
   std::cout << "[11/12] Stop VM (soft)" << std::endl;
   {
     const std::string cmd = std::format(R"({} -T ws stop {} soft)", vmRunPath, sandboxVmx);
