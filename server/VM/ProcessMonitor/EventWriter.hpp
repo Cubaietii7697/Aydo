@@ -12,7 +12,6 @@
 #include <sqlite3.h>
 
 class EventWriter {
-  // TODO : add logic for sqlite
 public:
   enum class WireFormat { JsonLines,
                           Msgpack,
@@ -51,6 +50,7 @@ private:
 
   bool bindJsonValues(sqlite3_stmt *stmt,
                       const std::vector<nlohmann::json> &values);
+  void enrichSigmaFields(nlohmann::json &j);
 
 private:
   std::mutex m_mtx;
