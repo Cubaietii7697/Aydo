@@ -3,14 +3,38 @@
 #include <unordered_set>
 
 namespace SqlRequstes {
+const std::unordered_set<std::string> SKIP_FIELDS = {
+    // file handles / pointers we don't care about
+    "FileObject",
+    "FileKey",
+    "IrpPtr",
+    "ExtraInfo",
+    "KeyHandle",
+
+    // thread / stack internals we don't care about
+    "UserStackLimit",
+    "StackLimit",
+    "UserStackBase",
+    "StackBase",
+    "TebBase",
+    "Affinity",
+    "Win32StartAddr",
+    "UniqueProcessKey",
+    "DirectoryTableBase",
+
+    // image load internals we don't care about (this is your new spam)
+    "ImageBase",
+    "ImageSize",
+    "DefaultBase"};
+
 const std::unordered_set<std::string> TABLES = {
     "EventId", "EventRecordId", "EventTime", "Provider", "Channel",
     "Computer", "UserSid", "Level", "Task", "Opcode", "Keywords",
     "Image", "ImageLoaded", "SourceImage", "TargetImage", "ProcessName",
     "ParentProcessName", "ParentImage", "ParentCommandLine",
-    "CommandLine", "Commandline", "NewProcessName", "OriginalFilename",
+    "Commandline", "NewProcessName", "OriginalFilename",
     "Hashes", "Version",
-    "IpAddress", "LocalAddresses", "LocalPorts", "LocalPort",
+    "IpAddress", "LocalAddresses", "LocalPorts",
     "RemoteAddresses", "RemotePorts", "DestinationPort",
     "TransmittedServices",
     "SubjectUserName", "SubjectUserSid", "TargetUserName",
@@ -35,7 +59,7 @@ const std::unordered_set<std::string> TABLES = {
     "EventXML_Address", "EventXML_Param3", "ForwardTo",
     "ForwardAsAttachmentTo", "Message", "ModifyingApplication",
     "Param1", "Param2", "Parameters", "Parameters_Name", "Pattern",
-    "Payload", "PluginDllName", "Process", "Status", "STATE", "State",
+    "Payload", "PluginDllName", "Process", "Status", "State",
     "TaskName", "UpdateName", "UserAccountControl", "WorkstationName",
     "_cmdshell", "action_id", "additional_information", "class_type",
     "connections", "domain_in_lowercase_xxx", "enabled", "localport",
@@ -65,7 +89,6 @@ CREATE TABLE IF NOT EXISTS Events (
     ParentImage        TEXT,
     ParentCommandLine  TEXT,
     CommandLine        TEXT,
-    Commandline        TEXT,          -- Sigma sometimes references either
     NewProcessName     TEXT,
     OriginalFilename   TEXT,
     Hashes             TEXT,
@@ -74,7 +97,6 @@ CREATE TABLE IF NOT EXISTS Events (
     IpAddress          TEXT,
     LocalAddresses     TEXT,
     LocalPorts         TEXT,
-    LocalPort          TEXT,
     RemoteAddresses    TEXT,
     RemotePorts        TEXT,
     DestinationPort    TEXT,
@@ -157,7 +179,6 @@ CREATE TABLE IF NOT EXISTS Events (
     PluginDllName      TEXT,
     Process            TEXT,
     Status             TEXT,
-    STATE              TEXT,
     State              TEXT,
     TaskName           TEXT,
     UpdateName         TEXT,
