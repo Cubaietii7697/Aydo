@@ -123,8 +123,7 @@ bool EventWriter::prepareInsertStatement(const std::string &sql, sqlite3_stmt **
 
   *stmtOut = nullptr;
 
-  const int rc = sqlite3_prepare_v2(m_db, sql.c_str(), -1, stmtOut, nullptr);
-  if (rc != SQLITE_OK || !*stmtOut) {
+  if (const int rc = sqlite3_prepare_v2(m_db, sql.c_str(), -1, stmtOut, nullptr); rc != SQLITE_OK || !*stmtOut) {
     if (*stmtOut) {
       sqlite3_finalize(*stmtOut);
       *stmtOut = nullptr;

@@ -1,3 +1,4 @@
+#pragma once
 #include <string>
 #include <unordered_set>
 
@@ -40,9 +41,8 @@ const std::unordered_set<std::string> TABLES = {
     "connections", "domain_in_lowercase_xxx", "enabled", "localport",
     "object_name", "param1_lower", "pwszAutoConfigUrl", "pwszProxy",
     "pwszProxyBypass", "statement",
-    // housekeeping is auto-filled; we generally do not insert InsertionTime
     "InsertionTime"};
-const char *TABLES_CREATE = R"SQL(
+const char const *TABLES_CREATE = R"SQL(
 CREATE TABLE IF NOT EXISTS Events (
     EventId            INTEGER NOT NULL,
     EventRecordId      INTEGER,
