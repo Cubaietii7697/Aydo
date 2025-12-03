@@ -140,12 +140,12 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp23</LanguageStandard>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
-      <AdditionalIncludeDirectories>C:\Program Files %28x86%29\Windows Kits\10\Include\10.0.26100.0\shared;C:\Program Files %28x86%29\Windows Kits\10\Include\10.0.26100.0\um;C:\Program Files %28x86%29\Windows Kits\10\Include\10.0.26100.0\ucrt;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Program Files %28x86%29\Windows Kits\10\Include\10.0.26100.0\shared;C:\Program Files %28x86%29\Windows Kits\10\Include\10.0.26100.0\um;C:\Program Files %28x86%29\Windows Kits\10\Include\10.0.26100.0\ucrt;D:\vcpkg\installed\x64-windows\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>advapi32.lib; tdh.lib; uuid.lib</AdditionalDependencies>
+      <AdditionalDependencies>advapi32.lib;tdh.lib;uuid.lib;D:\vcpkg\installed\x64-windows\lib\sqlite3.lib</AdditionalDependencies>
       <UACExecutionLevel>RequireAdministrator</UACExecutionLevel>
     </Link>
   </ItemDefinitionGroup>

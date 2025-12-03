@@ -12,7 +12,7 @@
 #include <set>
 #include <string>
 
-#include <krabs/krabs.hpp>
+#include <krabs.hpp>
 
 #include "Caches.hpp"
 #include "EventWriter.hpp"

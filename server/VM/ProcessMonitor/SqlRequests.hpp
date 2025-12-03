@@ -68,7 +68,7 @@ const std::unordered_set<std::string> TABLES = {
     "pwszProxyBypass", "statement",
     "InsertionTime"};
 // TODO : add pid and thread id
-const char const *TABLES_CREATE = R"SQL(
+const char *TABLES_CREATE = R"SQL(
 CREATE TABLE IF NOT EXISTS Events (
     EventId            INTEGER NOT NULL,
     EventRecordId      INTEGER,

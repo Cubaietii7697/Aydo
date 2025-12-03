@@ -1,5 +1,5 @@
 #pragma once
-#include <krabs/krabs.hpp>
+#include <krabs.hpp>
 #include <memory>
 #include <thread>
 #include <vector>

@@ -223,6 +223,7 @@ int main(int argc, char *argv[]) {
     } else {
       std::cerr << "\tWARN: DB file NOT found on host path: "
                 << hostLogPath << std::endl;
+      return EXIT_FAILURE;
     }
   }
 
