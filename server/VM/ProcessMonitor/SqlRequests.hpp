@@ -22,11 +22,12 @@ const std::unordered_set<std::string> SKIP_FIELDS = {
     "UniqueProcessKey",
     "DirectoryTableBase",
 
-    // image load internals we don't care about (this is your new spam)
+    // image load internals we don't care about
     "ImageBase",
     "ImageSize",
     "DefaultBase"};
 
+// TODO : add pid and thread id
 const std::unordered_set<std::string> TABLES = {
     "EventId", "EventRecordId", "EventTime", "Provider", "Channel",
     "Computer", "UserSid", "Level", "Task", "Opcode", "Keywords",
@@ -66,6 +67,7 @@ const std::unordered_set<std::string> TABLES = {
     "object_name", "param1_lower", "pwszAutoConfigUrl", "pwszProxy",
     "pwszProxyBypass", "statement",
     "InsertionTime"};
+// TODO : add pid and thread id
 const char const *TABLES_CREATE = R"SQL(
 CREATE TABLE IF NOT EXISTS Events (
     EventId            INTEGER NOT NULL,

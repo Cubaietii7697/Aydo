@@ -13,16 +13,32 @@ const std::string VM_RUN_PATH =
     getEnvOrDefault("VM_RUN_PATH", R"(C:\Program Files (x86)\VMware\VMware Workstation\vmrun.exe)");
 
 const std::string ANALYSIS_VM_PATH =
-    getEnvOrDefault("ANALYSIS_VM_PATH", R"(D:\veeeertoooaaalll\SANDBOX1\SANDBOX1.vmx)");
+    getEnvOrDefault("ANALYSIS_VM_PATH", R"(D:\SandboxAnalysis\SANDBOX1.vmx)");
 
 const std::string SANDBOXES_DIRECTORY_PATH =
-    getEnvOrDefault("SANDBOXES_DIRECTORY_PATH", R"(D:\veeeertoooaaalll\copy.me.here.plz)");
+    getEnvOrDefault("SANDBOXES_DIRECTORY_PATH", R"(D:\SandboxAnalysis\)");
+
+const std::string PM_FILE_PATH_GUEST =
+    getEnvOrDefault("PM_FILE_PATH_GUEST",
+                    R"(C:\Users\vmuser\Desktop\ProcessMonitor.exe)");
+
+const std::string DLL_INJECTOR_FILE_PATH_GUEST =
+    getEnvOrDefault("DLL_INJECTOR_FILE_PATH_GUEST",
+                    R"(C:\Users\vmuser\Desktop\InjectedDLL.dll)");
+
+const std::string PROCCES_RUNNER_FILE_PATH_GUEST =
+    getEnvOrDefault("PROCCES_RUNNER_FILE_PATH_GUEST",
+                    R"(C:\Users\vmuser\Desktop\ProcessRunner.exe)");
 
 const std::string HOST_FOLDER_PATH =
-    getEnvOrDefault("HOST_FOLDER_PATH", R"(C:\Shared)");
+    getEnvOrDefault("HOST_FOLDER_PATH", R"(D:\Shared)");
 
 const std::string SHARE_FILE_NAME =
-    getEnvOrDefault("SHARE_FILE_NAME", "logs.log");
+    getEnvOrDefault("SHARE_FILE_NAME", "log.sqlite");
+
+const std::string GUEST_SHARED_DIR =
+    getEnvOrDefault("GUEST_SHARED_DIR",
+                    R"(\\vmware-host\Shared Folders\Shared)");
 
 const std::string GUEST_USER =
     getEnvOrDefault("GUEST_USER", "vmuser");
@@ -31,10 +47,21 @@ const std::string GUEST_PASS =
     getEnvOrDefault("GUEST_PASS", "vmpassword");
 
 const std::string PM_FILE_PATH =
-    getEnvOrDefault("PM_FILE_PATH", R"(C:\Projects\ProcessMonitor\x64\Debug\readFromVm.exe)");
+    getEnvOrDefault("PM_FILE_PATH",
+                    R"(D:\SandboxBin\ProcessMonitor.exe)");
 
-const std::string PM_FILE_PATH_GUEST =
-    getEnvOrDefault("PM_FILE_PATH_GUEST", R"(C:\Users\vmuser\Desktop\Ghost.exe)");
+const std::string DLL_INJECTOR_FILE_PATH =
+    getEnvOrDefault("DLL_INJECTOR_FILE_PATH",
+                    R"(D:\SandboxBin\ProcessRunnerDLL.dll)");
 
-const std::string SUSPICIOUS_FILE_PATH =
-    getEnvOrDefault("SUSPICIOUS_FILE_PATH", R"(C:\Users\vmuser\Desktop\filetoplot.exe)");
+const std::string PROCCES_RUNNER_FILE_PATH =
+    getEnvOrDefault("PROCCES_RUNNER_FILE_PATH",
+                    R"(D:\SandboxBin\ProcessRunner.exe)");
+
+const std::string SUSPICIOUS_FILE_NAME_GUEST =
+    getEnvOrDefault("SUSPICIOUS_FILE_NAME_GUEST",
+                    "filetoplot.exe");
+
+const std::string SUSPICIOUS_WORKDIR_GUEST =
+    getEnvOrDefault("SUSPICIOUS_WORKDIR_GUEST",
+                    R"(C:\Users\vmuser\Desktop\checks)");

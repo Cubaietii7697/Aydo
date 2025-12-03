@@ -271,6 +271,23 @@ bool guestPathExists(const std::string &vmRunPath,
   return runPSInGuest(vmRunPath, sandboxVmx, cmd) == 0;
 }
 
+bool closeVM(const std::string &vmRunPath, const std::string &sandboxVmx) {
+  bool rs = false;
+  std::cout << "[6.1/6] Stop VM (soft)" << std::endl;
+  {
+    const std::string cmd = std::format(R"({} -T ws stop {} soft)", vmRunPath, sandboxVmx);
+    rs = Utills::executeAndWaitRC(cmd);
+    std::this_thread::sleep_for(std::chrono::seconds(STEPS_INTERVAL_S));
+  }
+
+  std::cout << "[6.2/6] Stop VM (hard)" << std::endl;
+  {
+    const std::string cmd = std::format(R"({} -T ws stop {} hard)", vmRunPath, sandboxVmx);
+    rs = rs || Utills::executeAndWaitRC(cmd);
+  }
+  return rs;
+}
+
 std::string ensureQuoted(const std::string &s) {
   if (!s.empty() && s.front() == '"' && s.back() == '"') {
     return s;

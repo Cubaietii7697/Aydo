@@ -36,6 +36,16 @@ bool ProcessMonitor::pidAllowed(DWORD pid) const {
   return g_targetPids.empty() || g_targetPids.contains(pid);
 }
 
+void analysisRecord(const EVENT_RECORD &record,
+                    const krabs::trace_context &ctx) {
+  // if (record == "createProcces")
+  //{
+  //     g_targetPids.insert()
+  //}
+  // need to watch about remote procces.
+  // analysis.
+}
+
 void ProcessMonitor::onKernelEvent(const EVENT_RECORD &record,
                                    const krabs::trace_context &ctx) {
   if (!pidAllowed(record.EventHeader.ProcessId)) {
