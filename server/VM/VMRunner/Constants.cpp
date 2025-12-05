@@ -48,7 +48,7 @@ const std::string GUEST_PASS =
 
 const std::string PM_FILE_PATH =
     getEnvOrDefault("PM_FILE_PATH",
-                    R"(C:\Dev\Magshii\Project\AAAAAAA\aydo\x64\Release\ProcessMonitor.exe)");
+                    R"(C:\Dev\Magshii\Project\BBBBBBBBB\aydo\server\VM\ProcessMonitor\bin\x64\Release\ProcessMonitor.exe)");
 
 const std::string DLL_INJECTOR_FILE_PATH =
     getEnvOrDefault("DLL_INJECTOR_FILE_PATH",
