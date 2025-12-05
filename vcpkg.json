@@ -12,7 +12,7 @@
     "nlohmann-json",
     "sqlite-orm",
     "sqlite3",
-    "krabsetw",
-	"yara"
+    "krabsetw"
+
   ]
 }
