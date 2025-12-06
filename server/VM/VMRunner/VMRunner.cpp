@@ -23,10 +23,17 @@ int main(int argc, char *argv[]) {
   const auto vmRunPath = std::string(VM_RUN_PATH);
   const auto baseVmx = std::string(ANALYSIS_VM_PATH);
   const auto dirSand = std::string(SANDBOXES_DIRECTORY_PATH);
-  const std::filesystem::path hostShared(HOST_FOLDER_PATH);
+  const std::filesystem::path hostSharedRoot(HOST_FOLDER_PATH);
+
+  const std::filesystem::path hostShared = hostSharedRoot / sandboxId;
+
+  std::filesystem::path guestSharedPath(GUEST_SHARED_DIR);
+  guestSharedPath = guestSharedPath.lexically_normal();
+  const std::string sharedFolderName = guestSharedPath.filename().string();
 
   // Per-sandbox VMX path (quoted for vmrun)
-  const std::string sandboxVmxRaw = std::format(R"({}\{}\{}.vmx)", dirSand, sandboxId, sandboxId);
+  const std::string sandboxVmxRaw =
+      std::format(R"({}\{}\{}.vmx)", dirSand, sandboxId, sandboxId);
   const std::string sandboxVmx = Utills::ensureQuoted(sandboxVmxRaw);
 
   // Host target for the final log
@@ -54,8 +61,9 @@ int main(int argc, char *argv[]) {
 
   const std::string hostLogPath =
       (hostShared / std::filesystem::path(SHARE_FILE_NAME)).string();
-  std::cout << "[1.0/7] Clone linked VM" << std::endl;
+  std::cout << "[1.0/7] Clone linked VM & configure shared folder" << std::endl;
   {
+    // Create linked clone if it does not exist yet
     if (!std::filesystem::exists(sandboxVmxRaw)) {
       const std::string cmd = std::format(
           R"({} -T ws clone {} {} linked -cloneName={})",
@@ -69,6 +77,50 @@ int main(int argc, char *argv[]) {
         std::cerr << "\tFAIL clone rc=" << rc << std::endl;
         return EXIT_FAILURE;
       }
+    }
+
+    // Ensure the persandbox host shared folder exists
+    {
+      std::error_code ec2;
+      std::filesystem::create_directories(hostShared, ec2);
+      if (ec2) {
+        std::cerr << "\tFAIL create host shared dir '" << hostShared.string()
+                  << "': " << ec2.message() << std::endl;
+        return EXIT_FAILURE;
+      }
+    }
+
+    // Reconfigure the VM's shared folder.
+    // Remove any existing share name.
+    // Add a new folder.
+    if (!sharedFolderName.empty()) {
+      {
+        const std::string cmd = std::format(
+            R"({} -T ws removeSharedFolder {} {})",
+            vmRunPath,
+            sandboxVmx,
+            sharedFolderName);
+        // ignore rc – folder may not exist yet
+        (void)Utills::executeAndWaitRC(cmd);
+      }
+
+      {
+        const std::string cmd = std::format(
+            R"({} -T ws addSharedFolder {} {} {})",
+            vmRunPath,
+            sandboxVmx,
+            sharedFolderName,
+            Utills::ensureQuoted(hostShared.string()));
+        int rc = Utills::executeAndWaitRC(cmd);
+        if (rc != 0) {
+          std::cerr << "\tFAIL addSharedFolder rc=" << rc << std::endl;
+          return EXIT_FAILURE;
+        }
+      }
+    } else {
+      std::cerr << "\tFAIL: could not derive shared folder name from GUEST_SHARED_DIR='"
+                << GUEST_SHARED_DIR << "'" << std::endl;
+      return EXIT_FAILURE;
     }
   }
 
@@ -87,6 +139,20 @@ int main(int argc, char *argv[]) {
   if (!Utills::waitForTools(vmRunPath, sandboxVmx)) {
     std::cerr << "\tFAIL: VMware Tools not ready" << std::endl;
     return EXIT_FAILURE;
+  }
+
+  // Shared folders must be enabled on a powered-on VM for the guest
+  std::cout << "[1.3/7] Enable shared folders in guest" << std::endl;
+  {
+    const std::string cmd = std::format(
+        R"({} -T ws enableSharedFolders {})",
+        vmRunPath,
+        sandboxVmx);
+    int rc = Utills::executeAndWaitRC(cmd);
+    if (rc != 0) {
+      std::cerr << "\tWARN enableSharedFolders rc=" << rc
+                << " (shared folders may already be enabled)" << std::endl;
+    }
   }
 
   std::cout << "[2.0/7] Create guest work dir: " << guestWorkDir << std::endl;
