@@ -67,7 +67,6 @@ int main(int argc, char *argv[]) {
       int rc = Utills::executeAndWaitRC(cmd);
       if (rc != 0) {
         std::cerr << "\tFAIL clone rc=" << rc << std::endl;
-        Utills::closeVM(vmRunPath, sandboxVmx);
         return EXIT_FAILURE;
       }
     }
@@ -75,11 +74,11 @@ int main(int argc, char *argv[]) {
 
   std::cout << "[1.1/6] Start VM" << std::endl;
   {
-    const std::string cmd = std::format(R"({} -T ws start {})", vmRunPath, sandboxVmx);
+    const std::string cmd = std::format(R"({} -T ws start {})", vmRunPath, sandboxVmx, sandboxId);
     int rc = Utills::executeAndWaitRC(cmd);
     if (rc != 0) {
       std::cerr << "\tFAIL start rc=" << rc << std::endl;
-      Utills::closeVM(vmRunPath, sandboxVmx);
+      Utills::closeVM(vmRunPath, sandboxVmx, sandboxId);
       return EXIT_FAILURE;
     }
   }
@@ -116,7 +115,7 @@ int main(int argc, char *argv[]) {
         std::cerr << "\tFAIL createDirectory rc=" << createRc
                   << " (directory does not exist and cannot be created)"
                   << std::endl;
-        Utills::closeVM(vmRunPath, sandboxVmx);
+        Utills::closeVM(vmRunPath, sandboxVmx, sandboxId);
         return EXIT_FAILURE;
       }
     }
@@ -132,7 +131,7 @@ int main(int argc, char *argv[]) {
     int rc = Utills::executeAndWaitRC(cmd);
     if (rc != 0) {
       std::cerr << "\tFAIL copy monitor rc=" << rc << std::endl;
-      Utills::closeVM(vmRunPath, sandboxVmx);
+      Utills::closeVM(vmRunPath, sandboxVmx, sandboxId);
       return EXIT_FAILURE;
     }
   }
@@ -146,7 +145,7 @@ int main(int argc, char *argv[]) {
     int rc = Utills::executeAndWaitRC(cmd);
     if (rc != 0) {
       std::cerr << "\tFAIL copy payload rc=" << rc << std::endl;
-      Utills::closeVM(vmRunPath, sandboxVmx);
+      Utills::closeVM(vmRunPath, sandboxVmx, sandboxId);
       return EXIT_FAILURE;
     }
   }
@@ -160,7 +159,7 @@ int main(int argc, char *argv[]) {
     int rc = Utills::executeAndWaitRC(cmd);
     if (rc != 0) {
       std::cerr << "\tFAIL copy payload rc=" << rc << std::endl;
-      Utills::closeVM(vmRunPath, sandboxVmx);
+      Utills::closeVM(vmRunPath, sandboxVmx, sandboxId);
       return EXIT_FAILURE;
     }
   }
@@ -174,7 +173,7 @@ int main(int argc, char *argv[]) {
     int rc = Utills::executeAndWaitRC(cmd);
     if (rc != 0) {
       std::cerr << "\tFAIL copy payload rc=" << rc << std::endl;
-      Utills::closeVM(vmRunPath, sandboxVmx);
+      Utills::closeVM(vmRunPath, sandboxVmx, sandboxId);
       return EXIT_FAILURE;
     }
   }
@@ -193,7 +192,7 @@ int main(int argc, char *argv[]) {
     int rc = Utills::executeAndWaitRC(cmd);
     if (rc != 0) {
       std::cerr << "\tFAIL run monitor rc=" << rc << std::endl;
-      Utills::closeVM(vmRunPath, sandboxVmx);
+      Utills::closeVM(vmRunPath, sandboxVmx, sandboxId);
       return EXIT_FAILURE;
     }
   }
@@ -213,7 +212,7 @@ int main(int argc, char *argv[]) {
     int rc = Utills::executeAndWaitRC(cmd);
     if (rc != 0) {
       std::cerr << "\tFAIL run payload rc=" << rc << std::endl;
-      Utills::closeVM(vmRunPath, sandboxVmx);
+      Utills::closeVM(vmRunPath, sandboxVmx, sandboxId);
       return EXIT_FAILURE;
     }
   }
@@ -231,12 +230,12 @@ int main(int argc, char *argv[]) {
     } else {
       std::cerr << "\tWARN: DB file NOT found on host path: "
                 << hostLogPath << std::endl;
-      Utills::closeVM(vmRunPath, sandboxVmx);
+      Utills::closeVM(vmRunPath, sandboxVmx, sandboxId);
       return EXIT_FAILURE;
     }
   }
 
-  if (bool rs = Utills::closeVM(vmRunPath, sandboxVmx); !rs) {
+  if (bool rs = Utills::closeVM(vmRunPath, sandboxVmx, sandboxId); !rs) {
     std::wcerr << "Something went wrong with stop." << std::endl;
     Utills::printBanner(true);
     return EXIT_FAILURE;

@@ -271,7 +271,8 @@ bool guestPathExists(const std::string &vmRunPath,
   return runPSInGuest(vmRunPath, sandboxVmx, cmd) == 0;
 }
 
-bool closeVM(const std::string &vmRunPath, const std::string &sandboxVmx) {
+bool closeVM(const std::string &vmRunPath, const std::string &sandboxVmx,
+             const std::string &snapshotName) {
   bool rs = false;
   std::cout << "[6.1/6] Stop VM (soft)" << std::endl;
   {
@@ -283,6 +284,14 @@ bool closeVM(const std::string &vmRunPath, const std::string &sandboxVmx) {
   std::cout << "[6.2/6] Stop VM (hard)" << std::endl;
   {
     const std::string cmd = std::format(R"({} -T ws stop {} hard)", vmRunPath, sandboxVmx);
+    rs = rs || Utills::executeAndWaitRC(cmd);
+  }
+  std::cout << "[6.3/6] Delete snapshot" << std::endl;
+  {
+    const std::string cmd = std::format(R"({} -T ws deleteSnapshot {} {})",
+                                        vmRunPath,
+                                        sandboxVmx,
+                                        snapshotName);
     rs = rs || Utills::executeAndWaitRC(cmd);
   }
   return rs;
