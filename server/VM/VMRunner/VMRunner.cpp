@@ -54,7 +54,7 @@ int main(int argc, char *argv[]) {
 
   const std::string hostLogPath =
       (hostShared / std::filesystem::path(SHARE_FILE_NAME)).string();
-  std::cout << "[1.0/6] Clone linked VM" << std::endl;
+  std::cout << "[1.0/7] Clone linked VM" << std::endl;
   {
     if (!std::filesystem::exists(sandboxVmxRaw)) {
       const std::string cmd = std::format(
@@ -72,9 +72,9 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  std::cout << "[1.1/6] Start VM" << std::endl;
+  std::cout << "[1.1/7] Start VM" << std::endl;
   {
-    const std::string cmd = std::format(R"({} -T ws start {})", vmRunPath, sandboxVmx, sandboxId);
+    const std::string cmd = std::format(R"({} -T ws start {})", vmRunPath, sandboxVmx);
     int rc = Utills::executeAndWaitRC(cmd);
     if (rc != 0) {
       std::cerr << "\tFAIL start rc=" << rc << std::endl;
@@ -83,13 +83,13 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  std::cout << "[1.2/6] Wait for VMware Tools" << std::endl;
+  std::cout << "[1.2/7] Wait for VMware Tools" << std::endl;
   if (!Utills::waitForTools(vmRunPath, sandboxVmx)) {
     std::cerr << "\tFAIL: VMware Tools not ready" << std::endl;
     return EXIT_FAILURE;
   }
 
-  std::cout << "[2.0/6] Create guest work dir: " << guestWorkDir << std::endl;
+  std::cout << "[2.0/7] Create guest work dir: " << guestWorkDir << std::endl;
   {
     const std::string existsCmd = std::format(
         R"({} -T ws -gu {} -gp {} directoryExistsInGuest {} {})",
@@ -121,7 +121,7 @@ int main(int argc, char *argv[]) {
     }
   }
   /************************** copy files *******************************/
-  std::cout << "[2.1/6] Copy monitor -> guest" << std::endl;
+  std::cout << "[2.1/7] Copy monitor -> guest" << std::endl;
   {
     const std::string cmd = std::format(R"({} -T ws -gu {} -gp {} CopyFileFromHostToGuest {} {} {})",
                                         vmRunPath, std::string(GUEST_USER), std::string(GUEST_PASS),
@@ -135,7 +135,7 @@ int main(int argc, char *argv[]) {
       return EXIT_FAILURE;
     }
   }
-  std::cout << "[2.2/6] Copy suspicious -> guest" << std::endl;
+  std::cout << "[2.2/7] Copy suspicious -> guest" << std::endl;
   {
     const std::string cmd = std::format(R"({} -T ws -gu {} -gp {} CopyFileFromHostToGuest {} {} {})",
                                         vmRunPath, std::string(GUEST_USER), std::string(GUEST_PASS),
@@ -149,7 +149,7 @@ int main(int argc, char *argv[]) {
       return EXIT_FAILURE;
     }
   }
-  std::cout << "[2.3/6] Copy dllinjector -> guest" << std::endl;
+  std::cout << "[2.3/7] Copy dllinjector -> guest" << std::endl;
   {
     const std::string cmd = std::format(R"({} -T ws -gu {} -gp {} CopyFileFromHostToGuest {} {} {})",
                                         vmRunPath, std::string(GUEST_USER), std::string(GUEST_PASS),
@@ -163,7 +163,7 @@ int main(int argc, char *argv[]) {
       return EXIT_FAILURE;
     }
   }
-  std::cout << "[2.4/6] Copy processRunner -> guest" << std::endl;
+  std::cout << "[2.4/7] Copy processRunner -> guest" << std::endl;
   {
     const std::string cmd = std::format(R"({} -T ws -gu {} -gp {} CopyFileFromHostToGuest {} {} {})",
                                         vmRunPath, std::string(GUEST_USER), std::string(GUEST_PASS),
@@ -179,7 +179,7 @@ int main(int argc, char *argv[]) {
   }
 
   /************************** start mointor *******************************/
-  std::cout << "[3.0/6] Start monitor in guest" << std::endl;
+  std::cout << "[3.0/7] Start monitor in guest" << std::endl;
   {
     const std::string cmd = std::format(
         R"({} -T ws -gu {} -gp {} runProgramInGuest {} -noWait  {} {} {}{})",
@@ -197,7 +197,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  std::cout << "[3.1/6] Start Process Runner in guest" << std::endl;
+  std::cout << "[3.1/7] Start Process Runner in guest" << std::endl;
   {
     const std::string cmd = std::format(
         R"({} -T ws -gu {} -gp {} runProgramInGuest  {} -noWait {} {} {} {})",
@@ -217,10 +217,10 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  std::cout << "[4/6] Let payload run for " << runTimeSec << "s" << std::endl;
+  std::cout << "[4/7] Let payload run for " << runTimeSec << "s" << std::endl;
   std::this_thread::sleep_for(std::chrono::seconds(runTimeSec));
 
-  std::cout << "[5/6] Copy log guest->host" << std::endl;
+  std::cout << "[5/7] Copy log guest->host" << std::endl;
   {
     std::cout << "\tExpected guest DB path: " << guestLogPath << std::endl;
     std::cout << "\tExpected host  DB path: " << hostLogPath << std::endl;

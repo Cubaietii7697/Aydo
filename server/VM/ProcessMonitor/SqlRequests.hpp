@@ -27,9 +27,8 @@ const std::unordered_set<std::string> SKIP_FIELDS = {
     "ImageSize",
     "DefaultBase"};
 
-// TODO : add pid and thread id
 const std::unordered_set<std::string> TABLES = {
-    "EventId", "EventRecordId", "EventTime", "Provider", "Channel",
+    "EventId", "EventRecordId", "EventTime", "pid", "tid", "Provider", "Channel",
     "Computer", "UserSid", "Level", "Task", "Opcode", "Keywords",
     "Image", "ImageLoaded", "SourceImage", "TargetImage", "ProcessName",
     "ParentProcessName", "ParentImage", "ParentCommandLine",
@@ -67,12 +66,14 @@ const std::unordered_set<std::string> TABLES = {
     "object_name", "param1_lower", "pwszAutoConfigUrl", "pwszProxy",
     "pwszProxyBypass", "statement",
     "InsertionTime"};
-// TODO : add pid and thread id
+
 const char *TABLES_CREATE = R"SQL(
 CREATE TABLE IF NOT EXISTS Events (
     EventId            INTEGER NOT NULL,
     EventRecordId      INTEGER,
     EventTime          DATETIME NOT NULL,
+    pid                INTEGER, 
+    tid           INTEGER, 
     Provider           TEXT,
     Channel            TEXT,
     Computer           TEXT,
