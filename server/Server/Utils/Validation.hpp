@@ -11,7 +11,9 @@ enum class FieldType {
   Email,
   Nickname,
   Password,
-  RefreshToken
+  RefreshToken,
+  FileHash,
+  Runtime
 };
 
 inline constexpr unsigned int MIN_PASSWORD_LENGTH = 8;
@@ -35,5 +37,9 @@ inline const std::regex PASSWORD_HAS_ATLEAST_ONE_DIGIT(R"([0-9])");
 [[nodiscard]] bool isValidPassword(const std::string &password);
 
 [[nodiscard]] bool isValidRefreshToken(std::string_view refreshToken);
+
+[[nodiscard]] bool isValidFileHash(const std::string &fileHash);
+
+[[nodiscard]] bool isValidRuntime(const std::string &runtime);
 
 } // namespace Utils::Validation
