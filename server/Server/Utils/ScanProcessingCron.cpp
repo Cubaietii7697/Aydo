@@ -115,7 +115,7 @@ DynamicScanOutcome runDynamicScan(const Models::Scan &scan) {
     return {Models::ScanStatus::Failed, Models::VirusType::Unknown, 0};
   }
 
-  sqlite3_busy_timeout(db, 500);
+  sqlite3_busy_timeout(db, BUSY_TIMEOUT_MS);
   sqlite3_exec(db, "PRAGMA query_only = ON;", nullptr, nullptr, nullptr);
 
   for (const auto &query : queries) {
@@ -143,6 +143,7 @@ DynamicScanOutcome runDynamicScan(const Models::Scan &scan) {
     if (matched) {
       LOG_INFO << "Sigma match found for fileHash=" << scan.getFileHash();
       sqlite3_close(db);
+      // TODO: Work on the dynamic scan so the score and virus type will be more "accurate"
       return {Models::ScanStatus::Completed, Models::VirusType::Unknown, 99};
     }
   }

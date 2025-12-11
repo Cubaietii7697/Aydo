@@ -6,6 +6,7 @@
 #include "../Models/Scan.hpp"
 
 namespace Utils::ScanProcessingCron {
+constexpr unsigned int BUSY_TIMEOUT_MS = 500;
 
 struct DynamicScanOutcome {
   Models::ScanStatus status;

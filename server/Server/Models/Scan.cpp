@@ -112,7 +112,8 @@ ScanStatus Scan::stringToStatus(const std::string &str) {
   if (str == "Failed") {
     return ScanStatus::Failed;
   }
-  return ScanStatus::Pending;
+
+  return ScanStatus::Unknown;
 }
 
 std::string Scan::virusTypeToString(VirusType type) {

@@ -13,7 +13,8 @@ enum class ScanStatus {
   Pending,
   InProgress,
   Completed,
-  Failed
+  Failed,
+  Unknown
 };
 
 enum class VirusType {
