@@ -10,8 +10,10 @@
 #include "../Constants.hpp"
 #include "../Models/Scan.hpp"
 #include "../Utils/Responses.hpp"
+#include "../Utils/ScanProcessingCron.hpp"
 #include "../Utils/Validation.hpp"
 #include "../Utils/VmRunner.hpp"
+
 
 namespace fs = std::filesystem;
 
@@ -153,11 +155,24 @@ void API::Sandbox::_uploadFile(
     // Launch VMRunner in a separate thread (blocking operation)
     const int runtime = existingScan->getRuntime();
     const std::string sandboxId = fileHash;
-    std::thread vmThread([sandboxId, runtime, filePath]() {
-      const bool success = Utils::VmRunner::startVm(sandboxId, filePath, runtime);
+    std::thread vmThread([dbClient, fileHash, sandboxId, runtime, filePath]() {
+      const bool success =
+          Utils::VmRunner::startVm(sandboxId, filePath, runtime);
       if (!success) {
-        LOG_WARN << "VMRunner execution failed (sandboxId=" << sandboxId << ")";
+        LOG_WARN << "VMRunner execution failed (sandboxId=" << sandboxId
+                 << ")";
+        Models::Scan::updateResult(dbClient, fileHash,
+                                   Models::ScanStatus::Failed,
+                                   Models::VirusType::Unknown, 0);
+        return;
       }
+
+      Models::Scan scanForProcessing;
+      scanForProcessing.setFileHash(fileHash);
+      const auto outcome =
+          Utils::ScanProcessingCron::runDynamicScan(scanForProcessing);
+      Models::Scan::updateResult(dbClient, fileHash, outcome.status,
+                                 outcome.virusType, outcome.score);
     });
     vmThread.detach();
 

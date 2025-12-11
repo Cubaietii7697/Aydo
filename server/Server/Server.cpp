@@ -5,7 +5,6 @@
 #include "Controllers/Auth.hpp"
 #include "Controllers/Sandbox.hpp"
 #include "DatabaseSetup.hpp"
-#include "Utils/ScanProcessingCron.hpp"
 
 int main() {
   // Setup the server
@@ -25,8 +24,6 @@ int main() {
 
       exit(EXIT_FAILURE);
     }
-
-    Utils::ScanProcessingCron::startProcessingCron();
   });
 
   LOG_INFO << "Starting server with config from " << Constants::CONFIG_FILE;
