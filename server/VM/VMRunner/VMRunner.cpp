@@ -23,9 +23,6 @@ int main(int argc, char *argv[]) {
   const auto vmRunPath = std::string(VM_RUN_PATH);
   const auto baseVmx = std::string(ANALYSIS_VM_PATH);
   const auto dirSand = std::string(SANDBOXES_DIRECTORY_PATH);
-  const std::filesystem::path hostSharedRoot(HOST_FOLDER_PATH);
-
-  const std::filesystem::path hostShared = hostSharedRoot / sandboxId;
 
   std::filesystem::path guestSharedPath(GUEST_SHARED_DIR);
   guestSharedPath = guestSharedPath.lexically_normal();
@@ -36,9 +33,18 @@ int main(int argc, char *argv[]) {
       std::format(R"({}\{}\{}.vmx)", dirSand, sandboxId, sandboxId);
   const std::string sandboxVmx = Utills::ensureQuoted(sandboxVmxRaw);
 
-  // Host target for the final log
-  std::error_code ec;
-  std::filesystem::create_directories(hostShared, ec);
+  const std::filesystem::path vmDir = std::filesystem::path(sandboxVmxRaw).parent_path();
+  const std::filesystem::path hostShared = vmDir / "shared";
+
+  if (!std::filesystem::exists(hostShared)) {
+    std::error_code ec2;
+    std::filesystem::create_directories(hostShared, ec2);
+    if (ec2) {
+      std::cerr << "\tFAIL create host shared dir '" << hostShared.string()
+                << "': " << ec2.message() << std::endl;
+      return EXIT_FAILURE;
+    }
+  }
 
   // Resolve host paths we will copy from
   const std::string pmHostAbs = std::filesystem::absolute(std::string(PM_FILE_PATH)).string();
@@ -75,17 +81,6 @@ int main(int argc, char *argv[]) {
       int rc = Utills::executeAndWaitRC(cmd);
       if (rc != 0) {
         std::cerr << "\tFAIL clone rc=" << rc << std::endl;
-        return EXIT_FAILURE;
-      }
-    }
-
-    // Ensure the persandbox host shared folder exists
-    {
-      std::error_code ec2;
-      std::filesystem::create_directories(hostShared, ec2);
-      if (ec2) {
-        std::cerr << "\tFAIL create host shared dir '" << hostShared.string()
-                  << "': " << ec2.message() << std::endl;
         return EXIT_FAILURE;
       }
     }
@@ -144,14 +139,32 @@ int main(int argc, char *argv[]) {
   // Shared folders must be enabled on a powered-on VM for the guest
   std::cout << "[1.3/7] Enable shared folders in guest" << std::endl;
   {
-    const std::string cmd = std::format(
+    const std::string enableCmd = std::format(
         R"({} -T ws enableSharedFolders {})",
         vmRunPath,
         sandboxVmx);
-    int rc = Utills::executeAndWaitRC(cmd);
+    int rc = Utills::executeAndWaitRC(enableCmd);
     if (rc != 0) {
       std::cerr << "\tWARN enableSharedFolders rc=" << rc
                 << " (shared folders may already be enabled)" << std::endl;
+    }
+
+    // Verify that the shared folder path is actually visible in the guest
+    const std::string checkCmd = std::format(
+        R"({} -T ws -gu {} -gp {} directoryExistsInGuest {} {})",
+        vmRunPath,
+        std::string(GUEST_USER),
+        std::string(GUEST_PASS),
+        sandboxVmx,
+        Utills::ensureQuoted(std::string(GUEST_SHARED_DIR)));
+
+    int checkRc = Utills::executeAndWaitRC(checkCmd);
+    if (checkRc != 0) {
+      std::cerr << "\tFAIL: shared folder '" << GUEST_SHARED_DIR
+                << "' is not accessible inside the guest (rc=" << checkRc << ")"
+                << std::endl;
+      Utills::closeVM(vmRunPath, sandboxVmx, sandboxId);
+      return EXIT_FAILURE;
     }
   }
 
