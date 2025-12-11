@@ -27,51 +27,87 @@ Scan::Scan(const drogon::orm::Row &row) {
 
 std::optional<Scan> Scan::getByFileHash(const DbClientPtr &dbClient,
                                         const std::string &fileHash) {
-  auto result = dbClient->execSqlSync(
-      "SELECT id, fileHash, status, virusType, runtime, score, createdAt, updatedAt FROM scans WHERE fileHash = $1 LIMIT 1",
-      fileHash);
+  try {
+    auto result = dbClient->execSqlSync(
+        "SELECT id, fileHash, status, virusType, runtime, score, createdAt, updatedAt FROM scans WHERE fileHash = $1 LIMIT 1",
+        fileHash);
 
-  if (result.empty()) {
-    return std::nullopt;
+    if (result.empty()) {
+      return std::nullopt;
+    }
+
+    return Scan(result[0]);
+  } catch (const drogon::orm::DrogonDbException &e) {
+    LOG_ERROR << "Database error in Scan::getByFileHash: " << e.base().what();
+  } catch (const std::exception &e) {
+    LOG_ERROR << "Unexpected error in Scan::getByFileHash: " << e.what();
+  } catch (...) {
+    LOG_ERROR << "Unexpected unknown error in Scan::getByFileHash";
   }
 
-  return Scan(result[0]);
+  return std::nullopt;
 }
 
 void Scan::create(const DbClientPtr &dbClient, Scan &scan) {
-  auto result = dbClient->execSqlSync(
-      "INSERT INTO scans (fileHash, status, virusType, runtime, score) VALUES ($1, $2, $3, $4, $5) RETURNING id",
-      scan.getFileHash(),
-      statusToString(scan.getStatus()),
-      virusTypeToString(scan.getVirusType()),
-      scan.getRuntime(),
-      scan.getScore());
+  try {
+    auto result = dbClient->execSqlSync(
+        "INSERT INTO scans (fileHash, status, virusType, runtime, score) VALUES ($1, $2, $3, $4, $5) RETURNING id",
+        scan.getFileHash(),
+        statusToString(scan.getStatus()),
+        virusTypeToString(scan.getVirusType()),
+        scan.getRuntime(),
+        scan.getScore());
 
-  if (!result.empty()) {
-    scan.setId(std::to_string(result[0]["id"].as<int>()));
+    if (!result.empty()) {
+      scan.setId(std::to_string(result[0]["id"].as<int>()));
+    }
+  } catch (const drogon::orm::DrogonDbException &e) {
+    LOG_ERROR << "Database error in Scan::create: " << e.base().what();
+  } catch (const std::exception &e) {
+    LOG_ERROR << "Unexpected error in Scan::create: " << e.what();
+  } catch (...) {
+    LOG_ERROR << "Unexpected unknown error in Scan::create";
   }
 }
 
 void Scan::updateStatus(const DbClientPtr &dbClient,
                         const std::string &fileHash, ScanStatus status) {
-  dbClient->execSqlSync(
-      "UPDATE scans SET status = $1, updatedAt = CURRENT_TIMESTAMP WHERE fileHash = $2",
-      statusToString(status), fileHash);
+  try {
+    dbClient->execSqlSync(
+        "UPDATE scans SET status = $1, updatedAt = CURRENT_TIMESTAMP WHERE fileHash = $2",
+        statusToString(status), fileHash);
+  } catch (const drogon::orm::DrogonDbException &e) {
+    LOG_ERROR << "Database error in Scan::updateStatus: " << e.base().what();
+  } catch (const std::exception &e) {
+    LOG_ERROR << "Unexpected error in Scan::updateStatus: " << e.what();
+  } catch (...) {
+    LOG_ERROR << "Unexpected unknown error in Scan::updateStatus";
+  }
 }
 
 std::vector<Scan>
 Scan::getDueInProgressScans(const DbClientPtr &dbClient) {
   std::vector<Scan> scans;
-  auto result = dbClient->execSqlSync(
-      "SELECT id, fileHash, status, virusType, runtime, score, createdAt, updatedAt "
-      "FROM scans "
-      "WHERE status = $1 "
-      "AND createdAt <= CURRENT_TIMESTAMP - (runtime || ' seconds')::interval",
-      statusToString(ScanStatus::InProgress));
+  try {
+    auto result = dbClient->execSqlSync(
+        "SELECT id, fileHash, status, virusType, runtime, score, createdAt, updatedAt "
+        "FROM scans "
+        "WHERE status = $1 "
+        "AND createdAt <= CURRENT_TIMESTAMP - (runtime || ' seconds')::interval",
+        statusToString(ScanStatus::InProgress));
 
-  scans.reserve(result.size());
-  for (const auto &row : result) {
-    scans.emplace_back(row);
+    scans.reserve(result.size());
+    for (const auto &row : result) {
+      scans.emplace_back(row);
+    }
+  } catch (const drogon::orm::DrogonDbException &e) {
+    LOG_ERROR << "Database error in Scan::getDueInProgressScans: "
+              << e.base().what();
+  } catch (const std::exception &e) {
+    LOG_ERROR << "Unexpected error in Scan::getDueInProgressScans: "
+              << e.what();
+  } catch (...) {
+    LOG_ERROR << "Unexpected unknown error in Scan::getDueInProgressScans";
   }
 
   return scans;
@@ -79,9 +115,17 @@ Scan::getDueInProgressScans(const DbClientPtr &dbClient) {
 
 void Scan::updateResult(const DbClientPtr &dbClient, const std::string &fileHash,
                         ScanStatus status, VirusType virusType, int score) {
-  dbClient->execSqlSync(
-      "UPDATE scans SET status = $1, virusType = $2, score = $3, updatedAt = CURRENT_TIMESTAMP WHERE fileHash = $4",
-      statusToString(status), virusTypeToString(virusType), score, fileHash);
+  try {
+    dbClient->execSqlSync(
+        "UPDATE scans SET status = $1, virusType = $2, score = $3, updatedAt = CURRENT_TIMESTAMP WHERE fileHash = $4",
+        statusToString(status), virusTypeToString(virusType), score, fileHash);
+  } catch (const drogon::orm::DrogonDbException &e) {
+    LOG_ERROR << "Database error in Scan::updateResult: " << e.base().what();
+  } catch (const std::exception &e) {
+    LOG_ERROR << "Unexpected error in Scan::updateResult: " << e.what();
+  } catch (...) {
+    LOG_ERROR << "Unexpected unknown error in Scan::updateResult";
+  }
 }
 
 std::string Scan::statusToString(ScanStatus status) {

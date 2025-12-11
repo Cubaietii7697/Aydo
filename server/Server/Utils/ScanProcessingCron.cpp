@@ -1,6 +1,7 @@
 #include "ScanProcessingCron.hpp"
 
 #include <drogon/HttpAppFramework.h>
+#include <drogon/orm/DbClient.h>
 #include <sqlite3.h>
 #include <trantor/utils/Logger.h>
 
@@ -167,29 +168,33 @@ double resolveProcessingIntervalSeconds(const Json::Value &customConfig) {
   return Constants::DEFAULT_SCAN_CHECK_INTERVAL_S;
 }
 
+void processDueScans(const drogon::orm::DbClientPtr &dbClient) {
+  try {
+    const auto dueScans = Models::Scan::getDueInProgressScans(dbClient);
+
+    for (const auto &scan : dueScans) {
+      LOG_INFO << "Processing scan (fileHash=" << scan.getFileHash()
+               << ", runtime=" << scan.getRuntime() << "s)";
+
+      const auto outcome = runDynamicScan(scan);
+      Models::Scan::updateResult(dbClient, scan.getFileHash(),
+                                 outcome.status, outcome.virusType,
+                                 outcome.score);
+    }
+  } catch (const std::exception &e) {
+    LOG_ERROR << "Processing cron failed: " << e.what();
+  } catch (...) {
+    LOG_ERROR << "Processing cron failed: unknown error";
+  }
+}
+
 void startProcessingCron() {
   auto dbClient = drogon::app().getDbClient();
   const auto customConfig = drogon::app().getCustomConfig();
   const double intervalSeconds = resolveProcessingIntervalSeconds(customConfig);
 
   drogon::app().getLoop()->runEvery(intervalSeconds, [dbClient]() {
-    try {
-      const auto dueScans = Models::Scan::getDueInProgressScans(dbClient);
-
-      for (const auto &scan : dueScans) {
-        LOG_INFO << "Processing scan (fileHash=" << scan.getFileHash()
-                 << ", runtime=" << scan.getRuntime() << "s)";
-
-        const auto outcome = runDynamicScan(scan);
-        Models::Scan::updateResult(dbClient, scan.getFileHash(),
-                                   outcome.status, outcome.virusType,
-                                   outcome.score);
-      }
-    } catch (const std::exception &e) {
-      LOG_ERROR << "Processing cron failed: " << e.what();
-    } catch (...) {
-      LOG_ERROR << "Processing cron failed: unknown error";
-    }
+    processDueScans(dbClient);
   });
 }
 
