@@ -19,13 +19,13 @@ bool makeSureUserTableExists(const DbClientPtr &dbClient) {
             updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
             );)");
     LOG_INFO << "Ensured users table exists";
-
-    return true;
   } catch (const std::exception &e) {
     LOG_ERROR << "Failed to create or verify users table: " << e.what();
 
     return false;
   }
+
+  return true;
 }
 
 bool makeSureScansTableExists(const DbClientPtr &dbClient) {
@@ -43,13 +43,13 @@ bool makeSureScansTableExists(const DbClientPtr &dbClient) {
             updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
             );)");
     LOG_INFO << "Ensured scans table exists";
-
-    return true;
   } catch (const std::exception &e) {
     LOG_ERROR << "Failed to create or verify scans table: " << e.what();
 
     return false;
   }
+
+  return true;
 }
 
 bool setupDatabase() {
