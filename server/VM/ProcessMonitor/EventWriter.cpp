@@ -187,7 +187,6 @@ void EventWriter::collectColumnsAndValues(const nlohmann::json &j,
   columns.clear();
   values.clear();
 
-  // helper: try in several objects
   auto findInObjects = [&](const std::string &key) -> const nlohmann::json * {
     if (auto it = j.find(key); it != j.end() && !it->is_null())
       return &(*it);
@@ -591,19 +590,11 @@ void EventWriter::writeEventJson(const EVENT_RECORD &rec,
         !fil.empty()) {
       j["file"] = std::move(fil);
     }
-
-    //
-    // 5. Sigma-enrichment
-    //
     enrichSigmaFields(j);
   } catch (...) {
     OutputDebugStringA("krabs: fatal exception in writeEventJson envelope\n");
-    // j may be partially filled; still try to write it out
   }
 
-  //
-  // 6. ALWAYS try to write something to the sink
-  //
   try {
     writeOut(j);
   } catch (...) {
@@ -614,10 +605,8 @@ void EventWriter::writeEventJson(const EVENT_RECORD &rec,
 void EventWriter::writeOut(const nlohmann::json &j) {
   std::scoped_lock<std::mutex> lk(m_mtx);
 
-  // SQLite wire format: write directly into the database.
   if (m_wireFornat == WireFormat::Sqlite) {
     if (!m_db) {
-      // Defensive: try to (re)open if DB handle is missing.
       if (sqlite3_open16(m_path.c_str(), &m_db) != SQLITE_OK) {
         OutputDebugStringA("writeOut: sqlite3_open16 failed in Sqlite mode\n");
         sqlite3_close(m_db);

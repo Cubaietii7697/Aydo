@@ -44,6 +44,8 @@ private:
   std::unique_ptr<EventWriter> m_writer = nullptr;
 
 private:
+  void analysisRecord(const EVENT_RECORD &record,
+                      const krabs::trace_context &ctx);
   void enableKernelProviders();
   void enableUserProviders();
   void onThreadEvent(const EVENT_RECORD &record, const krabs::trace_context &traceContext);

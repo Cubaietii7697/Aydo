@@ -7,6 +7,7 @@
 #include <cctype>
 #include <chrono>
 #include <cstdlib>
+#include <filesystem>
 #include <format>
 #include <iostream>
 #include <sstream>
@@ -271,19 +272,40 @@ bool guestPathExists(const std::string &vmRunPath,
   return runPSInGuest(vmRunPath, sandboxVmx, cmd) == 0;
 }
 
-bool closeVM(const std::string &vmRunPath, const std::string &sandboxVmx) {
+bool closeVM(const std::string &vmRunPath, const std::string &sandboxVmx,
+             const std::string &sandboxId) {
   bool rs = false;
-  std::cout << "[6.1/6] Stop VM (soft)" << std::endl;
+  std::cout << "[6.1/7] Stop VM (soft)" << std::endl;
   {
     const std::string cmd = std::format(R"({} -T ws stop {} soft)", vmRunPath, sandboxVmx);
     rs = Utills::executeAndWaitRC(cmd);
     std::this_thread::sleep_for(std::chrono::seconds(STEPS_INTERVAL_S));
   }
 
-  std::cout << "[6.2/6] Stop VM (hard)" << std::endl;
+  std::cout << "[6.2/7] Stop VM (hard)" << std::endl;
   {
     const std::string cmd = std::format(R"({} -T ws stop {} hard)", vmRunPath, sandboxVmx);
     rs = rs || Utills::executeAndWaitRC(cmd);
+  }
+
+  std::cout << "[7/7] Delete sandbox clone directory" << std::endl;
+  {
+    const std::filesystem::path sandboxDir =
+        std::filesystem::path(SANDBOXES_DIRECTORY_PATH) / sandboxId;
+
+    std::error_code ec;
+    const auto removedCount = std::filesystem::remove_all(sandboxDir, ec);
+
+    if (ec) {
+      std::cerr << "\tWARN: failed to remove sandbox dir '"
+                << sandboxDir.string()
+                << "': " << ec.message() << std::endl;
+      rs = false;
+    } else {
+      std::cout << "\tRemoved " << removedCount
+                << " filesystem entries under " << sandboxDir.string()
+                << std::endl;
+    }
   }
   return rs;
 }

@@ -36,8 +36,9 @@ bool ProcessMonitor::pidAllowed(DWORD pid) const {
   return g_targetPids.empty() || g_targetPids.contains(pid);
 }
 
-void analysisRecord(const EVENT_RECORD &record,
-                    const krabs::trace_context &ctx) {
+void ProcessMonitor::analysisRecord(const EVENT_RECORD &record,
+                                    const krabs::trace_context &ctx) {
+  // TODO: on v2 analysis Record.
   // if (record == "createProcces")
   //{
   //     g_targetPids.insert()

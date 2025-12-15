@@ -23,15 +23,28 @@ int main(int argc, char *argv[]) {
   const auto vmRunPath = std::string(VM_RUN_PATH);
   const auto baseVmx = std::string(ANALYSIS_VM_PATH);
   const auto dirSand = std::string(SANDBOXES_DIRECTORY_PATH);
-  const std::filesystem::path hostShared(HOST_FOLDER_PATH);
+
+  std::filesystem::path guestSharedPath(GUEST_SHARED_DIR);
+  guestSharedPath = guestSharedPath.lexically_normal();
+  const std::string sharedFolderName = guestSharedPath.filename().string();
 
   // Per-sandbox VMX path (quoted for vmrun)
-  const std::string sandboxVmxRaw = std::format(R"({}\{}\{}.vmx)", dirSand, sandboxId, sandboxId);
+  const std::string sandboxVmxRaw =
+      std::format(R"({}\{}\{}.vmx)", dirSand, sandboxId, sandboxId);
   const std::string sandboxVmx = Utills::ensureQuoted(sandboxVmxRaw);
 
-  // Host target for the final log
-  std::error_code ec;
-  std::filesystem::create_directories(hostShared, ec);
+  const std::filesystem::path vmDir = std::filesystem::path(sandboxVmxRaw).parent_path();
+  const std::filesystem::path hostShared = vmDir / "shared";
+
+  if (!std::filesystem::exists(hostShared)) {
+    std::error_code ec2;
+    std::filesystem::create_directories(hostShared, ec2);
+    if (ec2) {
+      std::cerr << "\tFAIL create host shared dir '" << hostShared.string()
+                << "': " << ec2.message() << std::endl;
+      return EXIT_FAILURE;
+    }
+  }
 
   // Resolve host paths we will copy from
   const std::string pmHostAbs = std::filesystem::absolute(std::string(PM_FILE_PATH)).string();
@@ -54,8 +67,9 @@ int main(int argc, char *argv[]) {
 
   const std::string hostLogPath =
       (hostShared / std::filesystem::path(SHARE_FILE_NAME)).string();
-  std::cout << "[1.0/6] Clone linked VM" << std::endl;
+  std::cout << "[1.0/7] Clone linked VM & configure shared folder" << std::endl;
   {
+    // Create linked clone if it does not exist yet
     if (!std::filesystem::exists(sandboxVmxRaw)) {
       const std::string cmd = std::format(
           R"({} -T ws clone {} {} linked -cloneName={})",
@@ -70,25 +84,91 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
       }
     }
+
+    // Reconfigure the VM's shared folder.
+    // Remove any existing share name.
+    // Add a new folder.
+    if (!sharedFolderName.empty()) {
+      {
+        const std::string cmd = std::format(
+            R"({} -T ws removeSharedFolder {} {})",
+            vmRunPath,
+            sandboxVmx,
+            sharedFolderName);
+        // ignore rc – folder may not exist yet
+        (void)Utills::executeAndWaitRC(cmd);
+      }
+
+      {
+        const std::string cmd = std::format(
+            R"({} -T ws addSharedFolder {} {} {})",
+            vmRunPath,
+            sandboxVmx,
+            sharedFolderName,
+            Utills::ensureQuoted(hostShared.string()));
+        int rc = Utills::executeAndWaitRC(cmd);
+        if (rc != 0) {
+          std::cerr << "\tFAIL addSharedFolder rc=" << rc << std::endl;
+          return EXIT_FAILURE;
+        }
+      }
+    } else {
+      std::cerr << "\tFAIL: could not derive shared folder name from GUEST_SHARED_DIR='"
+                << GUEST_SHARED_DIR << "'" << std::endl;
+      return EXIT_FAILURE;
+    }
   }
 
-  std::cout << "[1.1/6] Start VM" << std::endl;
+  std::cout << "[1.1/7] Start VM" << std::endl;
   {
     const std::string cmd = std::format(R"({} -T ws start {})", vmRunPath, sandboxVmx);
     int rc = Utills::executeAndWaitRC(cmd);
     if (rc != 0) {
       std::cerr << "\tFAIL start rc=" << rc << std::endl;
+      Utills::closeVM(vmRunPath, sandboxVmx, sandboxId);
       return EXIT_FAILURE;
     }
   }
 
-  std::cout << "[1.2/6] Wait for VMware Tools" << std::endl;
+  std::cout << "[1.2/7] Wait for VMware Tools" << std::endl;
   if (!Utills::waitForTools(vmRunPath, sandboxVmx)) {
     std::cerr << "\tFAIL: VMware Tools not ready" << std::endl;
     return EXIT_FAILURE;
   }
 
-  std::cout << "[2.0/6] Create guest work dir: " << guestWorkDir << std::endl;
+  // Shared folders must be enabled on a powered-on VM for the guest
+  std::cout << "[1.3/7] Enable shared folders in guest" << std::endl;
+  {
+    const std::string enableCmd = std::format(
+        R"({} -T ws enableSharedFolders {})",
+        vmRunPath,
+        sandboxVmx);
+    int rc = Utills::executeAndWaitRC(enableCmd);
+    if (rc != 0) {
+      std::cerr << "\tWARN enableSharedFolders rc=" << rc
+                << " (shared folders may already be enabled)" << std::endl;
+    }
+
+    // Verify that the shared folder path is actually visible in the guest
+    const std::string checkCmd = std::format(
+        R"({} -T ws -gu {} -gp {} directoryExistsInGuest {} {})",
+        vmRunPath,
+        std::string(GUEST_USER),
+        std::string(GUEST_PASS),
+        sandboxVmx,
+        Utills::ensureQuoted(std::string(GUEST_SHARED_DIR)));
+
+    int checkRc = Utills::executeAndWaitRC(checkCmd);
+    if (checkRc != 0) {
+      std::cerr << "\tFAIL: shared folder '" << GUEST_SHARED_DIR
+                << "' is not accessible inside the guest (rc=" << checkRc << ")"
+                << std::endl;
+      Utills::closeVM(vmRunPath, sandboxVmx, sandboxId);
+      return EXIT_FAILURE;
+    }
+  }
+
+  std::cout << "[2.0/7] Create guest work dir: " << guestWorkDir << std::endl;
   {
     const std::string existsCmd = std::format(
         R"({} -T ws -gu {} -gp {} directoryExistsInGuest {} {})",
@@ -114,13 +194,13 @@ int main(int argc, char *argv[]) {
         std::cerr << "\tFAIL createDirectory rc=" << createRc
                   << " (directory does not exist and cannot be created)"
                   << std::endl;
-        Utills::closeVM(vmRunPath, sandboxVmx);
+        Utills::closeVM(vmRunPath, sandboxVmx, sandboxId);
         return EXIT_FAILURE;
       }
     }
   }
   /************************** copy files *******************************/
-  std::cout << "[2.1/6] Copy monitor -> guest" << std::endl;
+  std::cout << "[2.1/7] Copy monitor -> guest" << std::endl;
   {
     const std::string cmd = std::format(R"({} -T ws -gu {} -gp {} CopyFileFromHostToGuest {} {} {})",
                                         vmRunPath, std::string(GUEST_USER), std::string(GUEST_PASS),
@@ -130,10 +210,11 @@ int main(int argc, char *argv[]) {
     int rc = Utills::executeAndWaitRC(cmd);
     if (rc != 0) {
       std::cerr << "\tFAIL copy monitor rc=" << rc << std::endl;
+      Utills::closeVM(vmRunPath, sandboxVmx, sandboxId);
       return EXIT_FAILURE;
     }
   }
-  std::cout << "[2.2/6] Copy suspicious -> guest" << std::endl;
+  std::cout << "[2.2/7] Copy suspicious -> guest" << std::endl;
   {
     const std::string cmd = std::format(R"({} -T ws -gu {} -gp {} CopyFileFromHostToGuest {} {} {})",
                                         vmRunPath, std::string(GUEST_USER), std::string(GUEST_PASS),
@@ -143,10 +224,11 @@ int main(int argc, char *argv[]) {
     int rc = Utills::executeAndWaitRC(cmd);
     if (rc != 0) {
       std::cerr << "\tFAIL copy payload rc=" << rc << std::endl;
+      Utills::closeVM(vmRunPath, sandboxVmx, sandboxId);
       return EXIT_FAILURE;
     }
   }
-  std::cout << "[2.3/6] Copy dllinjector -> guest" << std::endl;
+  std::cout << "[2.3/7] Copy dllinjector -> guest" << std::endl;
   {
     const std::string cmd = std::format(R"({} -T ws -gu {} -gp {} CopyFileFromHostToGuest {} {} {})",
                                         vmRunPath, std::string(GUEST_USER), std::string(GUEST_PASS),
@@ -156,10 +238,11 @@ int main(int argc, char *argv[]) {
     int rc = Utills::executeAndWaitRC(cmd);
     if (rc != 0) {
       std::cerr << "\tFAIL copy payload rc=" << rc << std::endl;
+      Utills::closeVM(vmRunPath, sandboxVmx, sandboxId);
       return EXIT_FAILURE;
     }
   }
-  std::cout << "[2.4/6] Copy processRunner -> guest" << std::endl;
+  std::cout << "[2.4/7] Copy processRunner -> guest" << std::endl;
   {
     const std::string cmd = std::format(R"({} -T ws -gu {} -gp {} CopyFileFromHostToGuest {} {} {})",
                                         vmRunPath, std::string(GUEST_USER), std::string(GUEST_PASS),
@@ -169,12 +252,13 @@ int main(int argc, char *argv[]) {
     int rc = Utills::executeAndWaitRC(cmd);
     if (rc != 0) {
       std::cerr << "\tFAIL copy payload rc=" << rc << std::endl;
+      Utills::closeVM(vmRunPath, sandboxVmx, sandboxId);
       return EXIT_FAILURE;
     }
   }
 
   /************************** start mointor *******************************/
-  std::cout << "[3.0/6] Start monitor in guest" << std::endl;
+  std::cout << "[3.0/7] Start monitor in guest" << std::endl;
   {
     const std::string cmd = std::format(
         R"({} -T ws -gu {} -gp {} runProgramInGuest {} -noWait  {} {} {}{})",
@@ -187,11 +271,12 @@ int main(int argc, char *argv[]) {
     int rc = Utills::executeAndWaitRC(cmd);
     if (rc != 0) {
       std::cerr << "\tFAIL run monitor rc=" << rc << std::endl;
+      Utills::closeVM(vmRunPath, sandboxVmx, sandboxId);
       return EXIT_FAILURE;
     }
   }
 
-  std::cout << "[3.1/6] Start Process Runner in guest" << std::endl;
+  std::cout << "[3.1/7] Start Process Runner in guest" << std::endl;
   {
     const std::string cmd = std::format(
         R"({} -T ws -gu {} -gp {} runProgramInGuest  {} -noWait {} {} {} {})",
@@ -206,14 +291,15 @@ int main(int argc, char *argv[]) {
     int rc = Utills::executeAndWaitRC(cmd);
     if (rc != 0) {
       std::cerr << "\tFAIL run payload rc=" << rc << std::endl;
+      Utills::closeVM(vmRunPath, sandboxVmx, sandboxId);
       return EXIT_FAILURE;
     }
   }
 
-  std::cout << "[4/6] Let payload run for " << runTimeSec << "s" << std::endl;
+  std::cout << "[4/7] Let payload run for " << runTimeSec << "s" << std::endl;
   std::this_thread::sleep_for(std::chrono::seconds(runTimeSec));
 
-  std::cout << "[5/6] Copy log guest->host" << std::endl;
+  std::cout << "[5/7] Copy log guest->host" << std::endl;
   {
     std::cout << "\tExpected guest DB path: " << guestLogPath << std::endl;
     std::cout << "\tExpected host  DB path: " << hostLogPath << std::endl;
@@ -223,11 +309,12 @@ int main(int argc, char *argv[]) {
     } else {
       std::cerr << "\tWARN: DB file NOT found on host path: "
                 << hostLogPath << std::endl;
+      Utills::closeVM(vmRunPath, sandboxVmx, sandboxId);
       return EXIT_FAILURE;
     }
   }
 
-  if (bool rs = Utills::closeVM(vmRunPath, sandboxVmx); !rs) {
+  if (bool rs = Utills::closeVM(vmRunPath, sandboxVmx, sandboxId); !rs) {
     std::wcerr << "Something went wrong with stop." << std::endl;
     Utills::printBanner(true);
     return EXIT_FAILURE;
