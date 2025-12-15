@@ -11,7 +11,8 @@
     </Filter>
     <Filter Include="Resource Files">
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
-      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+      <Extensions>
+        rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
     <Filter Include="Source Files\Controllers">
       <UniqueIdentifier>{3b4192bf-9e30-4d8b-b7be-c23616700e87}</UniqueIdentifier>
@@ -57,6 +58,9 @@
     <ClCompile Include="Models\User.cpp">
       <Filter>Source Files\Models</Filter>
     </ClCompile>
+    <ClCompile Include="Models\Scan.cpp">
+      <Filter>Source Files\Models</Filter>
+    </ClCompile>
     <ClCompile Include="Utils\Crypto.cpp">
       <Filter>Source Files\Utils</Filter>
     </ClCompile>
@@ -64,9 +68,15 @@
       <Filter>Source Files\Middleware</Filter>
     </ClCompile>
     <ClCompile Include="Controllers\Auth.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\Controllers</Filter>
+    </ClCompile>
+    <ClCompile Include="Controllers\Sandbox.cpp">
+      <Filter>Source Files\Controllers</Filter>
     </ClCompile>
     <ClCompile Include="Utils\Generic.cpp">
+      <Filter>Source Files\Utils</Filter>
+    </ClCompile>
+    <ClCompile Include="Utils\VmRunner.cpp">
       <Filter>Source Files\Utils</Filter>
     </ClCompile>
   </ItemGroup>
@@ -77,6 +87,9 @@
     <ClInclude Include="Controllers\Auth.hpp">
       <Filter>Header Files\Controllers</Filter>
     </ClInclude>
+    <ClInclude Include="Controllers\Sandbox.hpp">
+      <Filter>Header Files\Controllers</Filter>
+    </ClInclude>
     <ClInclude Include="DatabaseSetup.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -84,6 +97,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Models\User.hpp">
+      <Filter>Header Files\Models</Filter>
+    </ClInclude>
+    <ClInclude Include="Models\Scan.hpp">
       <Filter>Header Files\Models</Filter>
     </ClInclude>
     <ClInclude Include="Utils\Password.hpp">
@@ -102,6 +118,9 @@
       <Filter>Header Files\Utils</Filter>
     </ClInclude>
     <ClInclude Include="Utils\Generic.hpp">
+      <Filter>Header Files\Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="Utils\VmRunner.hpp">
       <Filter>Header Files\Utils</Filter>
     </ClInclude>
   </ItemGroup>

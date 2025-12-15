@@ -32,6 +32,8 @@ bool guestPathExists(const std::string &vmRunPath,
                      const std::string &sandboxVmx,
                      std::string_view guestPath);
 
+bool closeVM(const std::string &vmRunPath, const std::string &sandboxVmx);
+
 constexpr int BUFFER_SIZE = 256;
 
 } // namespace Utills

@@ -23,19 +23,29 @@ User::User(const drogon::orm::Row &row) {
 
 std::optional<User> User::getByEmail(const DbClientPtr &dbClient,
                                      const std::string &email) {
-  auto result = dbClient->execSqlSync(
-      "SELECT id, email, nickname, passwordHash FROM users WHERE email = $1 LIMIT 1",
-      email);
+  try {
+    auto result = dbClient->execSqlSync(
+        "SELECT id, email, nickname, passwordHash FROM users WHERE email = $1 LIMIT 1",
+        email);
 
-  if (result.empty()) {
-    return std::nullopt;
+    if (result.empty()) {
+      return std::nullopt;
+    }
+
+    const auto &row = result[0];
+
+    User user(row);
+
+    return user;
+  } catch (const drogon::orm::DrogonDbException &e) {
+    LOG_ERROR << "Database error in User::getByEmail: " << e.base().what();
+  } catch (const std::exception &e) {
+    LOG_ERROR << "Unexpected error in User::getByEmail: " << e.what();
+  } catch (...) {
+    LOG_ERROR << "Unexpected unknown error in User::getByEmail";
   }
 
-  const auto &row = result[0];
-
-  User user(row);
-
-  return user;
+  return std::nullopt;
 }
 
 std::optional<User> User::getById(const DbClientPtr &dbClient,
@@ -52,28 +62,46 @@ std::optional<User> User::getById(const DbClientPtr &dbClient,
     return std::nullopt;
   }
 
-  auto result = dbClient->execSqlSync(
-      "SELECT id, email, nickname, passwordHash, createdAt, updatedAt FROM users WHERE id = $1 LIMIT 1",
-      userId);
+  try {
+    auto result = dbClient->execSqlSync(
+        "SELECT id, email, nickname, passwordHash, createdAt, updatedAt FROM users WHERE id = $1 LIMIT 1",
+        userId);
 
-  if (result.empty()) {
-    return std::nullopt;
+    if (result.empty()) {
+      return std::nullopt;
+    }
+
+    const auto &row = result[0];
+
+    User user(row);
+
+    return user;
+  } catch (const drogon::orm::DrogonDbException &e) {
+    LOG_ERROR << "Database error in User::getById: " << e.base().what();
+  } catch (const std::exception &e) {
+    LOG_ERROR << "Unexpected error in User::getById: " << e.what();
+  } catch (...) {
+    LOG_ERROR << "Unexpected unknown error in User::getById";
   }
 
-  const auto &row = result[0];
-
-  User user(row);
-
-  return user;
+  return std::nullopt;
 }
 
 void User::create(const DbClientPtr &dbClient, User &user) {
-  auto result = dbClient->execSqlSync(
-      "INSERT INTO users (email, nickname, passwordHash) VALUES ($1, $2, $3) RETURNING id",
-      user.getEmail(), user.getNickname(), user.getPasswordHash());
+  try {
+    auto result = dbClient->execSqlSync(
+        "INSERT INTO users (email, nickname, passwordHash) VALUES ($1, $2, $3) RETURNING id",
+        user.getEmail(), user.getNickname(), user.getPasswordHash());
 
-  if (!result.empty()) {
-    user.setId(std::to_string(result[0]["id"].as<int>()));
+    if (!result.empty()) {
+      user.setId(std::to_string(result[0]["id"].as<int>()));
+    }
+  } catch (const drogon::orm::DrogonDbException &e) {
+    LOG_ERROR << "Database error in User::create: " << e.base().what();
+  } catch (const std::exception &e) {
+    LOG_ERROR << "Unexpected error in User::create: " << e.what();
+  } catch (...) {
+    LOG_ERROR << "Unexpected unknown error in User::create";
   }
 }
 

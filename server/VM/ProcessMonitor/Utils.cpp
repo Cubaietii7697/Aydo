@@ -24,6 +24,14 @@ std::wstring Utils::toLower(std::wstring s) {
   return s;
 }
 
+std::string Utils::toLower(std::string s) {
+  for (auto &c : s) {
+    c = (char)towlower(c);
+  }
+
+  return s;
+}
+
 std::wstring Utils::composeEvent(const krabs::schema &s) {
   std::wstring ev;
   try {
@@ -377,4 +385,17 @@ std::string Utils::guidToString(const GUID &g) {
   }
 
   return Utils::narrow_utf8(buf);
+}
+
+// Try get a non-null value from a JSON object by key
+const nlohmann::json *Utils::getIfPresent(const nlohmann::json &obj,
+                                          const std::string &key) {
+  if (!obj.is_object()) {
+    return nullptr;
+  }
+  auto it = obj.find(key);
+  if (it == obj.end() || it->is_null()) {
+    return nullptr;
+  }
+  return std::addressof(*it);
 }

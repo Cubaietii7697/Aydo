@@ -23,8 +23,13 @@ extern const std::string GUEST_USER;
 extern const std::string GUEST_PASS;
 extern const std::string PM_FILE_PATH;
 extern const std::string PM_FILE_PATH_GUEST;
-extern const std::string SUSPICIOUS_FILE_PATH;
-
+extern const std::string DLL_INJECTOR_FILE_PATH;
+extern const std::string PROCCES_RUNNER_FILE_PATH;
+extern const std::string SUSPICIOUS_FILE_NAME_GUEST;
+extern const std::string PROCCES_RUNNER_FILE_PATH_GUEST;
+extern const std::string DLL_INJECTOR_FILE_PATH_GUEST;
+extern const std::string SUSPICIOUS_WORKDIR_GUEST;
+extern const std::string GUEST_SHARED_DIR;
 /*
  * Path in BOTH
  */

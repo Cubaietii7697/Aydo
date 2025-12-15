@@ -1,17 +1,21 @@
+#pragma once
 #include "pch.h"
 #include <krabs.hpp>
 #include <cwctype>
 #include <initializer_list>
 #include <iomanip>
 #include <nlohmann/json.hpp>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <vector>
 
 namespace Utils {
-
+const nlohmann::json *getIfPresent(const nlohmann::json &obj,
+                                   const std::string &key);
 std::wstring trimWs(std::wstring s);
 std::wstring toLower(std::wstring s);
+std::string toLower(std::string s);
 std::wstring widenUtf8(const std::string &s);
 std::wstring composeEvent(const krabs::schema &s);
 

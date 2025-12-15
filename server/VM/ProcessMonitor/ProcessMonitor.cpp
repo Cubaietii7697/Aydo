@@ -16,7 +16,7 @@ ProcessMonitor::ProcessMonitor(const std::wstring &exeName, const std::wstring &
     , m_kernel{sessionNameKernel}
     , m_threads{}
     , m_caches{}
-    , m_writer(std::make_unique<EventWriter>(outPath, EventWriter::WireFormat::Msgpack, false, true)) {
+    , m_writer(std::make_unique<EventWriter>(outPath, EventWriter::WireFormat::Sqlite, false, true)) {
   g_hTrace = 0;
   g_hSession = 0;
   g_targetPids = FindPidByName(exeName);
@@ -26,7 +26,7 @@ ProcessMonitor::ProcessMonitor(const std::set<DWORD> &initialPids, const std::ws
     , m_kernel{sessionNameKernel}
     , m_threads{}
     , m_caches{}
-    , m_writer(std::make_unique<EventWriter>(outPath, EventWriter::WireFormat::Msgpack, false, true)) {
+    , m_writer(std::make_unique<EventWriter>(outPath, EventWriter::WireFormat::Sqlite, false, true)) {
   g_hTrace = 0;
   g_hSession = 0;
   g_targetPids = initialPids;
@@ -34,6 +34,16 @@ ProcessMonitor::ProcessMonitor(const std::set<DWORD> &initialPids, const std::ws
 
 bool ProcessMonitor::pidAllowed(DWORD pid) const {
   return g_targetPids.empty() || g_targetPids.contains(pid);
+}
+
+void analysisRecord(const EVENT_RECORD &record,
+                    const krabs::trace_context &ctx) {
+  // if (record == "createProcces")
+  //{
+  //     g_targetPids.insert()
+  //}
+  // need to watch about remote procces.
+  // analysis.
 }
 
 void ProcessMonitor::onKernelEvent(const EVENT_RECORD &record,
@@ -95,15 +105,19 @@ void ProcessMonitor::stop() {
 void ProcessMonitor::enableKernelProviders() {
   m_kernel.addDefaultKernelProviders();
   m_kernel.start([this](const EVENT_RECORD &rec, const krabs::trace_context &ctx) {
-    this->onKernelEvent(rec, ctx);
+    onKernelEvent(rec, ctx);
   });
 }
 
 void ProcessMonitor::enableUserProviders() {
   m_user.addApiCallsProvider(TRACE_LEVEL_INFORMATION, 0, 0);
   m_user.start([this](const EVENT_RECORD &rec, const krabs::trace_context &ctx) {
-    this->onUserEvent(rec, ctx);
+    onUserEvent(rec, ctx);
   });
+}
+
+void ProcessMonitor::onThreadEvent(const EVENT_RECORD &record, const krabs::trace_context &ctx) {
+  LogEvent(record, ctx);
 }
 
 void ProcessMonitor::LogEvent(const EVENT_RECORD &record,
