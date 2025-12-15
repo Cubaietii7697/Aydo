@@ -12,7 +12,11 @@ YaraScoringSystem::YaraScoringSystem(int killThreshold) : m_killThreshold(killTh
 }
 
 void YaraScoringSystem::_initializeDefaultScores() {
-  m_ruleScores = YaraRuleConstants::DEFAULT_RULE_SCORES;
+  m_ruleScores.clear();
+  m_ruleScores.reserve(YaraRuleConstants::DEFAULT_RULE_SCORES.size());
+  for (const auto &[prefix, config] : YaraRuleConstants::DEFAULT_RULE_SCORES) {
+    m_ruleScores.emplace(prefix, RuleConfig{config.first, config.second});
+  }
 }
 
 YaraScoringSystem::RuleConfig YaraScoringSystem::_getRuleConfig(const std::string &ruleName) const {
