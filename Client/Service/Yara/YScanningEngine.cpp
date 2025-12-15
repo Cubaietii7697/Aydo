@@ -10,7 +10,15 @@ extern "C" {
 #include "../Constants.hpp"
 #include "../Errors.hpp"
 
-YScanningEngine::YScanningEngine(const std::vector<std::string> &compiledRulesFiles) {
+YScanningEngine::YScanningEngine(const std::vector<std::string> &compiledRulesFiles)
+    : m_scoringSystem() {
+  for (const auto &file : compiledRulesFiles) {
+    m_rulesSets.push_back(_loadCompiledRulesFromFile(file));
+  }
+}
+
+YScanningEngine::YScanningEngine(const std::vector<std::string> &compiledRulesFiles, int killThreshold)
+    : m_scoringSystem(killThreshold) {
   for (const auto &file : compiledRulesFiles) {
     m_rulesSets.push_back(_loadCompiledRulesFromFile(file));
   }
@@ -40,7 +48,6 @@ std::shared_ptr<YRX_RULES> YScanningEngine::_loadCompiledRulesFromFile(const std
     throw Errors::FailedToLoadCompiledRulesException("Failed to deserialize rules: " + emsg);
   }
 
-  // shared pointer that'll call yrx_rules_destroy when last reference is gone
   return {rules_raw, yrx_rules_destroy};
 }
 
@@ -65,7 +72,8 @@ void YScanningEngine::_onMatchingRuleCallback(const struct YRX_RULE *rule, void 
   collector->found.store(true, std::memory_order_relaxed);
 }
 
-SearchResult YScanningEngine::scanMemory(const std::vector<uint8_t> &data) {
+
+std::vector<std::string> YScanningEngine::_scanMemoryInternal(const std::vector<uint8_t> &data) {
   if (m_rulesSets.empty()) {
     throw Errors::NoPatternsProvidedException();
   }
@@ -81,13 +89,11 @@ SearchResult YScanningEngine::scanMemory(const std::vector<uint8_t> &data) {
       throw Errors::FailedToLoadCompiledRulesException("yrx_scanner_create failed");
     }
 
-    // register callback
     if (yrx_scanner_on_matching_rule(scanner, _onMatchingRuleCallback, &collector) != YRX_SUCCESS) {
       yrx_scanner_destroy(scanner);
       throw Errors::FailedToLoadCompiledRulesException("yrx_scanner_on_matching_rule failed");
     }
 
-    // scan the data
     enum YRX_RESULT r = yrx_scanner_scan(scanner, data.data(), data.size());
     yrx_scanner_destroy(scanner);
 
@@ -96,26 +102,12 @@ SearchResult YScanningEngine::scanMemory(const std::vector<uint8_t> &data) {
       std::string emsg = err ? err : "yrx_scanner_scan failed";
       throw Errors::FailedToLoadCompiledRulesException("Scan failed: " + emsg);
     }
-
-    // unlike the other scanners, theres no option here to stop on first match, so we need to return all matches
-    // separated by commas
-    if (collector.found.load(std::memory_order_relaxed)) {
-      std::string result;
-      for (size_t i = 0; i < collector.matches.size(); ++i) {
-        result += collector.matches[i];
-        if (i < collector.matches.size() - 1) {
-          result += ", ";
-        }
-      }
-
-      return result;
-    }
   }
 
-  return std::nullopt;
+  return collector.matches;
 }
 
-SearchResult YScanningEngine::scanFile(const std::string &filePath) {
+std::vector<std::string> YScanningEngine::_scanFileInternal(const std::string &filePath) {
   std::ifstream ifs(filePath, std::ios::binary | std::ios::ate);
   if (!ifs) {
     throw Errors::FailedToLoadCompiledRulesException("Failed to open file for scanning: " + filePath);
@@ -139,19 +131,16 @@ SearchResult YScanningEngine::scanFile(const std::string &filePath) {
       throw Errors::FailedToLoadCompiledRulesException("yrx_scanner_create failed");
     }
 
-    // register callback
     if (yrx_scanner_on_matching_rule(scanner, _onMatchingRuleCallback, &collector) != YRX_SUCCESS) {
       yrx_scanner_destroy(scanner);
-
       throw Errors::FailedToLoadCompiledRulesException("yrx_scanner_on_matching_rule failed");
     }
 
-    // read and scan file chunk by chunk
     ifs.clear();
     ifs.seekg(0, std::ios::beg);
     std::vector<uint8_t> chunk(Constants::YARA_CHUNK_SIZE);
 
-    while (ifs && !collector.found.load(std::memory_order_relaxed)) {
+    while (ifs) {
       ifs.read(reinterpret_cast<char *>(chunk.data()), Constants::YARA_CHUNK_SIZE);
       std::streamsize bytes_read = ifs.gcount();
 
@@ -161,27 +150,61 @@ SearchResult YScanningEngine::scanFile(const std::string &filePath) {
           const char *err = yrx_last_error();
           std::string emsg = err ? err : "yrx_scanner_scan failed";
           yrx_scanner_destroy(scanner);
-
           throw Errors::FailedToLoadCompiledRulesException("Scan failed: " + emsg);
         }
       }
     }
 
     yrx_scanner_destroy(scanner);
-
-    if (collector.found.load(std::memory_order_relaxed)) {
-      std::string result;
-
-      for (size_t i = 0; i < collector.matches.size(); ++i) {
-        result += collector.matches[i];
-        if (i < collector.matches.size() - 1) {
-          result += ", ";
-        }
-      }
-
-      return result;
-    }
   }
 
-  return std::nullopt;
+  return collector.matches;
+}
+
+// IScanningEngine interface implementations
+SearchResult YScanningEngine::scanMemory(const std::vector<uint8_t> &data) {
+  auto matches = _scanMemoryInternal(data);
+  if (matches.empty()) {
+    return std::nullopt;
+  }
+
+  std::string result;
+  for (size_t i = 0; i < matches.size(); ++i) {
+    result += matches[i];
+    if (i < matches.size() - 1) {
+      result += ", ";
+    }
+  }
+  return result;
+}
+
+SearchResult YScanningEngine::scanFile(const std::string &filePath) {
+  auto matches = _scanFileInternal(filePath);
+  if (matches.empty()) {
+    return std::nullopt;
+  }
+
+  std::string result;
+  for (size_t i = 0; i < matches.size(); ++i) {
+    result += matches[i];
+    if (i < matches.size() - 1) {
+      result += ", ";
+    }
+  }
+  return result;
+}
+
+// Extended methods with scoring
+YaraScanResult YScanningEngine::scanMemoryWithScoring(const std::vector<uint8_t> &data) {
+  YaraScanResult result;
+  result.matchedRules = _scanMemoryInternal(data);
+  result.scoring = m_scoringSystem.analyze(result.matchedRules);
+  return result;
+}
+
+YaraScanResult YScanningEngine::scanFileWithScoring(const std::string &filePath) {
+  YaraScanResult result;
+  result.matchedRules = _scanFileInternal(filePath);
+  result.scoring = m_scoringSystem.analyze(result.matchedRules);
+  return result;
 }

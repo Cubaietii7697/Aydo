@@ -74,17 +74,32 @@ bool ProcessMonitor::isThreat(const std::string &path) {
 
   std::cout << "  -> [HASH] Not found" << std::endl;
 
-  // Check YARA signatures
-  const auto resYARA = m_yara.scanFile(path);
+  // Check YARA signatures with scoring
+  const auto yaraResult = m_yara.scanFileWithScoring(path);
 
-  if (resYARA && !resYARA->empty()) {
-    std::cout << "  -> [YARA] MATCH: " << *resYARA << std::endl;
-    m_scannedHashes[hexHash] = true;
-    
-    return true;
+  if (yaraResult.hasMatches()) {
+    std::string rulesStr;
+    for (size_t i = 0; i < yaraResult.matchedRules.size(); ++i) {
+      rulesStr += yaraResult.matchedRules[i];
+      if (i < yaraResult.matchedRules.size() - 1) {
+        rulesStr += ", ";
+      }
+    }
+
+    std::cout << "  -> [YARA] MATCH: " << rulesStr << std::endl;
+    std::cout << "  -> [YARA] Score: " << yaraResult.scoring.totalScore
+              << " (threshold: " << m_yara.getScoringSystem().getKillThreshold() << ")" << std::endl;
+
+    if (yaraResult.scoring.shouldKill) {
+      std::cout << "  -> [YARA] Threat level exceeds threshold!" << std::endl;
+      m_scannedHashes[hexHash] = true;
+      return true;
+    }
+
+    std::cout << "  -> [YARA] Score below threshold, not a critical threat" << std::endl;
+  } else {
+    std::cout << "  -> [YARA] Not found" << std::endl;
   }
-
-  std::cout << "  -> [YARA] Not found" << std::endl;
 
   // Add to scanned hashes (file is clean)
   m_scannedHashes[hexHash] = false;

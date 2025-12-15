@@ -11,6 +11,32 @@ int main() {
   drogon::app()
       .loadConfigFile(std::string(Constants::CONFIG_FILE));
 
+  // Configure maximum upload size (default 50MB, overridable via config.json)
+  {
+    constexpr std::size_t DEFAULT_MAX_UPDATE_SIZE_BYTES = 50 * 1024 * 1024; // 50MiB
+    const auto &customCfg = drogon::app().getCustomConfig();
+
+    Json::UInt64 maxUploadBytes = DEFAULT_MAX_UPDATE_SIZE_BYTES;
+    const auto key = Constants::MAX_UPLOAD_BYTES_KEY.data();
+
+    if (customCfg.isMember(key)) {
+      const auto &val = customCfg[key];
+
+      if (val.isUInt64()) {
+        maxUploadBytes = val.asUInt64();
+      } else if (val.isUInt()) {
+        maxUploadBytes = val.asUInt();
+      } else if (val.isInt64()) {
+        const auto tmp = val.asInt64();
+        if (tmp > 0) {
+          maxUploadBytes = static_cast<Json::UInt64>(tmp);
+        }
+      }
+    }
+
+    drogon::app().setClientMaxBodySize(static_cast<std::size_t>(maxUploadBytes));
+  }
+
   // Setup the database and make sure we have a JWT secret
   drogon::app().registerBeginningAdvice([]() {
     if (!DatabaseSetup::setupDatabase()) {

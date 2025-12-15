@@ -29,22 +29,11 @@ void printBanner(bool isClosing) {
   while (std::getline(ss, line))
     lines.push_back(line);
 
-  if (isClosing) {
-    for (size_t i = lines.size(); i-- > 0;) {
-      system("cls");
-      for (size_t j = 0; j <= i; ++j)
-        std::cout << lines[j] << '\n';
-      Sleep(ANIMATION_SLEEP_TIME_MS);
-    }
-    system("cls");
-  } else {
-    for (size_t i = 0; i < lines.size(); ++i) {
-      system("cls");
-      for (size_t j = 0; j <= i; ++j)
-        std::cout << lines[j] << '\n';
-      Sleep(ANIMATION_SLEEP_TIME_MS);
-    }
-  }
+  // Print banner once without clearing the console to avoid wiping user output.
+  // Keep the parameter to preserve the existing call sites/signature.
+  (void)isClosing;
+  for (const auto &ln : lines)
+    std::cout << ln << '\n';
   std::cout << std::endl;
 }
 
@@ -277,36 +266,19 @@ bool closeVM(const std::string &vmRunPath, const std::string &sandboxVmx,
   bool rs = false;
   std::cout << "[6.1/7] Stop VM (soft)" << std::endl;
   {
-    const std::string cmd = std::format(R"({} -T ws stop {} soft)", vmRunPath, sandboxVmx);
+    const std::string cmd =
+        std::format(R"({} -T ws stop {} soft)", vmRunPath, sandboxVmx);
     rs = Utills::executeAndWaitRC(cmd);
     std::this_thread::sleep_for(std::chrono::seconds(STEPS_INTERVAL_S));
   }
 
   std::cout << "[6.2/7] Stop VM (hard)" << std::endl;
   {
-    const std::string cmd = std::format(R"({} -T ws stop {} hard)", vmRunPath, sandboxVmx);
+    const std::string cmd =
+        std::format(R"({} -T ws stop {} hard)", vmRunPath, sandboxVmx);
     rs = rs || Utills::executeAndWaitRC(cmd);
   }
 
-  std::cout << "[7/7] Delete sandbox clone directory" << std::endl;
-  {
-    const std::filesystem::path sandboxDir =
-        std::filesystem::path(SANDBOXES_DIRECTORY_PATH) / sandboxId;
-
-    std::error_code ec;
-    const auto removedCount = std::filesystem::remove_all(sandboxDir, ec);
-
-    if (ec) {
-      std::cerr << "\tWARN: failed to remove sandbox dir '"
-                << sandboxDir.string()
-                << "': " << ec.message() << std::endl;
-      rs = false;
-    } else {
-      std::cout << "\tRemoved " << removedCount
-                << " filesystem entries under " << sandboxDir.string()
-                << std::endl;
-    }
-  }
   return rs;
 }
 

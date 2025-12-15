@@ -17,14 +17,15 @@
     {
       "name": "default",
       "rdbms": "postgresql",
-      "host": "crossover.proxy.rlwy.net",
-      "port": 38766,
+      "host": "shinkansen.proxy.rlwy.net",
+      "port": 58132,
       "dbname": "railway",
       "user": "postgres",
-      "password": "jPbDymmkoJgBivzjwMSuiNyhElNTKHvI"
+      "password": "OLHvghyMNMaHYocVtBOYDYAfqsUXAmdA"
     }
   ],
   "custom_config": {
-    "jwtSecret": "secret-shhhh-dont-tell"
+    "jwtSecret": "secret-shhhh-dont-tell",
+    "maxUploadBytes": 52428800
   }
 }

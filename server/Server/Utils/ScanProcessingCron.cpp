@@ -20,9 +20,6 @@
 
 namespace Utils::ScanProcessingCron {
 
-// TODO: make the log database path configurable instead of hardcoded.
-constexpr const char *LOG_DB_PATH = R"(D:\Shared\log.sqlite)";
-
 std::optional<std::filesystem::path> resolveSigmaQueriesPath() {
   for (const auto *candidate : Constants::SIGMA_QUERY_PATHS) {
     std::filesystem::path path(candidate);
@@ -104,11 +101,17 @@ DynamicScanOutcome runDynamicScan(const Models::Scan &scan) {
     return {Models::ScanStatus::Failed, Models::VirusType::Unknown, 0};
   }
 
+  // <SANDBOXES_DIRECTORY_PATH>/<fileHash>/shared/log.sqlite
+  const std::filesystem::path logDbPath = 
+      std::filesystem::path(Constants::SANDBOXES_DIRECTORY_PATH) / 
+      scan.getFileHash() / "shared" / "log.sqlite";
+  const std::string logDbPathStr = logDbPath.string();
+
   sqlite3 *db = nullptr;
   const int openCode = sqlite3_open_v2(
-      LOG_DB_PATH, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_NOMUTEX, nullptr);
+      logDbPathStr.c_str(), &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_NOMUTEX, nullptr);
   if (openCode != SQLITE_OK || db == nullptr) {
-    LOG_ERROR << "Failed to open log database at " << LOG_DB_PATH
+    LOG_ERROR << "Failed to open log database at " << logDbPathStr
               << ": " << (db ? sqlite3_errmsg(db) : "unknown error");
     if (db) {
       sqlite3_close(db);

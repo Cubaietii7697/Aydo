@@ -95,7 +95,7 @@ int main(int argc, char *argv[]) {
             vmRunPath,
             sandboxVmx,
             sharedFolderName);
-        // ignore rc – folder may not exist yet
+        // ignore rc ï¿½ folder may not exist yet
         (void)Utills::executeAndWaitRC(cmd);
       }
 

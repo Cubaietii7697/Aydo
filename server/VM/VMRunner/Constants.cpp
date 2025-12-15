@@ -48,15 +48,15 @@ const std::string GUEST_PASS =
 
 const std::string PM_FILE_PATH =
     getEnvOrDefault("PM_FILE_PATH",
-                    R"(C:\Dev\Magshii\Project\BBBBBBBBB\aydo\server\VM\ProcessMonitor\bin\x64\Release\ProcessMonitor.exe)");
+                    R"(C:\Dev\Magshii\Project\CCCCCCCCCC\aydo\server\VM\ProcessMonitor\bin\x64\Release\ProcessMonitor.exe)");
 
 const std::string DLL_INJECTOR_FILE_PATH =
     getEnvOrDefault("DLL_INJECTOR_FILE_PATH",
-                    R"(C:\Dev\Magshii\Project\AAAAAAA\aydo\x64\Debug\ProcessRunnerDLL.dll)");
+                    R"(C:\Dev\Magshii\Project\CCCCCCCCCC\aydo\x64\Debug\ProcessRunnerDLL.dll)");
 
 const std::string PROCCES_RUNNER_FILE_PATH =
     getEnvOrDefault("PROCCES_RUNNER_FILE_PATH",
-                    R"(C:\Dev\Magshii\Project\AAAAAAA\aydo\x64\Debug\ProcessRunner.exe)");
+                    R"(C:\Dev\Magshii\Project\CCCCCCCCCC\aydo\x64\Debug\ProcessRunner.exe)");
 
 const std::string SUSPICIOUS_FILE_NAME_GUEST =
     getEnvOrDefault("SUSPICIOUS_FILE_NAME_GUEST",

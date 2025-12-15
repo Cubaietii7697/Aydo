@@ -21,9 +21,11 @@ constexpr size_t ARGON2_ITERATIONS = 1;
 
 // File Upload
 constexpr std::string_view UPLOADS_DIRECTORY = "uploads";
+constexpr std::string_view MAX_UPLOAD_BYTES_KEY = "maxUploadBytes";
 
 // VMRunner
 constexpr std::string_view VMRUNNER_PATH = R"(C:\Dev\Magshii\Project\BBBBBBBBB\aydo\x64\Release\VMRunner.exe)";
+constexpr std::string_view SANDBOXES_DIRECTORY_PATH = R"(D:\veeeertoooaaalll)";
 
 constexpr double DEFAULT_SCAN_CHECK_INTERVAL_S = 5.0;
 

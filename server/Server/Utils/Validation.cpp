@@ -57,20 +57,9 @@ bool isValidFileHash(const std::string &fileHash) {
   if (fileHash.length() != 64) {
     return false;
   }
-
-  // Check for null bytes
-  if (fileHash.find('\0') != std::string::npos) {
-    return false;
-  }
-
   // Check all characters are valid hex digits
-  for (char c : fileHash) {
-    if (!std::isxdigit(static_cast<unsigned char>(c))) {
-      return false;
-    }
-  }
-
-  return true;
+  return std::ranges::all_of(
+      fileHash, [](char c) { return std::isxdigit(static_cast<unsigned char>(c)); });
 }
 
 // Checks for a valid runtime (positive integer)
