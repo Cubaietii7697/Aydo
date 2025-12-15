@@ -7,7 +7,7 @@
 namespace YaraRuleConstants {
 
 // Default rule score configurations
-// Maps rule name prefixes to their scores and threat levels
+// Maps rule name prefixes to their scores and threat levels (every yara rule has a prefix - its category)
 static const std::unordered_map<std::string, std::pair<int, ThreatLevel>> DEFAULT_RULE_SCORES = {
     // Critical - Confirmed malware signatures (immediate kill)
     {"malware_", {100, ThreatLevel::Critical}},

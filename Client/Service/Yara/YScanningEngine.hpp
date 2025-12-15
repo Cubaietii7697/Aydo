@@ -27,15 +27,12 @@ public:
   YScanningEngine(const std::vector<std::string> &compiledRulesFiles, int killThreshold);
   virtual ~YScanningEngine() = default;
 
-  // IScanningEngine interface (returns comma-separated rule names)
   SearchResult scanFile(const std::string &filePath) override;
   SearchResult scanMemory(const std::vector<uint8_t> &data) override;
 
-  // Extended methods with scoring
   YaraScanResult scanFileWithScoring(const std::string &filePath);
   YaraScanResult scanMemoryWithScoring(const std::vector<uint8_t> &data);
 
-  // Access to scoring system for configuration
   YaraScoringSystem &getScoringSystem() { return m_scoringSystem; }
   const YaraScoringSystem &getScoringSystem() const { return m_scoringSystem; }
 
