@@ -12,15 +12,23 @@ extern "C" {
 
 YScanningEngine::YScanningEngine(const std::vector<std::string> &compiledRulesFiles)
     : m_scoringSystem() {
-  for (const auto &file : compiledRulesFiles) {
-    m_rulesSets.push_back(_loadCompiledRulesFromFile(file));
+  for (size_t i = 0; i < compiledRulesFiles.size(); ++i) {
+    try {
+      m_rulesSets.push_back(_loadCompiledRulesFromFile(compiledRulesFiles[i]));
+    } catch (const std::exception &e) {
+      throw;
+    }
   }
 }
 
 YScanningEngine::YScanningEngine(const std::vector<std::string> &compiledRulesFiles, int killThreshold)
     : m_scoringSystem(killThreshold) {
-  for (const auto &file : compiledRulesFiles) {
-    m_rulesSets.push_back(_loadCompiledRulesFromFile(file));
+  for (size_t i = 0; i < compiledRulesFiles.size(); ++i) {
+    try {
+      m_rulesSets.push_back(_loadCompiledRulesFromFile(compiledRulesFiles[i]));
+    } catch (const std::exception &e) {
+      throw;
+    }
   }
 }
 
@@ -44,7 +52,6 @@ std::shared_ptr<YRX_RULES> YScanningEngine::_loadCompiledRulesFromFile(const std
   if (r != YRX_SUCCESS || rules_raw == nullptr) {
     const char *err = yrx_last_error();
     std::string emsg = err ? err : "yrx_rules_deserialize failed";
-
     throw Errors::FailedToLoadCompiledRulesException("Failed to deserialize rules: " + emsg);
   }
 
@@ -57,21 +64,23 @@ struct MatchCollector {
 };
 
 void YScanningEngine::_onMatchingRuleCallback(const struct YRX_RULE *rule, void *user_data) {
-  if (!rule || !user_data)
+  if (!rule || !user_data) {
     return;
+  }
+
   auto *collector = reinterpret_cast<MatchCollector *>(user_data);
 
   const uint8_t *ident = nullptr;
   size_t len = 0;
   if (yrx_rule_identifier(rule, &ident, &len) == YRX_SUCCESS && ident && len > 0) {
-    collector->matches.emplace_back(reinterpret_cast<const char *>(ident), len);
+    std::string ruleName(reinterpret_cast<const char *>(ident), len);
+    collector->matches.emplace_back(ruleName);
   } else {
     collector->matches.emplace_back("unknown_rule");
   }
 
   collector->found.store(true, std::memory_order_relaxed);
 }
-
 
 std::vector<std::string> YScanningEngine::_scanMemoryInternal(const std::vector<uint8_t> &data) {
   if (m_rulesSets.empty()) {
@@ -80,9 +89,12 @@ std::vector<std::string> YScanningEngine::_scanMemoryInternal(const std::vector<
 
   MatchCollector collector;
 
-  for (const auto &rules_ptr : m_rulesSets) {
-    if (!rules_ptr)
+  for (size_t ruleSetIdx = 0; ruleSetIdx < m_rulesSets.size(); ++ruleSetIdx) {
+    const auto &rules_ptr = m_rulesSets[ruleSetIdx];
+
+    if (!rules_ptr) {
       continue;
+    }
 
     YRX_SCANNER *scanner = nullptr;
     if (yrx_scanner_create(rules_ptr.get(), &scanner) != YRX_SUCCESS || !scanner) {
@@ -122,9 +134,12 @@ std::vector<std::string> YScanningEngine::_scanFileInternal(const std::string &f
 
   MatchCollector collector;
 
-  for (const auto &rules_ptr : m_rulesSets) {
-    if (!rules_ptr)
+  for (size_t ruleSetIdx = 0; ruleSetIdx < m_rulesSets.size(); ++ruleSetIdx) {
+    const auto &rules_ptr = m_rulesSets[ruleSetIdx];
+
+    if (!rules_ptr) {
       continue;
+    }
 
     YRX_SCANNER *scanner = nullptr;
     if (yrx_scanner_create(rules_ptr.get(), &scanner) != YRX_SUCCESS || !scanner) {

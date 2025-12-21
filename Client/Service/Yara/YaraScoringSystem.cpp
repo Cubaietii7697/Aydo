@@ -3,11 +3,13 @@
 
 #include <algorithm>
 
-YaraScoringSystem::YaraScoringSystem() : m_killThreshold(DEFAULT_KILL_THRESHOLD) {
+YaraScoringSystem::YaraScoringSystem()
+    : m_killThreshold(DEFAULT_KILL_THRESHOLD) {
   _initializeDefaultScores();
 }
 
-YaraScoringSystem::YaraScoringSystem(int killThreshold) : m_killThreshold(killThreshold) {
+YaraScoringSystem::YaraScoringSystem(int killThreshold)
+    : m_killThreshold(killThreshold) {
   _initializeDefaultScores();
 }
 
@@ -26,7 +28,7 @@ YaraScoringSystem::RuleConfig YaraScoringSystem::_getRuleConfig(const std::strin
                  [](unsigned char c) { return std::tolower(c); });
 
   // Check for prefix matches (longer prefixes first for specificity)
-  RuleConfig bestMatch = {25, ThreatLevel::Low}; // Default for unknown rules
+  RuleConfig bestMatch = {15, ThreatLevel::Low}; // Default for unknown rules
   size_t longestMatch = 0;
 
   for (const auto &[prefix, config] : m_ruleScores) {
@@ -69,10 +71,12 @@ ScoringResult YaraScoringSystem::analyze(const std::vector<std::string> &matched
   }
 
   // Determine if process should be killed based on:
-  // 1. Total score exceeds threshold, OR
-  // 2. Any Critical level match
-  result.shouldKill = (result.totalScore >= m_killThreshold) ||
-                      (result.highestLevel == ThreatLevel::Critical);
+  // 1. Total score exceeds threshold, AND
+  // 2. Threat level meets minimum requirement (Medium or higher), OR
+  // 3. Any Critical level match (immediate kill)
+  result.shouldKill = (result.highestLevel == ThreatLevel::Critical) ||
+                      ((result.totalScore >= m_killThreshold) &&
+                       (result.highestLevel >= MIN_KILL_THREAT_LEVEL));
 
   return result;
 }
