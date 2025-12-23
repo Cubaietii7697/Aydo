@@ -2,8 +2,11 @@
 
 #include <windows.h>
 #include <algorithm>
+#include <array>
+#include <cstdint>
 #include <iostream>
 #include <utility>
+#include <vector>
 
 #include "Constants.hpp"
 #include "Utils.hpp"
@@ -186,17 +189,32 @@ bool ProcessMonitor::isThreat(const std::string &path) {
   const auto hexHash = Utils::computeSHA256(path);
 
   // Check if already scanned
-  auto it = m_scannedHashes.find(hexHash);
-  if (it != m_scannedHashes.end()) {
+  if (auto it = m_scannedHashes.find(hexHash); it != m_scannedHashes.end()) {
     std::cout << "  -> [CACHED] File already scanned ("
               << (it->second ? "THREAT" : "clean") << ")" << std::endl;
     return it->second;
   }
 
-  // Check hashes database
-  const auto resHASH = m_hashDb.getHashName(hexHash);
+  // check the Entropy
+  const auto bytes = Utils::readFile(path);
 
-  if (resHASH && !resHASH->empty()) {
+  std::array<int, Constants::ALPHABET_SIZE> freq{};
+  for (uint8_t b : bytes) {
+    ++freq[b];
+  }
+
+  const std::vector<int> countedBytes(freq.begin(), freq.end());
+  const double entropy = Utils::calculateEntropy(
+      countedBytes,
+      static_cast<std::streamsize>(bytes.size()));
+
+  if (entropy > Constants::ENTROPY_THRESHOLD) {
+    // TODO : send file to server.
+    return;
+  }
+
+  // Check hashes database
+  if (const auto resHASH = m_hashDb.getHashName(hexHash); resHASH && !resHASH->empty()) {
     std::cout << "  -> [HASH] MATCH: " << *resHASH << std::endl;
     m_scannedHashes[hexHash] = true;
 
@@ -206,9 +224,7 @@ bool ProcessMonitor::isThreat(const std::string &path) {
   std::cout << "  -> [HASH] Not found" << std::endl;
 
   // Check YARA signatures with scoring
-  const auto yaraResult = m_yara.scanFileWithScoring(path);
-
-  if (yaraResult.hasMatches()) {
+  if (const auto yaraResult = m_yara.scanFileWithScoring(path); yaraResult.hasMatches()) {
     std::string rulesStr;
     for (size_t i = 0; i < yaraResult.matchedRules.size(); ++i) {
       rulesStr += yaraResult.matchedRules[i];
