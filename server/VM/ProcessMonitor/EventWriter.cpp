@@ -63,8 +63,9 @@ void EventWriter::writeToSqlite(const nlohmann::json &j) {
 
   const int rc = sqlite3_step(stmt);
   if (rc != SQLITE_DONE) {
-    std::string msg = "writeToSqlite: sqlite3_step failed, rc=" +
-                      std::to_string(rc);
+
+    std::string msg = std::format("writeToSqlite: sqlite3_step failed, rc={}",
+                                  std::to_string(rc));
     if (m_db) {
       msg += ", err=";
       msg += sqlite3_errmsg(m_db);
@@ -86,8 +87,10 @@ void EventWriter::initSqliteSchema() {
   char *errMsg = nullptr;
   const int rc = sqlite3_exec(m_db, SqlRequstes::TABLES_CREATE, nullptr, nullptr, &errMsg);
   if (rc != SQLITE_OK) {
-    std::string msg = "sqlite3_exec(TABLES_CREATE) failed, rc=" +
-                      std::to_string(rc);
+
+    std::string msg = std::format("sqlite3_exec(TABLES_CREATE) failed, rc={}",
+                                  std::to_string(rc));
+
     if (errMsg) {
       msg += ", err=";
       msg += errMsg;
@@ -99,7 +102,7 @@ void EventWriter::initSqliteSchema() {
 }
 
 bool EventWriter::bindJsonValues(sqlite3_stmt *stmt,
-                                 const std::vector<nlohmann::json> &values) {
+                                 const std::vector<nlohmann::json> &values) const {
   if (!stmt) {
     return false;
   }
@@ -183,7 +186,7 @@ std::string EventWriter::buildInsertSql(const std::vector<std::string> &columns)
 
 void EventWriter::collectColumnsAndValues(const nlohmann::json &j,
                                           std::vector<std::string> &columns,
-                                          std::vector<nlohmann::json> &values) {
+                                          std::vector<nlohmann::json> &values) const {
   columns.clear();
   values.clear();
 
@@ -646,7 +649,7 @@ void EventWriter::writeOut(const nlohmann::json &j) {
   }
 }
 
-void EventWriter::enrichSigmaFields(nlohmann::json &j) {
+void EventWriter::enrichSigmaFields(nlohmann::json &j) const {
   const nlohmann::json emptyObj = nlohmann::json::object();
 
   const nlohmann::json &props =
