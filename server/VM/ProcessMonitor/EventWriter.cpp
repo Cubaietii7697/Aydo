@@ -61,8 +61,7 @@ void EventWriter::writeToSqlite(const nlohmann::json &j) {
     return;
   }
 
-  const int rc = sqlite3_step(stmt);
-  if (rc != SQLITE_DONE) {
+  if (const int rc = sqlite3_step(stmt); rc != SQLITE_DONE) {
 
     std::string msg = std::format("writeToSqlite: sqlite3_step failed, rc={}",
                                   std::to_string(rc));
@@ -160,7 +159,7 @@ bool EventWriter::prepareInsertStatement(const std::string &sql, sqlite3_stmt **
   return true;
 }
 
-std::string EventWriter::buildInsertSql(const std::vector<std::string> &columns) {
+std::string EventWriter::buildInsertSql(const std::vector<std::string> &columns) const {
   std::ostringstream sql;
 
   sql << "INSERT INTO Events(";
@@ -192,32 +191,32 @@ void EventWriter::collectColumnsAndValues(const nlohmann::json &j,
 
   auto findInObjects = [&](const std::string &key) -> const nlohmann::json * {
     if (auto it = j.find(key); it != j.end() && !it->is_null())
-      return &(*it);
+      return std::to_address(*it);
 
     if (j.contains("props") && j["props"].is_object()) {
       auto it = j["props"].find(key);
       if (it != j["props"].end() && !it->is_null())
-        return &(*it);
+        return std::to_address(*it);
     }
     if (j.contains("proc") && j["proc"].is_object()) {
       auto it = j["proc"].find(key);
       if (it != j["proc"].end() && !it->is_null())
-        return &(*it);
+        return std::to_address(*it);
     }
     if (j.contains("net") && j["net"].is_object()) {
       auto it = j["net"].find(key);
       if (it != j["net"].end() && !it->is_null())
-        return &(*it);
+        return std::to_address(*it);
     }
     if (j.contains("dns") && j["dns"].is_object()) {
       auto it = j["dns"].find(key);
       if (it != j["dns"].end() && !it->is_null())
-        return &(*it);
+        return std::to_address(*it);
     }
     if (j.contains("file") && j["file"].is_object()) {
       auto it = j["file"].find(key);
       if (it != j["file"].end() && !it->is_null())
-        return &(*it);
+        return std::to_address(*it);
     }
     return nullptr;
   };
@@ -237,6 +236,8 @@ void EventWriter::collectColumnsAndValues(const nlohmann::json &j,
       src = &j["provider"];
     } else if (colName == "Category" && j.contains("category")) {
       src = &j["category"];
+    } else if (colName == "TaskName" && j.contains("task_name")) {
+      src = &j["task_name"];
     } else if (colName == "pid" && j.contains("pid")) {
       src = &j["pid"];
     } else if (colName == "tid" && j.contains("tid")) {
@@ -265,7 +266,7 @@ EventWriter::~EventWriter() {
     try {
       m_out.flush();
       m_out.close();
-    } catch (...) {
+    } catch (const std::exception &e) {
     }
   }
 }
@@ -278,9 +279,15 @@ void EventWriter::flush() {
   }
 }
 
-static inline const wchar_t *info_wstr(const TRACE_EVENT_INFO *info, ULONG offset) {
-  return reinterpret_cast<const wchar_t *>(
-      reinterpret_cast<const BYTE *>(info) + offset);
+static inline const wchar_t *info_wstr(const BYTE *base,
+                                       size_t baseSizeBytes,
+                                       ULONG offsetBytes) {
+  if (!base || offsetBytes >= baseSizeBytes) {
+    return L"";
+  }
+
+  const void *p = base + offsetBytes;
+  return static_cast<const wchar_t *>(p);
 }
 
 void EventWriter::fillPropsViaTdh(nlohmann::json &props,
@@ -296,7 +303,7 @@ void EventWriter::fillPropsViaTdh(nlohmann::json &props,
     }
 
     std::vector<BYTE> buf(size);
-    auto info = reinterpret_cast<TRACE_EVENT_INFO *>(buf.data());
+    auto *info = static_cast<TRACE_EVENT_INFO *>(static_cast<void *>(buf.data()));
     status = TdhGetEventInformation(const_cast<EVENT_RECORD *>(&rec),
                                     0, nullptr, info, &size);
     if (status != ERROR_SUCCESS) {
@@ -310,7 +317,7 @@ void EventWriter::fillPropsViaTdh(nlohmann::json &props,
 
     for (ULONG i = 0; i < info->TopLevelPropertyCount; ++i) {
       auto const &epi = info->EventPropertyInfoArray[i];
-      const wchar_t *wname = info_wstr(info, epi.NameOffset);
+      const wchar_t *wname = info_wstr(buf.data(), buf.size(), epi.NameOffset);
       const std::string name = Utils::narrow_utf8(wname);
 
       auto inType = epi.nonStructType.InType;
@@ -368,20 +375,24 @@ void EventWriter::fillPropsViaTdh(nlohmann::json &props,
         case TDH_INTYPE_GUID: {
           GUID g = parser.parse<GUID>(wname);
           wchar_t bufGuid[Constants::GUID_SIZE];
-          ::StringFromGUID2(g, bufGuid, Constants::GUID_SIZE);
-          props[name] = Utils::narrow_utf8(bufGuid);
+          if (bool r = StringFromGUID2(g, bufGuid, Constants::GUID_SIZE)) {
+            props[name] = Utils::narrow_utf8(bufGuid);
+          } else {
+            props[name] = "<unsupported>";
+          }
+
           break;
         }
         case TDH_INTYPE_POINTER:
         case TDH_INTYPE_HEXINT32:
         case TDH_INTYPE_HEXINT64: {
-          // Represent pointers / hex values as "0x..." strings
+          // Represent pointers / hex values as "0xconst std::exception &e" strings
           try {
             auto v = parser.parse<uint64_t>(wname);
             std::ostringstream oss;
             oss << "0x" << std::hex << std::nouppercase << v;
             props[name] = oss.str();
-          } catch (...) {
+          } catch (const std::exception &e) {
             auto v = parser.parse<uint32_t>(wname);
             std::ostringstream oss;
             oss << "0x" << std::hex << std::nouppercase << v;
@@ -394,7 +405,7 @@ void EventWriter::fillPropsViaTdh(nlohmann::json &props,
           try {
             auto w = parser.parse<std::wstring>(wname);
             props[name] = Utils::narrow_utf8(w);
-          } catch (...) {
+          } catch (const std::exception &e) {
             props[name] = "<unsupported>";
           }
           break;
@@ -406,10 +417,10 @@ void EventWriter::fillPropsViaTdh(nlohmann::json &props,
         try {
           std::string msg = "krabs parse error on field: " + name + "\n";
           OutputDebugStringA(msg.c_str());
-        } catch (...) {
+        } catch (const std::exception &e) {
         }
         props[name] = "<parse_error>";
-      } catch (...) {
+      } catch (const std::exception &e) {
         // Any other parsing issue per field – mark as parse_error.
         props[name] = "<parse_error>";
       }
@@ -418,7 +429,9 @@ void EventWriter::fillPropsViaTdh(nlohmann::json &props,
     // No schema for this event; log provider + event id once per provider.
     try {
       wchar_t guidW[Constants::GUID_SIZE];
-      ::StringFromGUID2(rec.EventHeader.ProviderId, guidW, Constants::GUID_SIZE);
+      if (bool r = StringFromGUID2(rec.EventHeader.ProviderId, guidW, Constants::GUID_SIZE); !r) {
+        throw new std::runtime_error("guid could not parse");
+      }
       std::string guid = Utils::narrow_utf8(guidW);
 
       const auto id = rec.EventHeader.EventDescriptor.Id;
@@ -429,7 +442,7 @@ void EventWriter::fillPropsViaTdh(nlohmann::json &props,
           << guid << " id=" << id << " ver=" << static_cast<int>(ver) << "\n";
 
       OutputDebugStringA(oss.str().c_str());
-    } catch (...) {
+    } catch (const std::exception &e) {
       OutputDebugStringA("krabs: could_not_find_schema in writeEventJson\n");
     }
     return;
@@ -437,7 +450,7 @@ void EventWriter::fillPropsViaTdh(nlohmann::json &props,
     // A critical type mismatch at the event level; skip this event.
     OutputDebugStringA("krabs: type_mismatch_assert in writeEventJson\n");
     return;
-  } catch (...) {
+  } catch (const std::exception &e) {
     // Catch-all to avoid unwinding through the ETW callback.
     OutputDebugStringA("krabs: unknown exception in writeEventJson\n");
     return;
@@ -500,7 +513,7 @@ void EventWriter::writeEventJson(const EVENT_RECORD &rec,
         std::wstring p;
         try {
           p = schema.provider_name();
-        } catch (...) {
+        } catch (const std::exception &e) {
         }
         return p;
       }();
@@ -509,7 +522,7 @@ void EventWriter::writeEventJson(const EVENT_RECORD &rec,
         std::wstring t;
         try {
           t = schema.task_name();
-        } catch (...) {
+        } catch (const std::exception &e) {
         }
         return t;
       }();
@@ -518,7 +531,7 @@ void EventWriter::writeEventJson(const EVENT_RECORD &rec,
         std::wstring o;
         try {
           o = schema.opcode_name();
-        } catch (...) {
+        } catch (const std::exception &e) {
         }
         return o;
       }();
@@ -534,7 +547,7 @@ void EventWriter::writeEventJson(const EVENT_RECORD &rec,
       // keep header-based event_id/category defaults
     } catch (const krabs::type_mismatch_assert &) {
       OutputDebugStringA("krabs: type_mismatch_assert in writeEventJson (names only)\n");
-    } catch (...) {
+    } catch (const std::exception &e) {
       OutputDebugStringA("krabs: unknown exception in writeEventJson (names only)\n");
     }
 
@@ -594,13 +607,13 @@ void EventWriter::writeEventJson(const EVENT_RECORD &rec,
       j["file"] = std::move(fil);
     }
     enrichSigmaFields(j);
-  } catch (...) {
+  } catch (const std::exception &e) {
     OutputDebugStringA("krabs: fatal exception in writeEventJson envelope\n");
   }
 
   try {
     writeOut(j);
-  } catch (...) {
+  } catch (const std::exception &e) {
     OutputDebugStringA("writeEventJson: exception in writeOut\n");
   }
 }
@@ -663,7 +676,6 @@ void EventWriter::enrichSigmaFields(nlohmann::json &j) const {
   const nlohmann::json &file =
       (j.contains("file") && j["file"].is_object()) ? j["file"] : emptyObj;
 
-  // return the first non-null value we find.
   auto lookup = [&](const std::vector<std::string> &keys) -> const nlohmann::json * {
     for (const auto &k : keys) {
       if (const auto *v = Utils::getIfPresent(j, k))
@@ -682,8 +694,6 @@ void EventWriter::enrichSigmaFields(nlohmann::json &j) const {
     return nullptr;
   };
 
-  // Copy a value from any of the given source keys into 'dst',
-  // but only if 'dst' is not already set in 'j'.
   auto ensureCopy = [&](const std::string &dst,
                         const std::vector<std::string> &sources) {
     if (j.contains(dst) && !j[dst].is_null()) {
@@ -694,12 +704,10 @@ void EventWriter::enrichSigmaFields(nlohmann::json &j) const {
     }
   };
 
-  // Same as ensureCopy, but lower-case the string value.
-  // If the source is not a string, do nothing.
   auto ensureLowered = [&](const std::string &dst,
                            const std::vector<std::string> &sources) {
     if (j.contains(dst) && !j[dst].is_null()) {
-      return; // destination already has a value
+      return;
     }
     if (const nlohmann::json *v = lookup(sources)) {
       if (v->is_string()) {
@@ -709,12 +717,12 @@ void EventWriter::enrichSigmaFields(nlohmann::json &j) const {
     }
   };
 
-  // if either side has a value, copy it to the other side.
   auto ensureSyncedPair = [&](const std::string &a, const std::string &b) {
     ensureCopy(a, {a, b});
     ensureCopy(b, {a, b});
   };
 
+  // Existing sigma normalization
   ensureCopy("Computer", {"Computer", "host"});
   ensureSyncedPair("CommandLine", "Commandline");
   ensureSyncedPair("LocalPort", "localport");
@@ -722,17 +730,30 @@ void EventWriter::enrichSigmaFields(nlohmann::json &j) const {
   ensureSyncedPair("State", "STATE");
   ensureSyncedPair("ObjectClass", "ObjectClas");
 
-  ensureLowered(
-      "domain_in_lowercase_xxx",
-      {"domain_in_lowercase_xxx",
-       "TargetDomainName",
-       "TargetServerName",
-       "DomainName"});
-  ensureLowered(
-      "param1_lower",
-      {"param1_lower",
-       "Param1",
-       "param1"});
+  ensureLowered("domain_in_lowercase_xxx",
+                {"domain_in_lowercase_xxx", "TargetDomainName", "TargetServerName", "DomainName"});
+  ensureLowered("param1_lower",
+                {"param1_lower", "Param1", "param1"});
+
+  // Process
+  ensureCopy("ProcessName", {"ProcessName", "ImageFileName", "ImageName", "name"});
+  ensureCopy("Image", {"Image", "ImagePath", "ProcessPath", "path"});
+
+  // Network
+  ensureCopy("RemoteAddresses", {"RemoteAddresses", "RemoteAddress", "DestAddress", "DestinationIp", "dst"});
+  ensureCopy("RemotePorts", {"RemotePorts", "RemotePort", "DestPort", "DestinationPort", "dport"});
+  ensureCopy("IpAddress", {"IpAddress", "RemoteIP", "DestinationIp", "dst"});
+
+  // File
+  ensureCopy("ObjectName", {"ObjectName", "FileName", "FilePath", "ObjectName", "path"});
+  ensureCopy("Operation", {"Operation", "IrpOp", "op"});
+  ensureCopy("Status", {"Status", "NtStatus", "ReturnValue", "status"});
+
+  // Always keep the full raw JSON in DB
+  if (!j.contains("Payload") || j["Payload"].is_null()) {
+    const std::string raw = j.dump(); // dump BEFORE setting Payload is even better
+    j["Payload"] = raw;
+  }
 }
 
 void EventWriter::operator()(const EVENT_RECORD &rec, const krabs::trace_context &ctx) {

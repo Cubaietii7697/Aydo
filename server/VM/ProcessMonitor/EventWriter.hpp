@@ -44,7 +44,7 @@ private:
   void fillPropsViaTdh(nlohmann::json &props,
                        const EVENT_RECORD &rec,
                        const krabs::trace_context &ctx) const;
-  std::string buildInsertSql(const std::vector<std::string> &columns);
+  std::string buildInsertSql(const std::vector<std::string> &columns) const;
 
   bool prepareInsertStatement(const std::string &sql, sqlite3_stmt **stmtOut);
 
