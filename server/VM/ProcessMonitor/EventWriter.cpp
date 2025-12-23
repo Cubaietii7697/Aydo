@@ -8,6 +8,8 @@
 #include "SqlRequests.hpp"
 #include "Utils.hpp"
 
+struct Mapping;
+
 EventWriter::EventWriter(std::wstring path,
                          WireFormat fmt,
                          bool pretty,
@@ -189,65 +191,36 @@ void EventWriter::collectColumnsAndValues(const nlohmann::json &j,
   columns.clear();
   values.clear();
 
-  auto findInObjects = [&](const std::string &key) -> const nlohmann::json * {
-    if (auto it = j.find(key); it != j.end() && !it->is_null())
-      return std::to_address(*it);
+  // Define special mappings where DB column name != JSON key
+  static const std::unordered_map<std::string_view, std::string_view> specialMappings = {
+      {"EventId", "event_id"},
+      {"EventTime", "ts"},
+      {"Computer", "host"},
+      {"Provider", "provider"},
+      {"Category", "category"},
+      {"TaskName", "task_name"}};
 
-    if (j.contains("props") && j["props"].is_object()) {
-      auto it = j["props"].find(key);
-      if (it != j["props"].end() && !it->is_null())
-        return std::to_address(*it);
-    }
-    if (j.contains("proc") && j["proc"].is_object()) {
-      auto it = j["proc"].find(key);
-      if (it != j["proc"].end() && !it->is_null())
-        return std::to_address(*it);
-    }
-    if (j.contains("net") && j["net"].is_object()) {
-      auto it = j["net"].find(key);
-      if (it != j["net"].end() && !it->is_null())
-        return std::to_address(*it);
-    }
-    if (j.contains("dns") && j["dns"].is_object()) {
-      auto it = j["dns"].find(key);
-      if (it != j["dns"].end() && !it->is_null())
-        return std::to_address(*it);
-    }
-    if (j.contains("file") && j["file"].is_object()) {
-      auto it = j["file"].find(key);
-      if (it != j["file"].end() && !it->is_null())
-        return std::to_address(*it);
+  auto findInHierarchy = [&](const std::string_view key) -> const nlohmann::json * {
+    // Check root
+    if (auto it = j.find(key); it != j.end() && !it->is_null())
+      return &it.value();
+
+    static const std::array categories = {"props", "proc", "net", "dns", "file"};
+    for (const auto &cat : categories) {
+      if (auto catIt = j.find(cat); catIt != j.end() && catIt->is_object()) {
+        if (auto it = catIt->find(key); it != catIt->end() && !it->is_null())
+          return &it.value();
+      }
     }
     return nullptr;
   };
 
-  // walk over the *known* table columns
   for (const auto &colName : SqlRequstes::TABLES) {
-    const nlohmann::json *src = nullptr;
+    // Use mapped key if it exists, otherwise use the column name itself
+    auto mapIt = specialMappings.find(colName);
+    std::string_view searchKey = (mapIt != specialMappings.end()) ? mapIt->second : colName;
 
-    // explicit mappings between JSON keys and DB columns
-    if (colName == "EventId" && j.contains("event_id")) {
-      src = &j["event_id"];
-    } else if (colName == "EventTime" && j.contains("ts")) {
-      src = &j["ts"];
-    } else if (colName == "Computer" && j.contains("host")) {
-      src = &j["host"];
-    } else if (colName == "Provider" && j.contains("provider")) {
-      src = &j["provider"];
-    } else if (colName == "Category" && j.contains("category")) {
-      src = &j["category"];
-    } else if (colName == "TaskName" && j.contains("task_name")) {
-      src = &j["task_name"];
-    } else if (colName == "pid" && j.contains("pid")) {
-      src = &j["pid"];
-    } else if (colName == "tid" && j.contains("tid")) {
-      src = &j["tid"];
-    } else {
-      // generic: same name in all
-      src = findInObjects(colName);
-    }
-
-    if (src && !src->is_null()) {
+    if (const nlohmann::json *src = findInHierarchy(searchKey)) {
       columns.push_back(colName);
       values.push_back(*src);
     }
@@ -294,166 +267,94 @@ void EventWriter::fillPropsViaTdh(nlohmann::json &props,
                                   const EVENT_RECORD &rec,
                                   const krabs::trace_context &ctx) const {
   try {
-    // First query TDH for the event's metadata (TRACE_EVENT_INFO)
+    // 1. Get Event Information
     ULONG size = 0;
-    auto status = ::TdhGetEventInformation(const_cast<EVENT_RECORD *>(&rec),
-                                           0, nullptr, nullptr, &size);
-    if (status != ERROR_INSUFFICIENT_BUFFER || size == 0) {
+    ::TdhGetEventInformation(const_cast<EVENT_RECORD *>(&rec), 0, nullptr, nullptr, &size);
+    if (size == 0)
       return;
-    }
 
     std::vector<BYTE> buf(size);
-    auto *info = static_cast<TRACE_EVENT_INFO *>(static_cast<void *>(buf.data()));
-    status = TdhGetEventInformation(const_cast<EVENT_RECORD *>(&rec),
-                                    0, nullptr, info, &size);
-    if (status != ERROR_SUCCESS) {
+    auto *info = reinterpret_cast<TRACE_EVENT_INFO *>(buf.data());
+    if (TdhGetEventInformation(const_cast<EVENT_RECORD *>(&rec), 0, nullptr, info, &size) != ERROR_SUCCESS)
       return;
-    }
 
-    // Build krabs schema and parser for this event.
-    // This may throw krabs::could_not_find_schema or krabs::type_mismatch_assert.
     krabs::schema schema(rec, ctx.schema_locator);
     krabs::parser parser(schema);
 
     for (ULONG i = 0; i < info->TopLevelPropertyCount; ++i) {
       auto const &epi = info->EventPropertyInfoArray[i];
-      const wchar_t *wname = info_wstr(buf.data(), buf.size(), epi.NameOffset);
+      const auto *wname = reinterpret_cast<const wchar_t *>(buf.data() + epi.NameOffset);
       const std::string name = Utils::narrow_utf8(wname);
 
-      auto inType = epi.nonStructType.InType;
       if (SqlRequstes::SKIP_FIELDS.contains(name)) {
         props[name] = "<skipped>";
         continue;
       }
+
       try {
-        switch (inType) {
-        case TDH_INTYPE_UNICODESTRING: {
-          auto w = parser.parse<std::wstring>(wname);
-          props[name] = Utils::narrow_utf8(w);
+        switch (epi.nonStructType.InType) {
+        // Strings
+        case TDH_INTYPE_UNICODESTRING:
+          props[name] = Utils::narrow_utf8(parser.parse<std::wstring>(wname));
           break;
-        }
-        case TDH_INTYPE_ANSISTRING: {
+        case TDH_INTYPE_ANSISTRING:
           props[name] = parser.parse<std::string>(wname);
           break;
-        }
-        case TDH_INTYPE_INT8: {
+        case TDH_INTYPE_INT8:
           props[name] = parser.parse<int8_t>(wname);
           break;
-        }
-        case TDH_INTYPE_UINT8: {
+        case TDH_INTYPE_UINT8:
           props[name] = parser.parse<uint8_t>(wname);
           break;
-        }
-        case TDH_INTYPE_INT16: {
+        case TDH_INTYPE_INT16:
           props[name] = parser.parse<int16_t>(wname);
           break;
-        }
-        case TDH_INTYPE_UINT16: {
+        case TDH_INTYPE_UINT16:
           props[name] = parser.parse<uint16_t>(wname);
           break;
-        }
-        case TDH_INTYPE_INT32: {
+        case TDH_INTYPE_INT32:
           props[name] = parser.parse<int32_t>(wname);
           break;
-        }
-        case TDH_INTYPE_UINT32: {
+        case TDH_INTYPE_UINT32:
           props[name] = parser.parse<uint32_t>(wname);
           break;
-        }
-        case TDH_INTYPE_INT64: {
+        case TDH_INTYPE_INT64:
           props[name] = parser.parse<int64_t>(wname);
           break;
-        }
-        case TDH_INTYPE_UINT64: {
+        case TDH_INTYPE_UINT64:
           props[name] = parser.parse<uint64_t>(wname);
           break;
-        }
-        case TDH_INTYPE_BOOLEAN: {
+        case TDH_INTYPE_BOOLEAN:
           props[name] = parser.parse<bool>(wname);
           break;
-        }
-        case TDH_INTYPE_GUID: {
-          GUID g = parser.parse<GUID>(wname);
-          wchar_t bufGuid[Constants::GUID_SIZE];
-          if (bool r = StringFromGUID2(g, bufGuid, Constants::GUID_SIZE)) {
-            props[name] = Utils::narrow_utf8(bufGuid);
-          } else {
-            props[name] = "<unsupported>";
-          }
 
-          break;
-        }
+        // Hex / Pointers
         case TDH_INTYPE_POINTER:
         case TDH_INTYPE_HEXINT32:
         case TDH_INTYPE_HEXINT64: {
-          // Represent pointers / hex values as "0xconst std::exception &e" strings
-          try {
-            auto v = parser.parse<uint64_t>(wname);
-            std::ostringstream oss;
-            oss << "0x" << std::hex << std::nouppercase << v;
-            props[name] = oss.str();
-          } catch (const std::exception &e) {
-            auto v = parser.parse<uint32_t>(wname);
-            std::ostringstream oss;
-            oss << "0x" << std::hex << std::nouppercase << v;
-            props[name] = oss.str();
-          }
+          uint64_t val = (epi.length == 4) ? parser.parse<uint32_t>(wname) : parser.parse<uint64_t>(wname);
+          props[name] = (std::ostringstream() << "0x" << std::hex << std::nouppercase << val).str();
           break;
         }
-        default: {
-          // Fallback: attempt to parse as wide string; if that fails, tag as unsupported.
-          try {
-            auto w = parser.parse<std::wstring>(wname);
-            props[name] = Utils::narrow_utf8(w);
-          } catch (const std::exception &e) {
-            props[name] = "<unsupported>";
-          }
+
+        // GUIDs
+        case TDH_INTYPE_GUID: {
+          GUID g = parser.parse<GUID>(wname);
+          wchar_t bufGuid[Constants::GUID_SIZE];
+          props[name] = StringFromGUID2(g, bufGuid, Constants::GUID_SIZE) ? Utils::narrow_utf8(bufGuid) : "<unsupported>";
           break;
         }
+
+        default: // Fallback
+          props[name] = Utils::narrow_utf8(parser.parse<std::wstring>(wname));
+          break;
         }
-      } catch (const krabs::type_mismatch_assert &) {
-        // Field type in ETW does not match the requested type.
-        // Log it and mark the field as parse_error, but do not fail the whole event.
-        try {
-          std::string msg = "krabs parse error on field: " + name + "\n";
-          OutputDebugStringA(msg.c_str());
-        } catch (const std::exception &e) {
-        }
-        props[name] = "<parse_error>";
-      } catch (const std::exception &e) {
-        // Any other parsing issue per field – mark as parse_error.
+      } catch (...) {
         props[name] = "<parse_error>";
       }
     }
-  } catch (const krabs::could_not_find_schema &) {
-    // No schema for this event; log provider + event id once per provider.
-    try {
-      wchar_t guidW[Constants::GUID_SIZE];
-      if (bool r = StringFromGUID2(rec.EventHeader.ProviderId, guidW, Constants::GUID_SIZE); !r) {
-        throw new std::runtime_error("guid could not parse");
-      }
-      std::string guid = Utils::narrow_utf8(guidW);
-
-      const auto id = rec.EventHeader.EventDescriptor.Id;
-      const auto ver = rec.EventHeader.EventDescriptor.Version;
-
-      std::ostringstream oss;
-      oss << "krabs: could_not_find_schema in writeEventJson; provider="
-          << guid << " id=" << id << " ver=" << static_cast<int>(ver) << "\n";
-
-      OutputDebugStringA(oss.str().c_str());
-    } catch (const std::exception &e) {
-      OutputDebugStringA("krabs: could_not_find_schema in writeEventJson\n");
-    }
-    return;
-  } catch (const krabs::type_mismatch_assert &) {
-    // A critical type mismatch at the event level; skip this event.
-    OutputDebugStringA("krabs: type_mismatch_assert in writeEventJson\n");
-    return;
   } catch (const std::exception &e) {
-    // Catch-all to avoid unwinding through the ETW callback.
-    OutputDebugStringA("krabs: unknown exception in writeEventJson\n");
-    return;
+    OutputDebugStringA((std::string("krabs error: ") + e.what() + "\n").c_str());
   }
 }
 
@@ -663,96 +564,52 @@ void EventWriter::writeOut(const nlohmann::json &j) {
 }
 
 void EventWriter::enrichSigmaFields(nlohmann::json &j) const {
-  const nlohmann::json emptyObj = nlohmann::json::object();
+  // Use a fixed-size array to avoid heap allocation for every event
+  const nlohmann::json *searchScope[6];
+  size_t scopeSize = 0;
+  searchScope[scopeSize++] = &j;
 
-  const nlohmann::json &props =
-      (j.contains("props") && j["props"].is_object()) ? j["props"] : emptyObj;
-  const nlohmann::json &proc =
-      (j.contains("proc") && j["proc"].is_object()) ? j["proc"] : emptyObj;
-  const nlohmann::json &net =
-      (j.contains("net") && j["net"].is_object()) ? j["net"] : emptyObj;
-  const nlohmann::json &dns =
-      (j.contains("dns") && j["dns"].is_object()) ? j["dns"] : emptyObj;
-  const nlohmann::json &file =
-      (j.contains("file") && j["file"].is_object()) ? j["file"] : emptyObj;
+  static const std::array categories = {"props", "proc", "net", "dns", "file"};
+  for (const auto &cat : categories) {
+    if (auto it = j.find(cat); it != j.end() && it->is_object())
+      searchScope[scopeSize++] = &(*it);
+  }
 
-  auto lookup = [&](const std::vector<std::string> &keys) -> const nlohmann::json * {
-    for (const auto &k : keys) {
-      if (const auto *v = Utils::getIfPresent(j, k))
-        return v;
-      if (const auto *v = Utils::getIfPresent(props, k))
-        return v;
-      if (const auto *v = Utils::getIfPresent(proc, k))
-        return v;
-      if (const auto *v = Utils::getIfPresent(net, k))
-        return v;
-      if (const auto *v = Utils::getIfPresent(dns, k))
-        return v;
-      if (const auto *v = Utils::getIfPresent(file, k))
-        return v;
+  auto lookup = [&](const std::vector<std::string> &sources) -> const nlohmann::json * {
+    for (const auto &key : sources) {
+      for (size_t i = 0; i < scopeSize; ++i) {
+        if (auto it = searchScope[i]->find(key); it != searchScope[i]->end() && !it->is_null())
+          return &it.value();
+      }
     }
     return nullptr;
   };
 
-  auto ensureCopy = [&](const std::string &dst,
-                        const std::vector<std::string> &sources) {
-    if (j.contains(dst) && !j[dst].is_null()) {
+  // Transformation Helpers
+  auto process = [&](const std::string &dst, const std::vector<std::string> &sources, bool lower = false) {
+    if (j.contains(dst) && !j[dst].is_null())
       return;
-    }
-    if (const nlohmann::json *v = lookup(sources)) {
-      j[dst] = *v;
-    }
-  };
 
-  auto ensureLowered = [&](const std::string &dst,
-                           const std::vector<std::string> &sources) {
-    if (j.contains(dst) && !j[dst].is_null()) {
-      return;
-    }
-    if (const nlohmann::json *v = lookup(sources)) {
-      if (v->is_string()) {
-        std::string s = v->get<std::string>();
-        j[dst] = Utils::toLower(s);
+    if (const auto *v = lookup(sources)) {
+      if (lower && v->is_string()) {
+        j[dst] = Utils::toLower(v->get_ref<const std::string &>());
+      } else {
+        j[dst] = *v;
       }
     }
   };
 
-  auto ensureSyncedPair = [&](const std::string &a, const std::string &b) {
-    ensureCopy(a, {a, b});
-    ensureCopy(b, {a, b});
-  };
+  for (const auto &rule : Constants::RULES) {
+    process(rule.dst, rule.src, rule.lower);
+  }
 
-  // Existing sigma normalization
-  ensureCopy("Computer", {"Computer", "host"});
-  ensureSyncedPair("CommandLine", "Commandline");
-  ensureSyncedPair("LocalPort", "localport");
-  ensureSyncedPair("ObjectName", "object_name");
-  ensureSyncedPair("State", "STATE");
-  ensureSyncedPair("ObjectClass", "ObjectClas");
+  for (auto [a, b] : {std::pair{"CommandLine", "Commandline"}, {"LocalPort", "localport"}, {"ObjectName", "object_name"}, {"State", "STATE"}, {"ObjectClass", "ObjectClas"}}) {
+    process(a, {a, b});
+    process(b, {a, b});
+  }
 
-  ensureLowered("domain_in_lowercase_xxx",
-                {"domain_in_lowercase_xxx", "TargetDomainName", "TargetServerName", "DomainName"});
-  ensureLowered("param1_lower",
-                {"param1_lower", "Param1", "param1"});
-
-  // Process
-  ensureCopy("ProcessName", {"ProcessName", "ImageFileName", "ImageName", "name"});
-  ensureCopy("Image", {"Image", "ImagePath", "ProcessPath", "path"});
-
-  // Network
-  ensureCopy("RemoteAddresses", {"RemoteAddresses", "RemoteAddress", "DestAddress", "DestinationIp", "dst"});
-  ensureCopy("RemotePorts", {"RemotePorts", "RemotePort", "DestPort", "DestinationPort", "dport"});
-  ensureCopy("IpAddress", {"IpAddress", "RemoteIP", "DestinationIp", "dst"});
-
-  // File
-  ensureCopy("ObjectName", {"ObjectName", "FileName", "FilePath", "ObjectName", "path"});
-  ensureCopy("Operation", {"Operation", "IrpOp", "op"});
-  ensureCopy("Status", {"Status", "NtStatus", "ReturnValue", "status"});
-
-  // Always keep the full raw JSON in DB
   if (!j.contains("Payload") || j["Payload"].is_null()) {
-    const std::string raw = j.dump(); // dump BEFORE setting Payload is even better
-    j["Payload"] = raw;
+    j["Payload"] = j.dump();
   }
 }
 
