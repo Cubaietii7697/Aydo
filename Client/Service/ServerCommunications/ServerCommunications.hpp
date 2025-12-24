@@ -43,6 +43,6 @@ public:
   bool login(const std::string &email, const std::string &password);
   bool registerUser(const std::string &email, const std::string &nickname, const std::string &password);
 
-  bool requestFileScan(const std::string &fileHash, int runtime, nlohmann::json &responseJson);
+  bool requestFileScan(const std::string &fileHash, const int runtime, nlohmann::json &responseJson);
   bool uploadFile(const std::string &fileHash, const std::string &filePath);
 };

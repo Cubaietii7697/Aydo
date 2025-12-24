@@ -90,7 +90,7 @@ bool ServerCommunications::registerUser(const std::string &email, const std::str
   return false;
 }
 
-bool ServerCommunications::requestFileScan(const std::string &fileHash, int runtime, nlohmann::json &responseJson) {
+bool ServerCommunications::requestFileScan(const std::string &fileHash, const int runtime, nlohmann::json &responseJson) {
   nlohmann::json payload = {
       {"fileHash", fileHash},
       {"runtime", std::to_string(runtime)}};
