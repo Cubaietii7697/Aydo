@@ -57,7 +57,7 @@ bool UserConfig::save(const std::string &configPath) const {
       return false;
     }
 
-    file << j.dump(4);
+    file << j.dump();
     return true;
   } catch (const std::exception &e) {
     std::cerr << "Error saving config file: " << e.what() << std::endl;
