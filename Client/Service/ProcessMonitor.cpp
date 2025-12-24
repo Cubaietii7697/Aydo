@@ -125,7 +125,9 @@ bool ProcessMonitor::isThreat(const std::string &path) {
     std::cout << "  -> [YARA] Not found" << std::endl;
   }
 
-  if (entropy > Constants::ENTROPY_THRESHOLD) {
+  auto &config = UserConfig::getInstance();
+
+  if (entropy > config.killThreshold) {
     std::cout << "  -> [ENTROPY] High entropy detected (" << entropy << "). Sending to server for analysis..." << std::endl;
 
     try {
