@@ -8,6 +8,8 @@
 #include "SqlRequests.hpp"
 #include "Utils.hpp"
 
+struct Mapping;
+
 EventWriter::EventWriter(std::wstring path,
                          WireFormat fmt,
                          bool pretty,
@@ -69,10 +71,10 @@ void EventWriter::writeToSqlite(const nlohmann::json &j) {
     return;
   }
 
-  const int rc = sqlite3_step(stmt);
-  if (rc != SQLITE_DONE) {
-    std::string msg = "writeToSqlite: sqlite3_step failed, rc=" +
-                      std::to_string(rc);
+  if (const int rc = sqlite3_step(stmt); rc != SQLITE_DONE) {
+
+    std::string msg = std::format("writeToSqlite: sqlite3_step failed, rc={}",
+                                  std::to_string(rc));
     if (m_db) {
       msg += ", err=";
       msg += sqlite3_errmsg(m_db);
@@ -94,8 +96,10 @@ void EventWriter::initSqliteSchema() {
   char *errMsg = nullptr;
   const int rc = sqlite3_exec(m_db, SqlRequstes::TABLES_CREATE, nullptr, nullptr, &errMsg);
   if (rc != SQLITE_OK) {
-    std::string msg = "sqlite3_exec(TABLES_CREATE) failed, rc=" +
-                      std::to_string(rc);
+
+    std::string msg = std::format("sqlite3_exec(TABLES_CREATE) failed, rc={}",
+                                  std::to_string(rc));
+
     if (errMsg) {
       msg += ", err=";
       msg += errMsg;
@@ -107,7 +111,7 @@ void EventWriter::initSqliteSchema() {
 }
 
 bool EventWriter::bindJsonValues(sqlite3_stmt *stmt,
-                                 const std::vector<nlohmann::json> &values) {
+                                 const std::vector<nlohmann::json> &values) const {
   if (!stmt) {
     return false;
   }
@@ -165,7 +169,7 @@ bool EventWriter::prepareInsertStatement(const std::string &sql, sqlite3_stmt **
   return true;
 }
 
-std::string EventWriter::buildInsertSql(const std::vector<std::string> &columns) {
+std::string EventWriter::buildInsertSql(const std::vector<std::string> &columns) const {
   std::ostringstream sql;
 
   sql << "INSERT INTO Events(";
@@ -191,7 +195,7 @@ std::string EventWriter::buildInsertSql(const std::vector<std::string> &columns)
 
 void EventWriter::collectColumnsAndValues(const nlohmann::json &j,
                                           std::vector<std::string> &columns,
-                                          std::vector<nlohmann::json> &values) {
+                                          std::vector<nlohmann::json> &values) const {
   columns.clear();
   values.clear();
 
@@ -251,32 +255,14 @@ void EventWriter::collectColumnsAndValues(const nlohmann::json &j,
 
   auto findInObjects = [&](const std::string &key) -> const nlohmann::json * {
     if (auto it = j.find(key); it != j.end() && !it->is_null())
-      return &(*it);
+      return &it.value();
 
-    if (j.contains("props") && j["props"].is_object()) {
-      auto it = j["props"].find(key);
-      if (it != j["props"].end() && !it->is_null())
-        return &(*it);
-    }
-    if (j.contains("proc") && j["proc"].is_object()) {
-      auto it = j["proc"].find(key);
-      if (it != j["proc"].end() && !it->is_null())
-        return &(*it);
-    }
-    if (j.contains("net") && j["net"].is_object()) {
-      auto it = j["net"].find(key);
-      if (it != j["net"].end() && !it->is_null())
-        return &(*it);
-    }
-    if (j.contains("dns") && j["dns"].is_object()) {
-      auto it = j["dns"].find(key);
-      if (it != j["dns"].end() && !it->is_null())
-        return &(*it);
-    }
-    if (j.contains("file") && j["file"].is_object()) {
-      auto it = j["file"].find(key);
-      if (it != j["file"].end() && !it->is_null())
-        return &(*it);
+    static const std::array categories = {"props", "proc", "net", "dns", "file"};
+    for (const auto &cat : categories) {
+      if (auto catIt = j.find(cat); catIt != j.end() && catIt->is_object()) {
+        if (auto it = catIt->find(key); it != catIt->end() && !it->is_null())
+          return &it.value();
+      }
     }
     return nullptr;
   };
@@ -360,169 +346,109 @@ void EventWriter::flush() {
   }
 }
 
-static inline const wchar_t *info_wstr(const TRACE_EVENT_INFO *info, ULONG offset) {
-  return reinterpret_cast<const wchar_t *>(
-      reinterpret_cast<const BYTE *>(info) + offset);
+static inline const wchar_t *info_wstr(const BYTE *base,
+                                       size_t baseSizeBytes,
+                                       ULONG offsetBytes) {
+  if (!base || offsetBytes >= baseSizeBytes) {
+    return L"";
+  }
+
+  const void *p = base + offsetBytes;
+  return static_cast<const wchar_t *>(p);
 }
 
 void EventWriter::fillPropsViaTdh(nlohmann::json &props,
                                   const EVENT_RECORD &rec,
                                   const krabs::trace_context &ctx) const {
   try {
-    // First query TDH for the event's metadata (TRACE_EVENT_INFO)
+    // 1. Get Event Information
     ULONG size = 0;
-    auto status = ::TdhGetEventInformation(const_cast<EVENT_RECORD *>(&rec),
-                                           0, nullptr, nullptr, &size);
-    if (status != ERROR_INSUFFICIENT_BUFFER || size == 0) {
+    ::TdhGetEventInformation(const_cast<EVENT_RECORD *>(&rec), 0, nullptr, nullptr, &size);
+    if (size == 0)
       return;
-    }
 
     std::vector<BYTE> buf(size);
-    auto info = reinterpret_cast<TRACE_EVENT_INFO *>(buf.data());
-    status = TdhGetEventInformation(const_cast<EVENT_RECORD *>(&rec),
-                                    0, nullptr, info, &size);
-    if (status != ERROR_SUCCESS) {
+    auto *info = reinterpret_cast<TRACE_EVENT_INFO *>(buf.data());
+    if (TdhGetEventInformation(const_cast<EVENT_RECORD *>(&rec), 0, nullptr, info, &size) != ERROR_SUCCESS)
       return;
-    }
 
-    // Build krabs schema and parser for this event.
-    // This may throw krabs::could_not_find_schema or krabs::type_mismatch_assert.
     krabs::schema schema(rec, ctx.schema_locator);
     krabs::parser parser(schema);
 
     for (ULONG i = 0; i < info->TopLevelPropertyCount; ++i) {
       auto const &epi = info->EventPropertyInfoArray[i];
-      const wchar_t *wname = info_wstr(info, epi.NameOffset);
+      const auto *wname = reinterpret_cast<const wchar_t *>(buf.data() + epi.NameOffset);
       const std::string name = Utils::narrow_utf8(wname);
 
-      auto inType = epi.nonStructType.InType;
       if (SqlRequstes::SKIP_FIELDS.contains(name)) {
         props[name] = "<skipped>";
         continue;
       }
+
       try {
-        switch (inType) {
-        case TDH_INTYPE_UNICODESTRING: {
-          auto w = parser.parse<std::wstring>(wname);
-          props[name] = Utils::narrow_utf8(w);
+        switch (epi.nonStructType.InType) {
+        // Strings
+        case TDH_INTYPE_UNICODESTRING:
+          props[name] = Utils::narrow_utf8(parser.parse<std::wstring>(wname));
           break;
-        }
-        case TDH_INTYPE_ANSISTRING: {
+        case TDH_INTYPE_ANSISTRING:
           props[name] = parser.parse<std::string>(wname);
           break;
-        }
-        case TDH_INTYPE_INT8: {
+        case TDH_INTYPE_INT8:
           props[name] = parser.parse<int8_t>(wname);
           break;
-        }
-        case TDH_INTYPE_UINT8: {
+        case TDH_INTYPE_UINT8:
           props[name] = parser.parse<uint8_t>(wname);
           break;
-        }
-        case TDH_INTYPE_INT16: {
+        case TDH_INTYPE_INT16:
           props[name] = parser.parse<int16_t>(wname);
           break;
-        }
-        case TDH_INTYPE_UINT16: {
+        case TDH_INTYPE_UINT16:
           props[name] = parser.parse<uint16_t>(wname);
           break;
-        }
-        case TDH_INTYPE_INT32: {
+        case TDH_INTYPE_INT32:
           props[name] = parser.parse<int32_t>(wname);
           break;
-        }
-        case TDH_INTYPE_UINT32: {
+        case TDH_INTYPE_UINT32:
           props[name] = parser.parse<uint32_t>(wname);
           break;
-        }
-        case TDH_INTYPE_INT64: {
+        case TDH_INTYPE_INT64:
           props[name] = parser.parse<int64_t>(wname);
           break;
-        }
-        case TDH_INTYPE_UINT64: {
+        case TDH_INTYPE_UINT64:
           props[name] = parser.parse<uint64_t>(wname);
           break;
-        }
-        case TDH_INTYPE_BOOLEAN: {
+        case TDH_INTYPE_BOOLEAN:
           props[name] = parser.parse<bool>(wname);
           break;
-        }
-        case TDH_INTYPE_GUID: {
-          GUID g = parser.parse<GUID>(wname);
-          wchar_t bufGuid[Constants::GUID_SIZE];
-          ::StringFromGUID2(g, bufGuid, Constants::GUID_SIZE);
-          props[name] = Utils::narrow_utf8(bufGuid);
-          break;
-        }
+
+        // Hex / Pointers
         case TDH_INTYPE_POINTER:
         case TDH_INTYPE_HEXINT32:
         case TDH_INTYPE_HEXINT64: {
-          // Represent pointers / hex values as "0x..." strings
-          try {
-            auto v = parser.parse<uint64_t>(wname);
-            std::ostringstream oss;
-            oss << "0x" << std::hex << std::nouppercase << v;
-            props[name] = oss.str();
-          } catch (...) {
-            auto v = parser.parse<uint32_t>(wname);
-            std::ostringstream oss;
-            oss << "0x" << std::hex << std::nouppercase << v;
-            props[name] = oss.str();
-          }
+          uint64_t val = (epi.length == 4) ? parser.parse<uint32_t>(wname) : parser.parse<uint64_t>(wname);
+          props[name] = (std::ostringstream() << "0x" << std::hex << std::nouppercase << val).str();
           break;
         }
-        default: {
-          // Fallback: attempt to parse as wide string; if that fails, tag as unsupported.
-          try {
-            auto w = parser.parse<std::wstring>(wname);
-            props[name] = Utils::narrow_utf8(w);
-          } catch (...) {
-            props[name] = "<unsupported>";
-          }
+
+        // GUIDs
+        case TDH_INTYPE_GUID: {
+          GUID g = parser.parse<GUID>(wname);
+          wchar_t bufGuid[Constants::GUID_SIZE];
+          props[name] = StringFromGUID2(g, bufGuid, Constants::GUID_SIZE) ? Utils::narrow_utf8(bufGuid) : "<unsupported>";
           break;
         }
+
+        default: // Fallback
+          props[name] = Utils::narrow_utf8(parser.parse<std::wstring>(wname));
+          break;
         }
-      } catch (const krabs::type_mismatch_assert &) {
-        // Field type in ETW does not match the requested type.
-        // Log it and mark the field as parse_error, but do not fail the whole event.
-        try {
-          std::string msg = "krabs parse error on field: " + name + "\n";
-          OutputDebugStringA(msg.c_str());
-        } catch (...) {
-        }
-        props[name] = "<parse_error>";
       } catch (...) {
-        // Any other parsing issue per field – mark as parse_error.
         props[name] = "<parse_error>";
       }
     }
-  } catch (const krabs::could_not_find_schema &) {
-    // No schema for this event; log provider + event id once per provider.
-    try {
-      wchar_t guidW[Constants::GUID_SIZE];
-      ::StringFromGUID2(rec.EventHeader.ProviderId, guidW, Constants::GUID_SIZE);
-      std::string guid = Utils::narrow_utf8(guidW);
-
-      const auto id = rec.EventHeader.EventDescriptor.Id;
-      const auto ver = rec.EventHeader.EventDescriptor.Version;
-
-      std::ostringstream oss;
-      oss << "krabs: could_not_find_schema in writeEventJson; provider="
-          << guid << " id=" << id << " ver=" << static_cast<int>(ver) << "\n";
-
-      OutputDebugStringA(oss.str().c_str());
-    } catch (...) {
-      OutputDebugStringA("krabs: could_not_find_schema in writeEventJson\n");
-    }
-    return;
-  } catch (const krabs::type_mismatch_assert &) {
-    // A critical type mismatch at the event level; skip this event.
-    OutputDebugStringA("krabs: type_mismatch_assert in writeEventJson\n");
-    return;
-  } catch (...) {
-    // Catch-all to avoid unwinding through the ETW callback.
-    OutputDebugStringA("krabs: unknown exception in writeEventJson\n");
-    return;
+  } catch (const std::exception &e) {
+    OutputDebugStringA((std::string("krabs error: ") + e.what() + "\n").c_str());
   }
 }
 
@@ -582,7 +508,7 @@ void EventWriter::writeEventJson(const EVENT_RECORD &rec,
         std::wstring p;
         try {
           p = schema.provider_name();
-        } catch (...) {
+        } catch (const std::exception &e) {
         }
         return p;
       }();
@@ -591,7 +517,7 @@ void EventWriter::writeEventJson(const EVENT_RECORD &rec,
         std::wstring t;
         try {
           t = schema.task_name();
-        } catch (...) {
+        } catch (const std::exception &e) {
         }
         return t;
       }();
@@ -600,14 +526,14 @@ void EventWriter::writeEventJson(const EVENT_RECORD &rec,
         std::wstring o;
         try {
           o = schema.opcode_name();
-        } catch (...) {
+        } catch (const std::exception &e) {
         }
         return o;
       }();
 
       eventW = Utils::composeEvent(schema);
       j["event"] = Utils::narrow_utf8(eventW);
-      // Prefer schema’s event_id if available
+      // Prefer schemaï¿½s event_id if available
       j["event_id"] = schema.event_id();
 
       j["category"] = Utils::inferCategory(providerW, taskW);
@@ -616,7 +542,7 @@ void EventWriter::writeEventJson(const EVENT_RECORD &rec,
       // keep header-based event_id/category defaults
     } catch (const krabs::type_mismatch_assert &) {
       OutputDebugStringA("krabs: type_mismatch_assert in writeEventJson (names only)\n");
-    } catch (...) {
+    } catch (const std::exception &e) {
       OutputDebugStringA("krabs: unknown exception in writeEventJson (names only)\n");
     }
 
@@ -676,13 +602,13 @@ void EventWriter::writeEventJson(const EVENT_RECORD &rec,
       j["file"] = std::move(fil);
     }
     enrichSigmaFields(j);
-  } catch (...) {
+  } catch (const std::exception &e) {
     OutputDebugStringA("krabs: fatal exception in writeEventJson envelope\n");
   }
 
   try {
     writeOut(j);
-  } catch (...) {
+  } catch (const std::exception &e) {
     OutputDebugStringA("writeEventJson: exception in writeOut\n");
   }
 }
@@ -733,50 +659,32 @@ void EventWriter::writeOut(const nlohmann::json &j) {
   }
 }
 
-void EventWriter::enrichSigmaFields(nlohmann::json &j) {
-  const nlohmann::json emptyObj = nlohmann::json::object();
+void EventWriter::enrichSigmaFields(nlohmann::json &j) const {
+  // Use a fixed-size array to avoid heap allocation for every event
+  const nlohmann::json *searchScope[6];
+  size_t scopeSize = 0;
+  searchScope[scopeSize++] = &j;
 
-  const nlohmann::json &props =
-      (j.contains("props") && j["props"].is_object()) ? j["props"] : emptyObj;
-  const nlohmann::json &proc =
-      (j.contains("proc") && j["proc"].is_object()) ? j["proc"] : emptyObj;
-  const nlohmann::json &net =
-      (j.contains("net") && j["net"].is_object()) ? j["net"] : emptyObj;
-  const nlohmann::json &dns =
-      (j.contains("dns") && j["dns"].is_object()) ? j["dns"] : emptyObj;
-  const nlohmann::json &file =
-      (j.contains("file") && j["file"].is_object()) ? j["file"] : emptyObj;
+  static const std::array categories = {"props", "proc", "net", "dns", "file"};
+  for (const auto &cat : categories) {
+    if (auto it = j.find(cat); it != j.end() && it->is_object())
+      searchScope[scopeSize++] = &(*it);
+  }
 
-  // return the first non-null value we find.
-  auto lookup = [&](const std::vector<std::string> &keys) -> const nlohmann::json * {
-    for (const auto &k : keys) {
-      if (const auto *v = Utils::getIfPresent(j, k))
-        return v;
-      if (const auto *v = Utils::getIfPresent(props, k))
-        return v;
-      if (const auto *v = Utils::getIfPresent(proc, k))
-        return v;
-      if (const auto *v = Utils::getIfPresent(net, k))
-        return v;
-      if (const auto *v = Utils::getIfPresent(dns, k))
-        return v;
-      if (const auto *v = Utils::getIfPresent(file, k))
-        return v;
+  auto lookup = [&](const std::vector<std::string> &sources) -> const nlohmann::json * {
+    for (const auto &key : sources) {
+      for (size_t i = 0; i < scopeSize; ++i) {
+        if (auto it = searchScope[i]->find(key); it != searchScope[i]->end() && !it->is_null())
+          return &it.value();
+      }
     }
     return nullptr;
   };
 
-  // Copy a value from any of the given source keys into 'dst',
-  // but only if 'dst' is not already set in 'j'.
-  auto ensureCopy = [&](const std::string &dst,
-                        const std::vector<std::string> &sources) {
-    if (j.contains(dst) && !j[dst].is_null()) {
+  // Transformation Helpers
+  auto process = [&](const std::string &dst, const std::vector<std::string> &sources, bool lower = false) {
+    if (j.contains(dst) && !j[dst].is_null())
       return;
-    }
-    if (const nlohmann::json *v = lookup(sources)) {
-      j[dst] = *v;
-    }
-  };
 
   // If the source is not a string, do nothing.
   auto ensureLowered = [&](const std::string &dst,

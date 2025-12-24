@@ -184,6 +184,8 @@
     <ClCompile Include="ProcessMonitor.cpp" />
     <ClCompile Include="Regex\RScanningEngine.cpp" />
     <ClCompile Include="Databases\SignaturesDatabase.cpp" />
+    <ClCompile Include="ServerCommunications\ServerCommunications.cpp" />
+    <ClCompile Include="UserConfig.cpp" />
     <ClCompile Include="Utils.cpp" />
     <ClCompile Include="Yara\YScanningEngine.cpp" />
     <ClCompile Include="Yara\YaraScoringSystem.cpp" />
@@ -204,7 +206,9 @@
     <ClInclude Include="ProcessMonitor.hpp" />
     <ClInclude Include="Regex\RScanningEngine.hpp" />
     <ClInclude Include="Databases\SignaturesDatabase.hpp" />
+    <ClInclude Include="ServerCommunications\ServerCommunications.hpp" />
     <ClInclude Include="Types.hpp" />
+    <ClInclude Include="UserConfig.hpp" />
     <ClInclude Include="Utils.hpp" />
     <ClInclude Include="Yara\YScanningEngine.hpp" />
     <ClInclude Include="Yara\YaraRuleConstants.hpp" />

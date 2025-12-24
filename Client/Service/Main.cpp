@@ -1,3 +1,5 @@
+#include "ServerCommunications/ServerCommunications.hpp"
+#include "UserConfig.hpp"
 #define NOMINMAX
 #include <windows.h>
 
@@ -27,11 +29,75 @@ static BOOL WINAPI CtrlHandler(DWORD t) {
   return FALSE;
 }
 
+static void handleUserAuth() {
+  auto &config = UserConfig::getInstance();
+  auto &server = ServerCommunications::getInstance();
+
+  if (!config.accessToken.empty()) {
+    return;
+  }
+
+  std::cout << "Authentication required." << std::endl;
+  std::cout << "1. Login" << std::endl;
+  std::cout << "2. Register" << std::endl;
+  std::cout << "Choice: ";
+
+  std::string choice;
+  std::getline(std::cin, choice);
+
+  std::string email, password, nickname;
+
+  if (choice == "1") {
+    std::cout << "Email: ";
+    std::getline(std::cin, email);
+    std::cout << "Password: ";
+    std::getline(std::cin, password);
+
+    if (server.login(email, password)) {
+      std::cout << "Login successful!" << std::endl;
+    } else {
+      std::cerr << "Login failed. Please restart the service to try again." << std::endl;
+      exit(EXIT_FAILURE);
+    }
+  } else if (choice == "2") {
+    std::cout << "Email: ";
+    std::getline(std::cin, email);
+    std::cout << "Nickname: ";
+    std::getline(std::cin, nickname);
+    std::cout << "Password: ";
+    std::getline(std::cin, password);
+
+    if (server.registerUser(email, nickname, password)) {
+      std::cout << "Registration successful!" << std::endl;
+    } else {
+      std::cerr << "Registration failed. Please restart the service to try again." << std::endl;
+      exit(EXIT_FAILURE);
+    }
+  } else {
+    std::cerr << "Invalid choice." << std::endl;
+    exit(EXIT_FAILURE);
+  }
+}
+
 int main() {
   std::cout << "==================================" << std::endl;
   std::cout << "     Aydo Process Monitor" << std::endl;
   std::cout << "==================================" << std::endl
             << std::endl;
+
+  // Load configuration
+  auto &config = UserConfig::getInstance();
+  if (!config.load()) {
+    std::cout << "Creating default config.json..." << std::endl;
+    config.save();
+  }
+
+  // Connect to server
+  std::cout << "Connecting to server..." << std::endl;
+  ServerCommunications::initialize(config.serverUrl, config.accessToken, config.refreshToken);
+
+  // Handle authentication if tokens are missing
+  handleUserAuth();
 
   // Set up Ctrl+C handler
   if (!SetConsoleCtrlHandler(CtrlHandler, TRUE)) {
@@ -56,8 +122,8 @@ int main() {
   std::cout << "Initializing scanning engines..." << std::endl;
 
   try {
-    YScanningEngine yara(Constants::YARA_RULES_FILES);
-    std::cout << "  -> Initialized YARA scanning engine" << std::endl;
+    YScanningEngine yara(Constants::YARA_RULES_FILES, config.killThreshold);
+    std::cout << "  -> Initialized YARA scanning engine (Kill Threshold: " << config.killThreshold << ")" << std::endl;
 
     // Initialize hashes database
     std::string hashesDbPath{Constants::HASHES_DB_PATH.begin(), Constants::HASHES_DB_PATH.end()};

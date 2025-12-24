@@ -43,6 +43,12 @@
     <Filter Include="Header Files\Yara">
       <UniqueIdentifier>{b4e986c2-14c6-4d48-8a24-7f8c0507dcf7}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\ServerCommunications">
+      <UniqueIdentifier>{8309ced8-00a5-4df0-9307-883277659592}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\ServerCommunications">
+      <UniqueIdentifier>{920a1b42-3da8-40d1-8fcd-0a833371e62f}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Main.cpp">
@@ -83,6 +89,12 @@
     </ClCompile>
     <ClCompile Include="Yara\YaraScoringSystem.cpp">
       <Filter>Source Files\Yara</Filter>
+    </ClCompile>
+    <ClCompile Include="ServerCommunications\ServerCommunications.cpp">
+      <Filter>Source Files\ServerCommunications</Filter>
+    </ClCompile>
+    <ClCompile Include="UserConfig.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -145,6 +157,12 @@
     </ClInclude>
     <ClInclude Include="Yara\YaraScoringSystem.hpp">
       <Filter>Header Files\Yara</Filter>
+    </ClInclude>
+    <ClInclude Include="ServerCommunications\ServerCommunications.hpp">
+      <Filter>Header Files\ServerCommunications</Filter>
+    </ClInclude>
+    <ClInclude Include="UserConfig.hpp">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

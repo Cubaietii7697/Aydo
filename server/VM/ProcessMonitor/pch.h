@@ -16,7 +16,7 @@
 #include <evntrace.h>
 #include <tdh.h>
 #include <wmistr.h>
-
 #include <cstdint>
+#include <nlohmann/json.hpp>
 #include <string>
 #include <vector>

@@ -15,4 +15,5 @@ constexpr size_t YARA_CHUNK_SIZE = 64 * 1024;
 constexpr size_t SHA256_BUFFER_SIZE = 64 * 1024;
 constexpr std::wstring_view AYDO_DRIVER_DEVICE_PATH = LR"(\\.\AydoDriver)";
 constexpr std::string_view HASHES_DB_PATH = "file_hashes.db";
+constexpr std::string_view SERVER_URL = "http://127.0.0.1";
 }; // namespace Constants
