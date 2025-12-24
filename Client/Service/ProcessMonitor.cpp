@@ -210,7 +210,8 @@ bool ProcessMonitor::isThreat(const std::string &path) {
 
   if (entropy > Constants::ENTROPY_THRESHOLD) {
     // TODO : send file to server.
-    return;
+    bool res = Utils::sentRequestForDynamicScan(path);
+    return res;
   }
 
   // Check hashes database
