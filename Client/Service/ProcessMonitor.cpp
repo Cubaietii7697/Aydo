@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "Constants.hpp"
+#include "ServerCommunications/ServerCommunications.hpp"
 #include "Utils.hpp"
 
 ProcessMonitor::ProcessMonitor(std::shared_ptr<KernelCommunications> driver,
@@ -80,11 +81,6 @@ bool ProcessMonitor::isThreat(const std::string &path) {
       countedBytes,
       static_cast<std::streamsize>(bytes.size()));
 
-  if (entropy > Constants::ENTROPY_THRESHOLD) {
-    // TODO : send file to server.
-    return;
-  }
-
   // Check hashes database
   if (const auto resHASH = m_hashDb.getHashName(hexHash); resHASH && !resHASH->empty()) {
     std::cout << "  -> [HASH] MATCH: " << *resHASH << std::endl;
@@ -127,6 +123,48 @@ bool ProcessMonitor::isThreat(const std::string &path) {
     std::cout << "  -> [YARA] Score below threshold, not a critical threat" << std::endl;
   } else {
     std::cout << "  -> [YARA] Not found" << std::endl;
+  }
+
+  if (entropy > Constants::ENTROPY_THRESHOLD) {
+    std::cout << "  -> [ENTROPY] High entropy detected (" << entropy << "). Sending to server for analysis..." << std::endl;
+
+    try {
+      auto &server = ServerCommunications::getInstance();
+      nlohmann::json response;
+
+      // TODO: User config for runtime
+      if (server.requestFileScan(hexHash, 60, response)) {
+        std::string status = response.value("status", "Unknown");
+
+        if (status == "Completed") {
+          std::string virusType = response.value("virusType", "Unknown");
+          int score = response.value("score", 0);
+
+          if (virusType != "Clean" || score > 0) {
+            std::cout << "  -> [SERVER] Threat detected: " << virusType << " (Score: " << score << ")" << std::endl;
+            m_scannedHashes[hexHash] = true;
+            return true;
+          }
+
+          std::cout << "  -> [SERVER] File confirmed clean by server analysis." << std::endl;
+          m_scannedHashes[hexHash] = false;
+          return false;
+        }
+
+        if (status == "Pending") {
+          std::cout << "  -> [SERVER] File unknown to server. Uploading for dynamic analysis..." << std::endl;
+          if (server.uploadFile(hexHash, path)) {
+            std::cout << "  -> [SERVER] Upload successful. Sandbox analysis started." << std::endl;
+          } else {
+            std::cerr << "  -> [SERVER] Failed to upload file." << std::endl;
+          }
+        } else if (status == "InProgress") {
+          std::cout << "  -> [SERVER] Analysis already in progress on the server." << std::endl;
+        }
+      }
+    } catch (const std::exception &e) {
+      std::cerr << "  -> [SERVER] Communication error: " << e.what() << std::endl;
+    }
   }
 
   // Add to scanned hashes (file is clean)

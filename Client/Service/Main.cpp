@@ -1,3 +1,4 @@
+#include "ServerCommunications/ServerCommunications.hpp"
 #define NOMINMAX
 #include <windows.h>
 
@@ -32,6 +33,12 @@ int main() {
   std::cout << "     Aydo Process Monitor" << std::endl;
   std::cout << "==================================" << std::endl
             << std::endl;
+
+  // Connect to server
+  // TODO: Load auth token from config
+  std::cout << "Connecting to server..." << std::endl;
+  std::string serverUrl{Constants::SERVER_URL};
+  ServerCommunications::initialize(serverUrl);
 
   // Set up Ctrl+C handler
   if (!SetConsoleCtrlHandler(CtrlHandler, TRUE)) {
