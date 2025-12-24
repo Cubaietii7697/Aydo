@@ -284,7 +284,7 @@ void EventWriter::collectColumnsAndValues(const nlohmann::json &j,
   // Helpful for bridging PascalCase columns (UserSid) to snake_case payload keys (user_sid)
   auto findSnakeCase = [&](const std::string &key) -> const nlohmann::json * {
     std::string snake;
-    snake.reserve(key.size() + 8);
+    snake.reserve(key.size() + Constants::SNAKE_CASE_EXTRA_CAPACITY);
 
     for (size_t i = 0; i < key.size(); ++i) {
       const auto c = static_cast<unsigned char>(key[i]);
@@ -867,7 +867,7 @@ void EventWriter::enrichSigmaFields(nlohmann::json &j) {
       (!j.contains("ParentProcessName") || j["ParentProcessName"].is_null())) {
     if (const nlohmann::json *pp = lookup({"ParentProcessId", "ParentPid", "PPID", "ppid"})) {
       DWORD ppid = 0;
-      if (tryToDword(*pp, ppid) && ppid != 0 && ppid != 0xFFFFFFFFu) {
+      if (tryToDword(*pp, ppid) && ppid != 0 && ppid != Constants::INVALID_PID) {
         nlohmann::json p = Utils::bestEffortProcFromPid(ppid);
         if ((!j.contains("ParentImage") || j["ParentImage"].is_null()) &&
             p.contains("path") && p["path"].is_string()) {
@@ -962,7 +962,7 @@ void EventWriter::ensureSinkOpenLocked() {
         throw std::runtime_error("Failed to open sqlite database");
       }
 
-      sqlite3_busy_timeout(m_db, 5000);
+      sqlite3_busy_timeout(m_db, Constants::WAIT_TIME_S);
       sqlite3_exec(m_db, "PRAGMA journal_mode=WAL;", nullptr, nullptr, nullptr);
       sqlite3_exec(m_db, "PRAGMA synchronous=NORMAL;", nullptr, nullptr, nullptr);
       initSqliteSchema();

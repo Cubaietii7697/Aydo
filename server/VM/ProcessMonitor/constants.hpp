@@ -13,4 +13,7 @@ constexpr int JSON_INDENT_WIDTH = 2;
 constexpr int IPPROTO_TCP = 6;
 constexpr int IPPROTO_UDP = 17;
 constexpr int HOST_MAX_NAME = 256;
+constexpr int WAIT_TIME_S = 5000;
+constexpr DWORD INVALID_PID = 0xFFFFFFFFu;
+constexpr size_t SNAKE_CASE_EXTRA_CAPACITY = 8;
 } // namespace Constants
