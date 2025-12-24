@@ -209,7 +209,6 @@ bool ProcessMonitor::isThreat(const std::string &path) {
       static_cast<std::streamsize>(bytes.size()));
 
   if (entropy > Constants::ENTROPY_THRESHOLD) {
-    // TODO : send file to server.
     bool res = Utils::sentRequestForDynamicScan(path);
     return res;
   }
