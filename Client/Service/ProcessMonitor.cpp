@@ -1,7 +1,6 @@
 #include "ProcessMonitor.hpp"
 
 #include <windows.h>
-#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <iostream>
@@ -10,93 +9,6 @@
 
 #include "Constants.hpp"
 #include "Utils.hpp"
-
-// Whitelist of trusted Windows system processes
-const std::unordered_set<std::string> ProcessMonitor::WINDOWS_SYSTEM_WHITELIST = {
-    // Core Windows system processes
-    "system",
-    "csrss.exe",
-    "services.exe",
-    "lsass.exe",
-    "svchost.exe",
-    "winlogon.exe",
-    "explorer.exe",
-    "dwm.exe",
-    "taskmgr.exe",
-
-    // Search and indexing
-    "searchprotocolhost.exe",
-    "searchfilterhost.exe",
-    "searchindexer.exe",
-
-    // Windows Update and maintenance
-    "wuauclt.exe",
-    "trustedinstaller.exe",
-    "tiworker.exe",
-    "musnotification.exe",
-    "wuapihost.exe",
-
-    // Windows Defender and security
-    "msmpeng.exe",
-    "nissrv.exe",
-    "securityhealthservice.exe",
-    "securityhealthsystray.exe",
-    "msedge.exe",
-    "smartscreen.exe",
-
-    // System utilities
-    "conhost.exe",
-    "cmd.exe",
-    "powershell.exe",
-    "powershell_ise.exe",
-    "notepad.exe",
-    "rundll32.exe",
-    "regsvcs.exe",
-    "regasm.exe",
-    "msiexec.exe",
-    "werfault.exe",
-
-    // Network and connectivity
-    "dllhost.exe",
-    "runtimebroker.exe",
-    "sihost.exe",
-    "ctfmon.exe",
-
-    // Windows services
-    "spoolsv.exe",
-    "lsm.exe",
-    "wininit.exe",
-    "smss.exe",
-    "winrshost.exe",
-
-    // Additional common system processes
-    "audiodg.exe",
-    "fontdrvhost.exe",
-    "nvvsvc.exe",
-    "igfxem.exe",
-    "backgroundtaskhost.exe",
-    "applicationframehost.exe",
-    "shellexperiencehost.exe",
-    "startmenuexperiencehost.exe",
-    "textinputhost.exe",
-    "lockapp.exe",
-    "systemsettings.exe",
-    "taskhostw.exe",
-    "userinit.exe",
-    "logonui.exe",
-};
-
-// Trusted Windows system directories (case-insensitive)
-const std::unordered_set<std::string> ProcessMonitor::TRUSTED_DIRECTORIES = {
-    "c:\\windows\\system32",
-    "c:\\windows\\syswow64",
-    "c:\\windows\\winsxs",
-    "c:\\windows\\systemapps",
-    "c:\\program files\\windows defender",
-    "c:\\program files (x86)\\windows defender",
-    "c:\\program files\\windows defender advanced threat protection",
-    "c:\\program files\\windowsapps",
-};
 
 ProcessMonitor::ProcessMonitor(std::shared_ptr<KernelCommunications> driver,
                                YScanningEngine &yara,
@@ -138,48 +50,8 @@ bool ProcessMonitor::isMonitoring() const {
   return !m_stopMonitoring.load(std::memory_order_relaxed) && m_monitorThread.joinable();
 }
 
-bool ProcessMonitor::isWhitelisted(const std::string &path) {
-  // Extract filename from path
-  size_t lastSlash = path.find_last_of("\\/");
-  std::string filename = (lastSlash != std::string::npos) ? path.substr(lastSlash + 1) : path;
-
-  // Convert to lowercase for case-insensitive comparison
-  std::transform(filename.begin(), filename.end(), filename.begin(),
-                 [](unsigned char c) { return std::tolower(c); });
-
-  return WINDOWS_SYSTEM_WHITELIST.find(filename) != WINDOWS_SYSTEM_WHITELIST.end();
-}
-
-bool ProcessMonitor::isInTrustedDirectory(const std::string &path) {
-  // Convert path to lowercase for case-insensitive comparison
-  std::string lowerPath = path;
-  std::transform(lowerPath.begin(), lowerPath.end(), lowerPath.begin(),
-                 [](unsigned char c) { return std::tolower(c); });
-
-  // Check if path starts with any trusted directory
-  for (const auto &trustedDir : TRUSTED_DIRECTORIES) {
-    if (lowerPath.find(trustedDir) == 0) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
 bool ProcessMonitor::isThreat(const std::string &path) {
-  // Layer 1: Check if whitelisted Windows system process
-  if (isWhitelisted(path)) {
-    std::cout << "  -> [WHITELISTED] Trusted Windows system process" << std::endl;
-    return false;
-  }
-
-  // Layer 2: Check if in trusted Windows directory
-  if (isInTrustedDirectory(path)) {
-    std::cout << "  -> [TRUSTED DIR] Process in trusted Windows directory" << std::endl;
-    return false;
-  }
-
-  // Layer 3: Check if signed Windows file
+  // Layer 1: Check if signed Windows file
   if (Utils::isWindowsSigned(path)) {
     std::cout << "  -> [SIGNED] Digitally signed by trusted publisher" << std::endl;
     return false;
