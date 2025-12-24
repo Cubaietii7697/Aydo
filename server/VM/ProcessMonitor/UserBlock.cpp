@@ -94,6 +94,18 @@ void UserBlock::addApiCallsProvider(UCHAR level,
   addProvider(L"Microsoft-Windows-PowerShell", level, any, all);
   addProvider(L"Microsoft-Windows-DotNETRuntime", level, any, all);
   addProvider(L"Microsoft-Windows-Kernel-Audit-API-Calls", level, any, all);
+  addProvider(L"Microsoft-Windows-TaskScheduler", level, any, all);
+  addProvider(L"Microsoft-Windows-Windows Defender", level, any, all);
+  addProvider(L"Microsoft-Windows-CodeIntegrity", level, any, all);
+  addProvider(L"Microsoft-Windows-AppLocker", level, any, all);
+  addProvider(L"Microsoft-Windows-SMBClient", level, any, all);
+  addProvider(L"Microsoft-Windows-SMBServer", level, any, all);
+  addProvider(L"Microsoft-Windows-WinRM", level, any, all);
+  addProvider(L"Microsoft-Windows-TerminalServices-LocalSessionManager", level, any, all);
+  addProvider(L"Microsoft-Windows-RemoteDesktopServices-RdpCoreTS", level, any, all);
+  addProvider(L"Microsoft-Windows-CAPI2", level, any, all);
+  addProvider(L"Microsoft-Windows-Bits-Client", level, any, all);
+  addProvider(L"Microsoft-Windows-Installer", level, any, all);
 }
 
 void UserBlock::start(Callback on_event) {
