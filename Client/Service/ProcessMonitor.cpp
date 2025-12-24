@@ -1,11 +1,11 @@
 #include "ProcessMonitor.hpp"
-
 #include <windows.h>
 #include <array>
 #include <cstdint>
 #include <iostream>
 #include <utility>
 #include <vector>
+#include "UserConfig.hpp"
 
 #include "Constants.hpp"
 #include "ServerCommunications/ServerCommunications.hpp"
@@ -132,8 +132,7 @@ bool ProcessMonitor::isThreat(const std::string &path) {
       auto &server = ServerCommunications::getInstance();
       nlohmann::json response;
 
-      // TODO: User config for runtime
-      if (server.requestFileScan(hexHash, 60, response)) {
+      if (server.requestFileScan(hexHash, UserConfig::getInstance().runtime, response)) {
         std::string status = response.value("status", "Unknown");
 
         if (status == "Completed") {

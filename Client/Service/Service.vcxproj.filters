@@ -93,6 +93,9 @@
     <ClCompile Include="ServerCommunications\ServerCommunications.cpp">
       <Filter>Source Files\ServerCommunications</Filter>
     </ClCompile>
+    <ClCompile Include="UserConfig.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AhoCorasick\ACUtils.hpp">
@@ -157,6 +160,9 @@
     </ClInclude>
     <ClInclude Include="ServerCommunications\ServerCommunications.hpp">
       <Filter>Header Files\ServerCommunications</Filter>
+    </ClInclude>
+    <ClInclude Include="UserConfig.hpp">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

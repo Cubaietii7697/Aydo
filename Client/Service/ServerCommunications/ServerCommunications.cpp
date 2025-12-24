@@ -1,4 +1,5 @@
 #include "ServerCommunications.hpp"
+#include "../UserConfig.hpp"
 
 #include <cpr/cpr.h>
 #include <iostream>
@@ -7,10 +8,10 @@
 std::unique_ptr<ServerCommunications> ServerCommunications::m_instance = nullptr;
 std::mutex ServerCommunications::m_mutex;
 
-void ServerCommunications::initialize(const std::string &serverAddress, const std::string &authenticationToken) {
+void ServerCommunications::initialize(const std::string &serverAddress, const std::string &authenticationToken, const std::string &refreshToken) {
   std::lock_guard<std::mutex> lock(m_mutex);
   if (!m_instance) {
-    m_instance.reset(new ServerCommunications(serverAddress, authenticationToken));
+    m_instance.reset(new ServerCommunications(serverAddress, authenticationToken, refreshToken));
   }
 }
 
@@ -23,9 +24,11 @@ ServerCommunications &ServerCommunications::getInstance() {
 }
 
 ServerCommunications::ServerCommunications(const std::string &serverAddress,
-                                           const std::string &authenticationToken)
+                                           const std::string &authenticationToken,
+                                           const std::string &refreshToken)
     : m_serverAddress(serverAddress)
-    , m_authenticationToken(authenticationToken) {}
+    , m_authenticationToken(authenticationToken)
+    , m_refreshToken(refreshToken) {}
 
 ServerCommunications::~ServerCommunications() {}
 
@@ -60,6 +63,12 @@ bool ServerCommunications::login(const std::string &email, const std::string &pa
       auto jsonResponse = nlohmann::json::parse(responseBody);
       if (jsonResponse.contains("accessToken")) {
         m_authenticationToken = jsonResponse["accessToken"];
+        UserConfig::getInstance().accessToken = m_authenticationToken;
+        if (jsonResponse.contains("refreshToken")) {
+          m_refreshToken = jsonResponse["refreshToken"];
+          UserConfig::getInstance().refreshToken = m_refreshToken;
+        }
+        UserConfig::getInstance().save();
         return true;
       }
     } catch (const std::exception &e) {
@@ -81,6 +90,12 @@ bool ServerCommunications::registerUser(const std::string &email, const std::str
       auto jsonResponse = nlohmann::json::parse(responseBody);
       if (jsonResponse.contains("accessToken")) {
         m_authenticationToken = jsonResponse["accessToken"];
+        UserConfig::getInstance().accessToken = m_authenticationToken;
+        if (jsonResponse.contains("refreshToken")) {
+          m_refreshToken = jsonResponse["refreshToken"];
+          UserConfig::getInstance().refreshToken = m_refreshToken;
+        }
+        UserConfig::getInstance().save();
         return true;
       }
     } catch (const std::exception &e) {

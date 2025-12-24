@@ -9,12 +9,14 @@ class ServerCommunications {
 private:
   std::string m_serverAddress;
   std::string m_authenticationToken;
+  std::string m_refreshToken;
 
   static std::unique_ptr<ServerCommunications> m_instance;
   static std::mutex m_mutex;
 
   ServerCommunications(const std::string &serverAddress,
-                       const std::string &authenticationToken);
+                       const std::string &authenticationToken,
+                       const std::string &refreshToken = "");
 
   enum class HttpStatus {
     Ok = 200,
@@ -37,7 +39,7 @@ public:
   ServerCommunications(ServerCommunications &&) = delete;
   ServerCommunications &operator=(ServerCommunications &&) = delete;
 
-  static void initialize(const std::string &serverAddress, const std::string &authenticationToken = "");
+  static void initialize(const std::string &serverAddress, const std::string &authenticationToken = "", const std::string &refreshToken = "");
   static ServerCommunications &getInstance();
 
   bool login(const std::string &email, const std::string &password);
