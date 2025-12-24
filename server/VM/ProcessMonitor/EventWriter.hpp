@@ -47,8 +47,8 @@ private:
   bool prepareInsertStatement(const std::string &sql, sqlite3_stmt **stmtOut);
 
   bool bindJsonValues(sqlite3_stmt *stmt,
-                      const std::vector<nlohmann::json> &values);
-  void enrichSigmaFields(nlohmann::json &j);
+                      const std::vector<nlohmann::json> &values) const;
+  void enrichSigmaFields(nlohmann::json &j) const;
   void ensureSinkOpenLocked();
 
 private:

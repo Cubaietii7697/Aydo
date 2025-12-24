@@ -681,14 +681,18 @@ void EventWriter::enrichSigmaFields(nlohmann::json &j) const {
     return nullptr;
   };
 
-  // Transformation Helpers
-  auto process = [&](const std::string &dst, const std::vector<std::string> &sources, bool lower = false) {
-    if (j.contains(dst) && !j[dst].is_null())
+  auto ensureCopy = [&](const std::string &dst,
+                        const std::vector<std::string> &sources) {
+    if (j.contains(dst) && !j[dst].is_null()) {
       return;
+    }
+    if (const nlohmann::json *v = lookup(sources)) {
+      j[dst] = *v;
+    }
+  };
 
   // If the source is not a string, do nothing.
-  auto ensureLowered = [&](const std::string &dst,
-                           const std::vector<std::string> &sources) {
+  auto ensureLowered = [&](const std::string &dst, const std::vector<std::string> &sources) {
     if (j.contains(dst) && !j[dst].is_null()) {
       return;
     }
@@ -700,12 +704,12 @@ void EventWriter::enrichSigmaFields(nlohmann::json &j) const {
     }
   };
 
-  auto basenameOf = [&](const std::string &p) -> std::string {
+  auto basenameOf = [&](const std::string &p) {
     const auto pos = p.find_last_of("\\/");
     return (pos == std::string::npos) ? p : p.substr(pos + 1);
   };
 
-  auto tryToDword = [&](const nlohmann::json &v, DWORD &out) -> bool {
+  auto tryToDword = [&](const nlohmann::json &v, DWORD &out) {
     try {
       if (v.is_number_unsigned()) {
         out = static_cast<DWORD>(v.get<uint64_t>());
