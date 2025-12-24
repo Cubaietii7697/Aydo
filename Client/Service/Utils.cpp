@@ -218,3 +218,7 @@ bool Utils::isWindowsSigned(const std::string &path) {
   // Return true only if the signature is valid and trusted
   return status == ERROR_SUCCESS;
 }
+
+bool Utils::sentRequestForDynamicScan(const std::string &path) {
+  return false;
+}
