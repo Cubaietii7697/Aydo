@@ -63,5 +63,4 @@ double calculateEntropy(const std::vector<int> &countedBytes, std::streamsize to
 // Check if a file is digitally signed by Microsoft/Windows
 bool isWindowsSigned(const std::string &path);
 
-bool Utils::sentRequestForDynamicScan(const std::string &path);
 } // namespace Utils

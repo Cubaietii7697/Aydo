@@ -25,7 +25,6 @@ public:
   // Default threshold for killing a process
   // Increased from 70 to 150 to prevent false positives from generic PE characteristics
   // Only confirmed malware signatures (100+ points) or multiple high-risk indicators should trigger
-  // TODO: User config
   static constexpr int DEFAULT_KILL_THRESHOLD = 150;
 
   // Minimum threat level required to kill (additional safeguard)

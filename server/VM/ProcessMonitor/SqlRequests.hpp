@@ -28,11 +28,11 @@ const std::unordered_set<std::string> SKIP_FIELDS = {
     "DefaultBase"};
 
 const std::unordered_set<std::string> TABLES = {
-    "EventId", "EventRecordId", "EventTime", "pid", "tid", "Provider", "Channel",
+    "EventId", "EventRecordId", "EventTime", "pid", "tid", "Provider", "Category", "Channel",
     "Computer", "UserSid", "Level", "Task", "Opcode", "Keywords",
     "Image", "ImageLoaded", "SourceImage", "TargetImage", "ProcessName",
     "ParentProcessName", "ParentImage", "ParentCommandLine",
-    "Commandline", "NewProcessName", "OriginalFilename",
+    "CommandLine", "NewProcessName", "OriginalFilename",
     "Hashes", "Version",
     "IpAddress", "LocalAddresses", "LocalPorts",
     "RemoteAddresses", "RemotePorts", "DestinationPort",
@@ -75,6 +75,7 @@ CREATE TABLE IF NOT EXISTS Events (
     pid                INTEGER, 
     tid           INTEGER, 
     Provider           TEXT,
+    Category           TEXT,
     Channel            TEXT,
     Computer           TEXT,
     UserSid            TEXT,
