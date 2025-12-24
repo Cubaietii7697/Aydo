@@ -18,7 +18,7 @@ public:
                        WireFormat fmt = WireFormat::Sqlite,
                        bool pretty = false,
                        bool lengthPrefixed = true);
-  ~EventWriter();
+  ~EventWriter() noexcept;
 
   void flush();
   void operator()(const EVENT_RECORD &rec, const krabs::trace_context &ctx);
@@ -27,6 +27,7 @@ public:
     std::scoped_lock<std::mutex> lk(m_mtx);
     m_wireFornat = f;
     m_lengthPrefixed = lengthPrefixed;
+    ensureSinkOpenLocked();
   }
 
 private:
@@ -46,8 +47,9 @@ private:
   bool prepareInsertStatement(const std::string &sql, sqlite3_stmt **stmtOut);
 
   bool bindJsonValues(sqlite3_stmt *stmt,
-                      const std::vector<nlohmann::json> &values) const;
-  void enrichSigmaFields(nlohmann::json &j) const;
+                      const std::vector<nlohmann::json> &values);
+  void enrichSigmaFields(nlohmann::json &j);
+  void ensureSinkOpenLocked();
 
 private:
   std::mutex m_mtx;

@@ -21,15 +21,23 @@ EventWriter::EventWriter(std::wstring path,
     , m_lengthPrefixed(length_prefixed) {
 
   std::scoped_lock<std::mutex> lk(m_mtx);
+  ensureSinkOpenLocked();
+}
 
-  if (m_wireFornat == WireFormat::Sqlite) {
-    if (sqlite3_open16(m_path.c_str(), &m_db) != SQLITE_OK) {
-      sqlite3_close(m_db);
+EventWriter::~EventWriter() {
+  try {
+    std::scoped_lock<std::mutex> lk(m_mtx);
+
+    if (m_db) {
+      sqlite3_close_v2(m_db);
       m_db = nullptr;
     }
-    initSqliteSchema();
-  } else {
-    m_out.open(m_path, std::ios::out | std::ios::app | std::ios::binary);
+
+    if (m_out.is_open()) {
+      m_out.flush();
+      m_out.close();
+    }
+  } catch (...) {
   }
 }
 
@@ -191,17 +199,61 @@ void EventWriter::collectColumnsAndValues(const nlohmann::json &j,
   columns.clear();
   values.clear();
 
-  // Define special mappings where DB column name != JSON key
-  static const std::unordered_map<std::string_view, std::string_view> specialMappings = {
-      {"EventId", "event_id"},
-      {"EventTime", "ts"},
-      {"Computer", "host"},
-      {"Provider", "provider"},
-      {"Category", "category"},
-      {"TaskName", "task_name"}};
+  //
+  // Read the actual table schema (once per DB handle) so we are not limited to
+  // SqlRequstes::TABLES. This allows new columns to be written without touching code.
+  //
+  auto getEventsTableColumns = [&]() -> const std::vector<std::string> & {
+    static std::mutex s_colsMtx;
+    static sqlite3 *s_lastDb = nullptr;
+    static std::vector<std::string> s_cols;
 
-  auto findInHierarchy = [&](const std::string_view key) -> const nlohmann::json * {
-    // Check root
+    std::scoped_lock<std::mutex> lk(s_colsMtx);
+
+    if (!m_db) {
+      return s_cols; // likely empty
+    }
+
+    if (s_lastDb == m_db && !s_cols.empty()) {
+      return s_cols;
+    }
+
+    s_lastDb = m_db;
+    s_cols.clear();
+
+    sqlite3_stmt *stmt = nullptr;
+    const char *sql = "PRAGMA table_info(Events);";
+    if (sqlite3_prepare_v2(m_db, sql, -1, &stmt, nullptr) != SQLITE_OK || !stmt) {
+      if (stmt) {
+        sqlite3_finalize(stmt);
+      }
+      return s_cols;
+    }
+
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+      // PRAGMA table_info columns: (cid, name, type, notnull, dflt_value, pk)
+      const unsigned char *txt = sqlite3_column_text(stmt, 1);
+      if (!txt) {
+        continue;
+      }
+      std::string colName = reinterpret_cast<const char *>(txt);
+
+      // Keep DEFAULT CURRENT_TIMESTAMP behavior.
+      if (colName == "InsertionTime") {
+        continue;
+      }
+
+      s_cols.push_back(std::move(colName));
+    }
+
+    sqlite3_finalize(stmt);
+    return s_cols;
+  };
+
+  const auto &schemaCols = getEventsTableColumns();
+  const auto &colsToWalk = schemaCols; // fallback
+
+  auto findInObjects = [&](const std::string &key) -> const nlohmann::json * {
     if (auto it = j.find(key); it != j.end() && !it->is_null())
       return &it.value();
 
@@ -215,31 +267,73 @@ void EventWriter::collectColumnsAndValues(const nlohmann::json &j,
     return nullptr;
   };
 
-  for (const auto &colName : SqlRequstes::TABLES) {
-    // Use mapped key if it exists, otherwise use the column name itself
-    auto mapIt = specialMappings.find(colName);
-    std::string_view searchKey = (mapIt != specialMappings.end()) ? mapIt->second : colName;
+  // Helpful for bridging PascalCase columns (UserSid) to snake_case payload keys (user_sid)
+  auto findSnakeCase = [&](const std::string &key) -> const nlohmann::json * {
+    std::string snake;
+    snake.reserve(key.size() + Constants::SNAKE_CASE_EXTRA_CAPACITY);
 
-    if (const nlohmann::json *src = findInHierarchy(searchKey)) {
+    for (size_t i = 0; i < key.size(); ++i) {
+      const auto c = static_cast<unsigned char>(key[i]);
+      if (c >= 'A' && c <= 'Z') {
+        if (i != 0)
+          snake.push_back('_');
+        snake.push_back(static_cast<char>(c - 'A' + 'a'));
+      } else {
+        snake.push_back(static_cast<char>(c));
+      }
+    }
+    if (snake == key) {
+      return nullptr;
+    }
+    return findInObjects(snake);
+  };
+
+  for (const auto &colName : colsToWalk) {
+    const nlohmann::json *src = nullptr;
+
+    //
+    // Explicit mappings for "header" fields where the JSON key differs
+    // from the SQL column name.
+    //
+    if (colName == "EventId") {
+      if (j.contains("event_id"))
+        src = &j["event_id"];
+      else if (j.contains("EventId"))
+        src = &j["EventId"];
+    } else if (colName == "EventRecordId") {
+      if (j.contains("EventRecordId"))
+        src = &j["EventRecordId"];
+      else if (j.contains("event_record_id"))
+        src = &j["event_record_id"];
+    } else if (colName == "EventTime") {
+      if (j.contains("ts"))
+        src = &j["ts"];
+      else if (j.contains("EventTime"))
+        src = &j["EventTime"];
+    } else if (colName == "Computer") {
+      if (j.contains("host"))
+        src = &j["host"];
+      else if (j.contains("Computer"))
+        src = &j["Computer"];
+    } else if (colName == "Provider" && j.contains("provider")) {
+      src = &j["provider"];
+    } else if (colName == "Category" && j.contains("category")) {
+      src = &j["category"];
+    } else if (colName == "pid" && j.contains("pid")) {
+      src = &j["pid"];
+    } else if (colName == "tid" && j.contains("tid")) {
+      src = &j["tid"];
+    } else {
+      // generic: same name in top-level OR nested (props/proc/net/dns/file)
+      src = findInObjects(colName);
+      if (!src) {
+        src = findSnakeCase(colName);
+      }
+    }
+
+    if (src && !src->is_null()) {
       columns.push_back(colName);
       values.push_back(*src);
-    }
-  }
-}
-
-EventWriter::~EventWriter() {
-  std::scoped_lock<std::mutex> lk(m_mtx);
-
-  if (m_db) {
-    sqlite3_close(m_db);
-    m_db = nullptr;
-  }
-
-  if (m_out.is_open()) {
-    try {
-      m_out.flush();
-      m_out.close();
-    } catch (const std::exception &e) {
     }
   }
 }
@@ -439,7 +533,7 @@ void EventWriter::writeEventJson(const EVENT_RECORD &rec,
 
       eventW = Utils::composeEvent(schema);
       j["event"] = Utils::narrow_utf8(eventW);
-      // Prefer schema’s event_id if available
+      // Prefer schemaï¿½s event_id if available
       j["event_id"] = schema.event_id();
 
       j["category"] = Utils::inferCategory(providerW, taskW);
@@ -522,6 +616,8 @@ void EventWriter::writeEventJson(const EVENT_RECORD &rec,
 void EventWriter::writeOut(const nlohmann::json &j) {
   std::scoped_lock<std::mutex> lk(m_mtx);
 
+  ensureSinkOpenLocked();
+
   if (m_wireFornat == WireFormat::Sqlite) {
     if (!m_db) {
       if (sqlite3_open16(m_path.c_str(), &m_db) != SQLITE_OK) {
@@ -590,29 +686,208 @@ void EventWriter::enrichSigmaFields(nlohmann::json &j) const {
     if (j.contains(dst) && !j[dst].is_null())
       return;
 
-    if (const auto *v = lookup(sources)) {
-      if (lower && v->is_string()) {
-        j[dst] = Utils::toLower(v->get_ref<const std::string &>());
-      } else {
-        j[dst] = *v;
+  // If the source is not a string, do nothing.
+  auto ensureLowered = [&](const std::string &dst,
+                           const std::vector<std::string> &sources) {
+    if (j.contains(dst) && !j[dst].is_null()) {
+      return;
+    }
+    if (const nlohmann::json *v = lookup(sources)) {
+      if (v->is_string()) {
+        std::string s = v->get<std::string>();
+        j[dst] = Utils::toLower(s);
       }
     }
   };
 
-  for (const auto &rule : Constants::RULES) {
-    process(rule.dst, rule.src, rule.lower);
+  auto basenameOf = [&](const std::string &p) -> std::string {
+    const auto pos = p.find_last_of("\\/");
+    return (pos == std::string::npos) ? p : p.substr(pos + 1);
+  };
+
+  auto tryToDword = [&](const nlohmann::json &v, DWORD &out) -> bool {
+    try {
+      if (v.is_number_unsigned()) {
+        out = static_cast<DWORD>(v.get<uint64_t>());
+        return true;
+      }
+      if (v.is_number_integer()) {
+        out = static_cast<DWORD>(v.get<int64_t>());
+        return true;
+      }
+      if (v.is_string()) {
+        out = static_cast<DWORD>(std::stoul(v.get<std::string>()));
+        return true;
+      }
+    } catch (...) {
+    }
+    return false;
+  };
+
+  //
+  // A) Host / provider / time normalization (DB columns)
+  //
+  ensureCopy("Computer", {"Computer", "host"});
+  ensureCopy("Provider", {"Provider", "provider"});
+  ensureCopy("Channel", {"Channel", "channel", "ChannelName"});
+  ensureCopy("EventTime", {"EventTime", "ts"});
+
+  //
+  // B) Process/Image fields (Sigma canonical columns)
+  //    Map nested proc.* and common ETW names into DB columns.
+  //
+  ensureCopy("Image", {"Image",
+                       "ImagePath", "ProcessPath", "NewProcessName", "ApplicationPath",
+                       "path", // proc.path / file.path (lookup scans proc/file)
+                       "Process", "ProcessName",
+                       "ImageFileName", "ImageName"});
+
+  ensureCopy("ProcessName", {"ProcessName",
+                             "name", // proc.name
+                             "ImageFileName", "ImageName"});
+
+  // If ProcessName is still empty but Image exists, derive it.
+  if ((!j.contains("ProcessName") || j["ProcessName"].is_null()) &&
+      j.contains("Image") && j["Image"].is_string()) {
+    const std::string img = j["Image"].get<std::string>();
+    if (!img.empty()) {
+      j["ProcessName"] = basenameOf(img);
+    }
   }
 
-  for (auto [a, b] : {std::pair{"CommandLine", "Commandline"}, {"LocalPort", "localport"}, {"ObjectName", "object_name"}, {"State", "STATE"}, {"ObjectClass", "ObjectClas"}}) {
-    process(a, {a, b});
-    process(b, {a, b});
+  ensureCopy("CommandLine", {"CommandLine", "Commandline",
+                             "CommandLineParams", "CommandLineParameters",
+                             "Parameters", "Arguments"});
+  ensureCopy("Commandline", {"Commandline", "CommandLine",
+                             "CommandLineParams", "CommandLineParameters",
+                             "Parameters", "Arguments"});
+
+  ensureCopy("ParentImage", {"ParentImage",
+                             "ParentProcessPath", "ParentImagePath", "ParentImageName",
+                             "ParentProcessName"});
+  ensureCopy("ParentProcessName", {"ParentProcessName",
+                                   "ParentImage", "ParentImageName"});
+  ensureCopy("ParentCommandLine", {"ParentCommandLine", "ParentCommandline",
+                                   "ParentCommandLineParams", "ParentCommandLineParameters"});
+
+  // Optional but high value: if we have PPID and ParentImage missing, resolve it.
+  if ((!j.contains("ParentImage") || j["ParentImage"].is_null()) ||
+      (!j.contains("ParentProcessName") || j["ParentProcessName"].is_null())) {
+    if (const nlohmann::json *pp = lookup({"ParentProcessId", "ParentPid", "PPID", "ppid"})) {
+      DWORD ppid = 0;
+      if (tryToDword(*pp, ppid) && ppid != 0 && ppid != Constants::INVALID_PID) {
+        nlohmann::json p = Utils::bestEffortProcFromPid(ppid);
+        if ((!j.contains("ParentImage") || j["ParentImage"].is_null()) &&
+            p.contains("path") && p["path"].is_string()) {
+          j["ParentImage"] = p["path"];
+        }
+        if ((!j.contains("ParentProcessName") || j["ParentProcessName"].is_null()) &&
+            p.contains("name") && p["name"].is_string()) {
+          j["ParentProcessName"] = p["name"];
+        }
+      }
+    }
   }
 
+  //
+  // C) Network fields (net.dst/net.dport -> DB Sigma columns)
+  //
+  ensureCopy("IpAddress", {"IpAddress",
+                           "dst", "DestAddress", "DestIp", "RemoteIP", "DestinationIp", "dstIp"});
+
+  ensureCopy("RemoteAddresses", {"RemoteAddresses",
+                                 "dst", "DestAddress", "RemoteIP", "DestinationIp", "dstIp"});
+
+  ensureCopy("RemotePorts", {"RemotePorts",
+                             "dport", "DestPort", "RemotePort", "DestinationPort", "dstPort"});
+
+  ensureCopy("DestinationPort", {"DestinationPort",
+                                 "dport", "DestPort", "RemotePort", "dstPort"});
+
+  ensureCopy("LocalPort", {"LocalPort", "localport", "lport", "SourcePort", "SrcPort"});
+  ensureCopy("localport", {"localport", "LocalPort", "lport", "SourcePort", "SrcPort"});
+
+  //
+  // D) File/Object fields (file.path/file.op/file.status -> DB columns)
+  //
+  ensureCopy("ObjectName", {"ObjectName", "object_name",
+                            "path", "FileName", "FilePath",
+                            "TargetFilename", "TargetFileName", "TargetObject"});
+  ensureCopy("object_name", {"object_name", "ObjectName",
+                             "path", "FileName", "FilePath"});
+
+  ensureCopy("Operation", {"Operation", "op", "IrpOp"});
+  ensureCopy("Status", {"Status", "status", "NtStatus", "ReturnValue"});
+
+  //
+  // E) User fields (common Sigma fields)
+  //
+  ensureCopy("UserSid", {"UserSid", "user_sid", "SID", "SubjectUserSid", "TargetUserSid"});
+  ensureCopy("SubjectUserSid", {"SubjectUserSid", "UserSid", "user_sid", "SID"});
+  ensureCopy("TargetUserSid", {"TargetUserSid", "UserSid", "user_sid", "SID"});
+
+  ensureCopy("SubjectUserName", {"SubjectUserName", "UserName", "User", "user", "AccountName"});
+  ensureCopy("TargetUserName", {"TargetUserName", "TargetUser", "TargetAccountName", "AccountName"});
+
+  //
+  // F) Existing "pair sync / lowercase" compatibility (keep yours)
+  //
+  ensureCopy("State", {"State", "STATE"});
+  ensureCopy("STATE", {"STATE", "State"});
+  ensureCopy("ObjectClass", {"ObjectClass", "ObjectClas"});
+  ensureCopy("ObjectClas", {"ObjectClas", "ObjectClass"});
+
+  ensureLowered("domain_in_lowercase_xxx",
+                {"domain_in_lowercase_xxx", "TargetDomainName", "TargetServerName", "DomainName"});
+  ensureLowered("param1_lower", {"param1_lower", "Param1", "param1"});
+
+  //
+  // G) Always keep full payload for future sigma fields/debug (optional but recommended)
+  //
   if (!j.contains("Payload") || j["Payload"].is_null()) {
-    j["Payload"] = j.dump();
+    nlohmann::json tmp = j;
+    tmp.erase("Payload");
+    j["Payload"] = tmp.dump();
   }
 }
 
 void EventWriter::operator()(const EVENT_RECORD &rec, const krabs::trace_context &ctx) {
   writeEventJson(rec, ctx);
+}
+
+void EventWriter::ensureSinkOpenLocked() {
+  if (m_wireFornat == WireFormat::Sqlite) {
+    // 1. Close file stream if switching from file to DB
+    if (m_out.is_open()) {
+      m_out.close();
+    }
+
+    // 2. Open DB if not already open
+    if (!m_db) {
+      if (sqlite3_open16(m_path.c_str(), &m_db) != SQLITE_OK) {
+        sqlite3_close(m_db);
+        m_db = nullptr;
+        throw std::runtime_error("Failed to open sqlite database");
+      }
+
+      sqlite3_busy_timeout(m_db, Constants::WAIT_TIME_S);
+      sqlite3_exec(m_db, "PRAGMA journal_mode=WAL;", nullptr, nullptr, nullptr);
+      sqlite3_exec(m_db, "PRAGMA synchronous=NORMAL;", nullptr, nullptr, nullptr);
+      initSqliteSchema();
+    }
+  } else {
+    // 1. Close DB if switching from DB to file
+    if (m_db) {
+      sqlite3_close_v2(m_db);
+      m_db = nullptr;
+    }
+
+    // 2. Open file stream if not already open
+    if (!m_out.is_open()) {
+      m_out.open(m_path, std::ios::out | std::ios::app | std::ios::binary);
+      if (!m_out) {
+        OutputDebugStringA("ensureSinkOpenLocked: failed to open output file\n");
+      }
+    }
+  }
 }

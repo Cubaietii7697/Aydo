@@ -13,22 +13,7 @@ constexpr int JSON_INDENT_WIDTH = 2;
 constexpr int IPPROTO_TCP = 6;
 constexpr int IPPROTO_UDP = 17;
 constexpr int HOST_MAX_NAME = 256;
-
-struct Mapping {
-  std::string dst;
-  std::vector<std::string> src;
-  bool lower = false;
-};
-inline const std::vector<Mapping> RULES = {
-    {"Computer", {"Computer", "host"}},
-    {"ProcessName", {"ProcessName", "ImageFileName", "ImageName", "name"}},
-    {"Image", {"Image", "ImagePath", "ProcessPath", "path"}},
-    {"RemoteAddresses", {"RemoteAddresses", "RemoteAddress", "DestAddress", "DestinationIp", "dst"}},
-    {"RemotePorts", {"RemotePorts", "RemotePort", "DestPort", "DestinationPort", "dport"}},
-    {"IpAddress", {"IpAddress", "RemoteIP", "DestinationIp", "dst"}},
-    {"ObjectName", {"ObjectName", "FileName", "FilePath", "path"}},
-    {"Operation", {"Operation", "IrpOp", "op"}},
-    {"Status", {"Status", "NtStatus", "ReturnValue", "status"}},
-    {"domain_in_lowercase_xxx", {"domain_in_lowercase_xxx", "TargetDomainName", "TargetServerName", "DomainName"}, true},
-    {"param1_lower", {"param1_lower", "Param1", "param1"}, true}};
+constexpr int WAIT_TIME_S = 5000;
+constexpr DWORD INVALID_PID = 0xFFFFFFFFu;
+constexpr size_t SNAKE_CASE_EXTRA_CAPACITY = 8;
 } // namespace Constants
