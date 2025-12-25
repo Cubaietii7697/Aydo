@@ -444,3 +444,4 @@ x64/
 *.json
 *.env
 *.sqlite
+*.vcxproj
