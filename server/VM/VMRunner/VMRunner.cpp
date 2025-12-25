@@ -15,7 +15,7 @@ int main(int argc, char *argv[]) {
     std::cerr << "Usage: " << argv[0] << " <sandbox_id> <virus_path> [runTime]" << std::endl;
     return EXIT_FAILURE;
   }
-  Utills::printBanner();
+  //Utills::printBanner();
   const std::string sandboxId(argv[1]);
   const std::filesystem::path suspiciousHostPath(argv[2]);
   const int runTimeSec = (argc == 4) ? std::atoi(argv[3]) : DEFUALT_TIME_CHECK;

@@ -6,7 +6,8 @@
 class UserConfig {
 public:
   int killThreshold = 150;
-  std::string serverUrl = "http://127.0.0.1";
+  double entropyThreshold = 6.0;
+  std::string serverUrl = "http://192.168.56.1";
   std::string accessToken;
   std::string refreshToken;
   int runtime = 60;

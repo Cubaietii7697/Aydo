@@ -62,10 +62,13 @@ bool ProcessMonitor::isThreat(const std::string &path) {
   const auto hexHash = Utils::computeSHA256(path);
 
   // Check if already scanned
-  if (auto it = m_scannedHashes.find(hexHash); it != m_scannedHashes.end()) {
-    std::cout << "  -> [CACHED] File already scanned ("
-              << (it->second ? "THREAT" : "clean") << ")" << std::endl;
-    return it->second;
+  {
+    std::lock_guard<std::mutex> lock(m_cacheMutex);
+    if (auto it = m_scannedHashes.find(hexHash); it != m_scannedHashes.end()) {
+      std::cout << "  -> [CACHED] File already scanned ("
+                << (it->second ? "THREAT" : "clean") << ")" << std::endl;
+      return it->second;
+    }
   }
 
   // check the Entropy
@@ -84,7 +87,10 @@ bool ProcessMonitor::isThreat(const std::string &path) {
   // Check hashes database
   if (const auto resHASH = m_hashDb.getHashName(hexHash); resHASH && !resHASH->empty()) {
     std::cout << "  -> [HASH] MATCH: " << *resHASH << std::endl;
-    m_scannedHashes[hexHash] = true;
+    {
+      std::lock_guard<std::mutex> lock(m_cacheMutex);
+      m_scannedHashes[hexHash] = true;
+    }
 
     return true;
   }
@@ -106,17 +112,22 @@ bool ProcessMonitor::isThreat(const std::string &path) {
               << " (threshold: " << m_yara.getScoringSystem().getKillThreshold() << ")" << std::endl;
     std::cout << "  -> [YARA] Matched rules: " << yaraResult.matchedRules.size() << std::endl;
 
-    // Additional safeguard: Require minimum number of high-value rules
     // If only low-value info rules matched, don't kill even if score is high
     if (yaraResult.scoring.highestLevel <= ThreatLevel::Info && yaraResult.matchedRules.size() < 20) {
       std::cout << "  -> [YARA] Only info-level rules matched, insufficient for threat classification" << std::endl;
-      m_scannedHashes[hexHash] = false;
+      {
+        std::lock_guard<std::mutex> lock(m_cacheMutex);
+        m_scannedHashes[hexHash] = false;
+      }
       return false;
     }
 
     if (yaraResult.scoring.shouldKill) {
       std::cout << "  -> [YARA] Threat level exceeds threshold!" << std::endl;
-      m_scannedHashes[hexHash] = true;
+      {
+        std::lock_guard<std::mutex> lock(m_cacheMutex);
+        m_scannedHashes[hexHash] = true;
+      }
       return true;
     }
 
@@ -127,41 +138,59 @@ bool ProcessMonitor::isThreat(const std::string &path) {
 
   auto &config = UserConfig::getInstance();
 
-  if (entropy > config.killThreshold) {
-    std::cout << "  -> [ENTROPY] High entropy detected (" << entropy << "). Sending to server for analysis..." << std::endl;
+  if (entropy > config.entropyThreshold) {
+    std::cout << "  -> [ENTROPY] High entropy detected (" << entropy << "). Requesting cloud analysis..." << std::endl;
 
     try {
       auto &server = ServerCommunications::getInstance();
       nlohmann::json response;
+      bool fileUploaded = false;
 
-      if (server.requestFileScan(hexHash, UserConfig::getInstance().runtime, response)) {
-        std::string status = response.value("status", "Unknown");
+      while (true) {
+        if (server.requestFileScan(hexHash, config.runtime, response)) {
+          std::string status = response.value("status", "Unknown");
 
-        if (status == "Completed") {
-          std::string virusType = response.value("virusType", "Unknown");
-          int score = response.value("score", 0);
+          if (status == "Completed") {
+            std::string virusType = response.value("virusType", "Unknown");
+            int score = response.value("score", 0);
 
-          if (virusType != "Clean" || score > 0) {
-            std::cout << "  -> [SERVER] Threat detected: " << virusType << " (Score: " << score << ")" << std::endl;
-            m_scannedHashes[hexHash] = true;
-            return true;
+            if (virusType != "Clean" || score > 0) {
+              std::cout << "  -> [SERVER] Threat detected: " << virusType << " (Score: " << score << ")" << std::endl;
+              {
+                std::lock_guard<std::mutex> lock(m_cacheMutex);
+                m_scannedHashes[hexHash] = true;
+              }
+              return true;
+            }
+
+            std::cout << "  -> [SERVER] File confirmed clean by server analysis." << std::endl;
+            {
+              std::lock_guard<std::mutex> lock(m_cacheMutex);
+              m_scannedHashes[hexHash] = false;
+            }
+            return false;
           }
 
-          std::cout << "  -> [SERVER] File confirmed clean by server analysis." << std::endl;
-          m_scannedHashes[hexHash] = false;
-          return false;
+          if (status == "Pending" && !fileUploaded) {
+            std::cout << "  -> [SERVER] File unknown to server. Uploading..." << std::endl;
+            if (server.uploadFile(hexHash, path)) {
+              std::cout << "  -> [SERVER] Upload successful. Sandbox analysis started." << std::endl;
+              fileUploaded = true;
+            } else {
+              std::cerr << "  -> [SERVER] Failed to upload file." << std::endl;
+              break;
+            }
+          } else if (status == "InProgress" || status == "Pending") {
+          } else if (status == "Failed") {
+            std::cerr << "  -> [SERVER] Analysis failed on the server side." << std::endl;
+            break;
+          }
+        } else {
+          std::cerr << "  -> [SERVER] Failed to communicate with server." << std::endl;
+          break;
         }
 
-        if (status == "Pending") {
-          std::cout << "  -> [SERVER] File unknown to server. Uploading for dynamic analysis..." << std::endl;
-          if (server.uploadFile(hexHash, path)) {
-            std::cout << "  -> [SERVER] Upload successful. Sandbox analysis started." << std::endl;
-          } else {
-            std::cerr << "  -> [SERVER] Failed to upload file." << std::endl;
-          }
-        } else if (status == "InProgress") {
-          std::cout << "  -> [SERVER] Analysis already in progress on the server." << std::endl;
-        }
+        Sleep(Constants::DYNAMIC_SCAN_POLL_INTERVAL * 1000);
       }
     } catch (const std::exception &e) {
       std::cerr << "  -> [SERVER] Communication error: " << e.what() << std::endl;
@@ -169,9 +198,35 @@ bool ProcessMonitor::isThreat(const std::string &path) {
   }
 
   // Add to scanned hashes (file is clean)
-  m_scannedHashes[hexHash] = false;
+  {
+    std::lock_guard<std::mutex> lock(m_cacheMutex);
+    m_scannedHashes[hexHash] = false;
+  }
 
   return false;
+}
+
+void ProcessMonitor::handleProcessStarted(uint32_t pid, const std::string &path) {
+  try {
+    if (isThreat(path)) {
+      std::cout << "  -> [ALERT] MALICIOUS DETECTED! Killing PID=" << pid
+                << " (" << path << ")" << std::endl
+                << std::endl;
+
+      if (m_driver->killProcess(pid)) {
+        std::cout << "  -> [SUCCESS] Process terminated!" << std::endl
+                  << std::endl;
+      } else {
+        std::cout << "  -> [FAILED] Could not terminate process (Error: " << GetLastError() << ")" << std::endl
+                  << std::endl;
+      }
+    } else {
+      std::cout << "  -> [CLEAN] Process is safe: " << path << std::endl
+                << std::endl;
+    }
+  } catch (const std::exception &ex) {
+    std::cerr << "  -> [ERROR] Scan failed for PID=" << pid << ": " << ex.what() << std::endl;
+  }
 }
 
 void ProcessMonitor::monitorLoop() {
@@ -210,27 +265,8 @@ void ProcessMonitor::monitorLoop() {
                 << " | Image: " << imageFileNameA << std::endl;
       std::cout << "  -> Scanning: " << path << std::endl;
 
-      try {
-        if (isThreat(path)) {
-          std::cout << "  -> [ALERT] MALICIOUS DETECTED! Killing PID=" << notification.ProcessId
-                    << " (" << path << ")" << std::endl
-                    << std::endl;
-
-          if (m_driver->killProcess(notification.ProcessId)) {
-            std::cout << "  -> [SUCCESS] Process terminated!" << std::endl
-                      << std::endl;
-          } else {
-            std::cout << "  -> [FAILED] Could not terminate process (Error: " << GetLastError() << ")" << std::endl
-                      << std::endl;
-          }
-        } else {
-          std::cout << "  -> [CLEAN] Process is safe." << std::endl
-                    << std::endl;
-        }
-      } catch (const std::exception &ex) {
-        std::cerr << "  -> [ERROR] Scan failed: " << ex.what() << std::endl
-                  << std::endl;
-      }
+      // Start scan in a new thread
+      std::thread(&ProcessMonitor::handleProcessStarted, this, notification.ProcessId, path).detach();
     } else {
       Sleep(Constants::SLEEP_BETWEEN_NO_NOTIFICATIONS_MS); // Sleep between checks if no notifications
     }

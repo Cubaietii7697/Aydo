@@ -35,6 +35,9 @@ bool UserConfig::load(const std::string &configPath) {
     if (j.contains("runtime")) {
       runtime = j["runtime"];
     }
+    if (j.contains("entropyThreshold")) {
+      entropyThreshold = j["entropyThreshold"];
+    }
 
     return true;
   } catch (const std::exception &e) {
@@ -51,6 +54,7 @@ bool UserConfig::save(const std::string &configPath) const {
     j["accessToken"] = accessToken;
     j["refreshToken"] = refreshToken;
     j["runtime"] = runtime;
+    j["entropyThreshold"] = entropyThreshold;
 
     std::ofstream file(configPath);
     if (!file.is_open()) {

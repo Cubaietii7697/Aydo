@@ -2,6 +2,8 @@
 
 #include <atomic>
 #include <memory>
+#include <mutex>
+#include <optional>
 #include <string>
 #include <thread>
 #include <unordered_map>
@@ -18,6 +20,7 @@ private:
 
   std::atomic<bool> m_stopMonitoring{false};
   std::unordered_map<std::string, bool> m_scannedHashes;
+  std::mutex m_cacheMutex;
   std::thread m_monitorThread;
 
 public:
@@ -37,5 +40,6 @@ public:
 private:
   void monitorLoop();
 
+  void handleProcessStarted(uint32_t pid, const std::string &path);
   bool isThreat(const std::string &path);
 };

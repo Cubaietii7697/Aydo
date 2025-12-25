@@ -13,6 +13,8 @@
 #include "ProcessMonitor.hpp"
 #include "Yara/YScanningEngine.hpp"
 
+#pragma comment(lib, "ws2_32.lib")
+
 static std::atomic<bool> g_stopMonitoring{false};
 static ProcessMonitor *g_monitor = nullptr;
 
@@ -93,11 +95,13 @@ int main() {
   }
 
   // Connect to server
-  std::cout << "Connecting to server..." << std::endl;
+  std::cout << "Connecting to server..." << config.serverUrl << std::endl;
   ServerCommunications::initialize(config.serverUrl, config.accessToken, config.refreshToken);
 
   // Handle authentication if tokens are missing
-  handleUserAuth();
+  if (config.refreshToken == "") {
+    handleUserAuth();
+  }
 
   // Set up Ctrl+C handler
   if (!SetConsoleCtrlHandler(CtrlHandler, TRUE)) {
