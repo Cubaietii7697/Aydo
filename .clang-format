@@ -1,0 +1,60 @@
+# .clang-format
+BasedOnStyle: LLVM
+Language: Cpp
+
+# indent
+IndentWidth: 2
+TabWidth: 2
+UseTab: Never
+
+# include sorting
+IncludeBlocks: Preserve          # don't regroup across blank-line blocks
+SortIncludes: true               # sort within each block only
+
+IncludeCategories:
+  # PCH must be first (preps <windows.h> & friends)
+  - Regex: '^"pch\.h"$'
+    Priority: 0
+
+  # Winsock2 must come before windows.h
+  - Regex: '^<winsock2\.h>$'
+    Priority: 1
+  - Regex: '^<ws2tcpip\.h>$'
+    Priority: 2
+
+  # Windows base after Winsock2
+  - Regex: '^<windows\.h>$'
+    Priority: 3
+
+  # ETW/WMI headers after windows.h
+  - Regex: '^<(evntrace|tdh|wmistr|evntprov)\.h>$'
+    Priority: 4
+
+  # Kernel-mode headers (harmless in user-mode)
+  - Regex: '^<ntddk\.h>$'
+    Priority: 5
+  - Regex: '^<wdf\.h>$'
+    Priority: 6
+  - Regex: '^<ntifs\.h>$'
+    Priority: 7
+
+  # Krabs after ETW (angle-bracket include in your codebase)
+  - Regex: '^<krabs\.hpp>$'
+    Priority: 50
+
+  # All other system headers
+  - Regex: '^<.*>$'
+    Priority: 90
+
+  # Project/local headers
+  - Regex: '^".*"$'
+    Priority: 100
+
+SortUsingDeclarations: true
+
+# constructor initializer settings
+PackConstructorInitializers: Never
+BreakConstructorInitializersBeforeComma: true
+
+# line length
+ColumnLimit: 0
