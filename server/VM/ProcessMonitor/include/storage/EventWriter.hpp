@@ -7,6 +7,8 @@
 #include <mutex>
 
 #include <sqlite3.h>
+#include "Finding.hpp"
+struct Finding;
 
 class EventWriter {
 public:
@@ -29,6 +31,7 @@ public:
     m_lengthPrefixed = lengthPrefixed;
     ensureSinkOpenLocked();
   }
+  void writeFinding(const Finding &f);
 
 private:
   void writeEventJson(const EVENT_RECORD &rec, const krabs::trace_context &ctx);

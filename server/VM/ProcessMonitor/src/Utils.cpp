@@ -378,6 +378,21 @@ std::string Utils::iso8601FromLargeIntegerTimestamp(const LARGE_INTEGER &ts) {
   return oss.str();
 }
 
+std::string Utils::iso8601FromTimePoint(std::chrono::system_clock::time_point tp) {
+  const auto t = std::chrono::system_clock::to_time_t(tp);
+
+  std::tm tm{};
+  gmtime_s(&tm, &t);
+
+  const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(tp.time_since_epoch()) % 1000;
+
+  std::ostringstream oss;
+  oss << std::put_time(&tm, "%Y-%m-%dT%H:%M:%S")
+      << '.' << std::setw(3) << std::setfill('0') << ms.count()
+      << 'Z';
+  return oss.str();
+}
+
 std::string Utils::guidToString(const GUID &g) {
   wchar_t buf[Constants::GUID_SIZE];
   if (int n = ::StringFromGUID2(g, buf, Constants::GUID_SIZE); n <= 0) {

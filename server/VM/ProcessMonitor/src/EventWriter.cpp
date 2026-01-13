@@ -142,7 +142,6 @@ bool EventWriter::bindJsonValues(sqlite3_stmt *stmt,
     }
 
     if (rc != SQLITE_OK) {
-      // Optional: log sqlite3_errmsg(m_db).
       return false;
     }
   }
@@ -450,6 +449,61 @@ void EventWriter::fillPropsViaTdh(nlohmann::json &props,
   } catch (const std::exception &e) {
     OutputDebugStringA((std::string("krabs error: ") + e.what() + "\n").c_str());
   }
+}
+
+void EventWriter::writeFinding(const Finding &f) {
+  if (m_wireFornat != WireFormat::Sqlite) {
+    nlohmann::json j;
+    j["RecordType"] = "Finding";
+    j["EventTime"] = Utils::iso8601FromTimePoint(f.ts);
+    j["Type"] = f.type;
+    j["Severity"] = f.SEVERITY;
+    j["Confidence"] = f.confidence;
+    j["SourcePid"] = f.source_pid;
+    j["TargetPid"] = f.target_pid;
+    j["Tid"] = f.tid;
+    j["EvidenceJson"] = f.evidence_json;
+    writeOut(j);
+    return;
+  }
+
+  // insert into Findings table
+  std::scoped_lock<std::mutex> lk(m_mtx);
+  ensureSinkOpenLocked();
+
+  if (!m_db) {
+    if (sqlite3_open16(m_path.c_str(), &m_db) != SQLITE_OK) {
+      sqlite3_close(m_db);
+      m_db = nullptr;
+      return;
+    }
+    initSqliteSchema();
+  }
+
+  static const char *SQL =
+      "INSERT INTO Findings(EventTime, Type, Severity, Confidence, SourcePid, TargetPid, Tid, EvidenceJson) "
+      "VALUES(?,?,?,?,?,?,?,?);";
+
+  sqlite3_stmt *stmt = nullptr;
+  if (sqlite3_prepare_v2(m_db, SQL, -1, &stmt, nullptr) != SQLITE_OK || !stmt) {
+    if (stmt)
+      sqlite3_finalize(stmt);
+    return;
+  }
+
+  const auto ts = Utils::iso8601FromTimePoint(f.ts);
+
+  sqlite3_bind_text(stmt, 1, ts.c_str(), -1, SQLITE_TRANSIENT);
+  sqlite3_bind_text(stmt, 2, f.type.c_str(), -1, SQLITE_TRANSIENT);
+  sqlite3_bind_int(stmt, 3, f.SEVERITY);
+  sqlite3_bind_int(stmt, 4, f.confidence);
+  sqlite3_bind_int(stmt, 5, static_cast<int>(f.source_pid));
+  sqlite3_bind_int(stmt, 6, static_cast<int>(f.target_pid));
+  sqlite3_bind_int(stmt, 7, static_cast<int>(f.tid));
+  sqlite3_bind_text(stmt, 8, f.evidence_json.c_str(), -1, SQLITE_TRANSIENT);
+
+  sqlite3_step(stmt);
+  sqlite3_finalize(stmt);
 }
 
 void EventWriter::writeEventJson(const EVENT_RECORD &rec,

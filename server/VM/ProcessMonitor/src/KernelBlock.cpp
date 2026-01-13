@@ -1,4 +1,4 @@
-#include "kernelBlock.hpp"
+#include "KernelBlock.hpp"
 #include <stdexcept>
 KernelBlock::KernelBlock(const std::wstring &userSessionName)
     : m_sessionName(userSessionName) {

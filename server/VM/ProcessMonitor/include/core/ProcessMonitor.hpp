@@ -19,6 +19,8 @@
 #include "KernelBlock.hpp"
 #include "Threads.hpp"
 #include "UserBlock.hpp"
+#include "ThreadAnalysisEngine.hpp"
+#include <mutex>  
 
 extern std::set<DWORD> g_targetPids;
 extern TRACEHANDLE g_hTrace;
@@ -36,11 +38,12 @@ public:
   void stop();
 
 private:
+  ThreadAnalysisEngine m_threadAnalysis;
   UserBlock m_user;
   KernelBlock m_kernel;
   Threads m_threads;
   Caches m_caches;
-
+  std::mutex m_analysisMtx;
   std::unique_ptr<EventWriter> m_writer = nullptr;
 
 private:

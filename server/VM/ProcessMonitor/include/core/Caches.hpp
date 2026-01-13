@@ -1,10 +1,9 @@
 #pragma once
 #include "pch.h"
+#include "ThreadCaches.hpp"
 #include <chrono>
-#include <string>
 #include <unordered_map>
 #include <unordered_set>
-#include <vector>
 
 struct DnsAnswer {
   std::wstring query;
@@ -15,4 +14,5 @@ struct DnsAnswer {
 struct Caches {
   std::unordered_map<uint64_t, std::wstring> fileObjectPath;
   std::unordered_multimap<DWORD, DnsAnswer> dnsCacheByPid;
+  ThreadCaches thread;
 };

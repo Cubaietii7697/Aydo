@@ -6,6 +6,7 @@
 #include <mutex>
 #include <sstream>
 #include <vector>
+#include "Utils.hpp"
 
 std::set<DWORD> g_targetPids;
 TRACEHANDLE g_hTrace = 0;
@@ -16,7 +17,8 @@ ProcessMonitor::ProcessMonitor(const std::wstring &exeName, const std::wstring &
     , m_kernel{sessionNameKernel}
     , m_threads{}
     , m_caches{}
-    , m_writer(std::make_unique<EventWriter>(outPath, EventWriter::WireFormat::Sqlite, false, true)) {
+    , m_writer(std::make_unique<EventWriter>(outPath, EventWriter::WireFormat::Sqlite, false, true))
+    , m_threadAnalysis(&m_caches.thread, m_writer.get()) {
   g_hTrace = 0;
   g_hSession = 0;
   g_targetPids = FindPidByName(exeName);
@@ -26,7 +28,8 @@ ProcessMonitor::ProcessMonitor(const std::set<DWORD> &initialPids, const std::ws
     , m_kernel{sessionNameKernel}
     , m_threads{}
     , m_caches{}
-    , m_writer(std::make_unique<EventWriter>(outPath, EventWriter::WireFormat::Sqlite, false, true)) {
+    , m_writer(std::make_unique<EventWriter>(outPath, EventWriter::WireFormat::Sqlite, false, true)) 
+    , m_threadAnalysis(&m_caches.thread, m_writer.get()) {
   g_hTrace = 0;
   g_hSession = 0;
   g_targetPids = initialPids;
@@ -38,13 +41,63 @@ bool ProcessMonitor::pidAllowed(DWORD pid) const {
 
 void ProcessMonitor::analysisRecord(const EVENT_RECORD &record,
                                     const krabs::trace_context &ctx) {
-  // TODO: on v2 analysis Record.
-  // if (record == "createProcces")
-  //{
-  //     g_targetPids.insert()
-  //}
-  // need to watch about remote procces.
-  // analysis.
+  std::scoped_lock lk(m_analysisMtx);
+
+  NormalizedEvent ne{};
+  ne.ts = std::chrono::system_clock::now(); 
+  ne.pid = record.EventHeader.ProcessId;
+  ne.tid = record.EventHeader.ThreadId;
+  ne.eventId = static_cast<int>(record.EventHeader.EventDescriptor.Id);
+
+  try {
+    krabs::schema schema(record, ctx.schema_locator);
+
+    try {
+      ne.provider = Utils::narrow_utf8(schema.provider_name());
+    } catch (...) {
+      ne.provider = "<unknown_provider>";
+    }
+
+    try {
+      const auto evW = Utils::composeEvent(schema);
+      ne.fields["event"] = Utils::narrow_utf8(evW);
+    } catch (...) {
+    }
+
+    try {
+      ne.fields["task_name"] = Utils::narrow_utf8(schema.task_name());
+    } catch (...) {
+    }
+
+    krabs::parser parser(schema);
+
+    auto tryU32 = [&](const wchar_t *name) -> std::optional<uint32_t> {
+      try {
+        return parser.parse<uint32_t>(name);
+      } catch (...) {
+        return std::nullopt;
+      }
+    };
+
+    if (auto v = tryU32(L"SourcePid"))
+      ne.fields["SourcePid"] = *v;
+    if (auto v = tryU32(L"TargetPid"))
+      ne.fields["TargetPid"] = *v;
+    if (auto v = tryU32(L"SourceProcessId"))
+      ne.fields["SourcePid"] = *v;
+    if (auto v = tryU32(L"TargetProcessId"))
+      ne.fields["TargetPid"] = *v;
+
+    if (auto v = tryU32(L"TargetTid"))
+      ne.fields["TargetTid"] = *v;
+    if (auto v = tryU32(L"TargetThreadId"))
+      ne.fields["TargetTid"] = *v;
+
+  } catch (...) {
+    ne.provider = "<no_schema>";
+  }
+
+  m_threadAnalysis.onEvent(ne);
 }
 
 void ProcessMonitor::onKernelEvent(const EVENT_RECORD &record,
@@ -124,4 +177,5 @@ void ProcessMonitor::onThreadEvent(const EVENT_RECORD &record, const krabs::trac
 void ProcessMonitor::LogEvent(const EVENT_RECORD &record,
                               const krabs::trace_context &ctx) {
   (*m_writer)(record, ctx);
+  analysisRecord(record, ctx);
 }

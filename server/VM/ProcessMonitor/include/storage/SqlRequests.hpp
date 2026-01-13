@@ -209,5 +209,19 @@ CREATE TABLE IF NOT EXISTS Events (
 CREATE INDEX IF NOT EXISTS idx_events_time      ON Events(EventTime);
 CREATE INDEX IF NOT EXISTS idx_events_ids       ON Events(EventId, EventRecordId);
 CREATE INDEX IF NOT EXISTS idx_events_provider  ON Events(Provider);
+CREATE TABLE IF NOT EXISTS Findings (
+    EventTime      DATETIME NOT NULL,
+    Type           TEXT,
+    Severity       INTEGER,
+    Confidence     INTEGER,
+    SourcePid      INTEGER,
+    TargetPid      INTEGER,
+    Tid            INTEGER,
+    EvidenceJson   TEXT,
+    InsertionTime  DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_findings_time ON Findings(EventTime);
+CREATE INDEX IF NOT EXISTS idx_findings_type ON Findings(Type);
 )SQL";
 } // namespace SqlRequstes
