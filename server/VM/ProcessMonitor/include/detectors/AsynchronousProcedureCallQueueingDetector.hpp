@@ -11,7 +11,6 @@ public:
   std::string name() const override { return "AsynchronousProcedureCallQueueingDetector"; }
 
 private:
-  bool isApcQueueEvent(const NormalizedEvent &ne) const;
   bool tryGetTarget(const NormalizedEvent &ne, DWORD &targetPid, DWORD &targetTid) const;
   Finding buildFinding(const NormalizedEvent &ne, DWORD srcPid, DWORD tgtPid, DWORD tgtTid,
                        int severity, int confidence) const;

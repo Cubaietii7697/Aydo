@@ -14,13 +14,13 @@
 
 #include <krabs.hpp>
 
+#include <mutex>
 #include "Caches.hpp"
 #include "EventWriter.hpp"
 #include "KernelBlock.hpp"
+#include "ThreadAnalysisEngine.hpp"
 #include "Threads.hpp"
 #include "UserBlock.hpp"
-#include "ThreadAnalysisEngine.hpp"
-#include <mutex>  
 
 extern std::set<DWORD> g_targetPids;
 extern TRACEHANDLE g_hTrace;

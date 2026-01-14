@@ -229,7 +229,7 @@ $(ProjectDir)include;$(ProjectDir)include\core;$(ProjectDir)include\etw;$(Projec
     <ClInclude Include="pch.h" />
     <ClInclude Include="include\core\ProcessMonitor.hpp" />
     <ClInclude Include="include\core\Caches.hpp" />
-    <ClInclude Include="include\core\constants.hpp" />
+    <ClInclude Include="include\core\Constants.hpp" />
     <ClInclude Include="include\core\Threads.hpp" />
     <ClInclude Include="include\etw\EtwGuids.hpp" />
     <ClInclude Include="include\etw\KernelBlock.hpp" />
@@ -247,7 +247,6 @@ $(ProjectDir)include;$(ProjectDir)include\core;$(ProjectDir)include\etw;$(Projec
     <ClInclude Include="include\detectors\RemoteThreadCreationDetector.hpp" />
     <ClInclude Include="include\detectors\AsynchronousProcedureCallQueueingDetector.hpp" />
     <ClInclude Include="include\detectors\ThreadHijackDetector.hpp" />
-    <ClInclude Include="include\detectors\ThreadStartAddressAnomalyDetector.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

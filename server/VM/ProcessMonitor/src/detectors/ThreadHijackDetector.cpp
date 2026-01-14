@@ -5,7 +5,7 @@
 #include "ThreadHelpers.hpp"
 
 std::vector<Finding> ThreadHijackDetector::evaluate(const NormalizedEvent &ne, ThreadCaches &caches) {
-  const uint64_t tidKey = static_cast<uint64_t>(ne.tid);
+  const auto tidKey = static_cast<uint64_t>(ne.tid);
   auto it = caches.byTid.find(tidKey);
   if (it == caches.byTid.end())
     return {};
@@ -34,16 +34,18 @@ std::vector<Finding> ThreadHijackDetector::evaluate(const NormalizedEvent &ne, T
 }
 
 Finding ThreadHijackDetector::buildFinding(const NormalizedEvent &ne,
-                                          DWORD ownerPid,
-                                          DWORD tid,
-                                          int severity,
-                                          int confidence,
-                                          const char *phase) const {
+                                           DWORD ownerPid,
+                                           DWORD tid,
+                                           int severity,
+                                           int confidence,
+                                           const char *phase) const {
   nlohmann::json ev;
   ev["provider"] = ne.provider;
   ev["eventId"] = ne.eventId;
-  if (auto s = ThreadHelpers::getStr(ne, "event")) ev["event"] = *s;
-  if (auto s = ThreadHelpers::getStr(ne, "task_name")) ev["task_name"] = *s;
+  if (auto s = ThreadHelpers::getStr(ne, "event"))
+    ev["event"] = *s;
+  if (auto s = ThreadHelpers::getStr(ne, "task_name"))
+    ev["task_name"] = *s;
   ev["ownerPid"] = ownerPid;
   ev["tid"] = tid;
   ev["phase"] = phase;
@@ -53,8 +55,8 @@ Finding ThreadHijackDetector::buildFinding(const NormalizedEvent &ne,
   f.severity = severity;
   f.confidence = confidence;
   f.ts = ne.ts;
-  f.source_pid = ne.pid;        // process performing the action (best-effort)
-  f.target_pid = ownerPid;      // thread owner process
+  f.source_pid = ne.pid;   // process performing the action (best-effort)
+  f.target_pid = ownerPid; // thread owner process
   f.tid = tid;
   f.evidence_json = ev.dump();
   return f;

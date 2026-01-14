@@ -1,9 +1,9 @@
 #pragma once
 #include "pch.h"
-#include "ThreadCaches.hpp"
 #include <chrono>
 #include <unordered_map>
 #include <unordered_set>
+#include "ThreadCaches.hpp"
 
 struct DnsAnswer {
   std::wstring query;

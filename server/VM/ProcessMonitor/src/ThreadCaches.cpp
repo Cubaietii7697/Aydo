@@ -1,9 +1,9 @@
 #include "ThreadCaches.hpp"
 #include "ThreadHelpers.hpp"
 
-#include <algorithm> 
+#include <algorithm>
 #include <chrono>
-#include <utility> 
+#include <utility>
 
 void ThreadCaches::update(const NormalizedEvent &e) {
   // 1) per-thread updates

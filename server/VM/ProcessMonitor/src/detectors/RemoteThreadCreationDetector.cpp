@@ -3,10 +3,12 @@
 #include "ThreadHelpers.hpp"
 
 std::vector<Finding> RemoteThreadCreationDetector::evaluate(const NormalizedEvent &ne, ThreadCaches &) {
-  if (!isMatch(ne))
+  if (!isMatch(ne)) {
     return {};
+  }
 
-  DWORD tgtPid = 0, tgtTid = 0;
+  DWORD tgtPid = 0;
+  DWORD tgtTid = 0;
   if (!tryGetTarget(ne, tgtPid, tgtTid))
     return {};
 
@@ -38,16 +40,18 @@ bool RemoteThreadCreationDetector::tryGetTarget(const NormalizedEvent &ne, DWORD
 }
 
 Finding RemoteThreadCreationDetector::buildFinding(const NormalizedEvent &ne,
-                                                  DWORD srcPid,
-                                                  DWORD tgtPid,
-                                                  DWORD tgtTid,
-                                                  int severity,
-                                                  int confidence) const {
+                                                   DWORD srcPid,
+                                                   DWORD tgtPid,
+                                                   DWORD tgtTid,
+                                                   int severity,
+                                                   int confidence) const {
   nlohmann::json ev;
   ev["provider"] = ne.provider;
   ev["eventId"] = ne.eventId;
-  if (auto s = ThreadHelpers::getStr(ne, "event")) ev["event"] = *s;
-  if (auto s = ThreadHelpers::getStr(ne, "task_name")) ev["task_name"] = *s;
+  if (auto s = ThreadHelpers::getStr(ne, "event"))
+    ev["event"] = *s;
+  if (auto s = ThreadHelpers::getStr(ne, "task_name"))
+    ev["task_name"] = *s;
   ev["srcPid"] = srcPid;
   ev["tgtPid"] = tgtPid;
   ev["tgtTid"] = tgtTid;
