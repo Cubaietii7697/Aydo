@@ -10,8 +10,7 @@ std::vector<Finding> RemoteThreadCreationDetector::evaluate(const NormalizedEven
   if (!tryGetTarget(ne, tgtPid, tgtTid))
     return {};
 
-  // Conservative default scoring; tune later.
-
+  // default scoring; tune later.
 
   return {buildFinding(ne, ne.pid, tgtPid, tgtTid, SEVERITY, CONFIDENCE)};
 }
@@ -42,7 +41,7 @@ Finding RemoteThreadCreationDetector::buildFinding(const NormalizedEvent &ne,
                                                   DWORD srcPid,
                                                   DWORD tgtPid,
                                                   DWORD tgtTid,
-                                                  int SEVERITY,
+                                                  int severity,
                                                   int confidence) const {
   nlohmann::json ev;
   ev["provider"] = ne.provider;
@@ -55,7 +54,7 @@ Finding RemoteThreadCreationDetector::buildFinding(const NormalizedEvent &ne,
 
   Finding f;
   f.type = "RemoteThreadCreation";
-  f.SEVERITY = SEVERITY;
+  f.severity = severity;
   f.confidence = confidence;
   f.ts = ne.ts;
   f.source_pid = srcPid;

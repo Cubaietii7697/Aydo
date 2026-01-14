@@ -36,7 +36,7 @@ std::vector<Finding> ThreadHijackDetector::evaluate(const NormalizedEvent &ne, T
 Finding ThreadHijackDetector::buildFinding(const NormalizedEvent &ne,
                                           DWORD ownerPid,
                                           DWORD tid,
-                                          int SEVERITY,
+                                          int severity,
                                           int confidence,
                                           const char *phase) const {
   nlohmann::json ev;
@@ -50,7 +50,7 @@ Finding ThreadHijackDetector::buildFinding(const NormalizedEvent &ne,
 
   Finding f;
   f.type = "ThreadHijackHeuristic";
-  f.SEVERITY = SEVERITY;
+  f.severity = severity;
   f.confidence = confidence;
   f.ts = ne.ts;
   f.source_pid = ne.pid;        // process performing the action (best-effort)

@@ -9,11 +9,7 @@ std::vector<Finding> AsynchronousProcedureCallQueueingDetector::evaluate(const N
   DWORD tgtPid = 0, tgtTid = 0;
   if (!tryGetTarget(ne, tgtPid, tgtTid))
     return {};
-
-  const int SEVERITY = 6;
-  const int confidence = 55;
-
-  return {buildFinding(ne, ne.pid, tgtPid, tgtTid, SEVERITY, confidence)};
+  return {buildFinding(ne, ne.pid, tgtPid, tgtTid, SEVERITY, CONFIDENCE)};
 }
 
 bool AsynchronousProcedureCallQueueingDetector::isMatch(const NormalizedEvent &ne) const {
@@ -42,7 +38,7 @@ Finding AsynchronousProcedureCallQueueingDetector::buildFinding(const Normalized
                                                                DWORD srcPid,
                                                                DWORD tgtPid,
                                                                DWORD tgtTid,
-                                                               int SEVERITY,
+                                                               int severity,
                                                                int confidence) const {
   nlohmann::json ev;
   ev["provider"] = ne.provider;
@@ -55,7 +51,7 @@ Finding AsynchronousProcedureCallQueueingDetector::buildFinding(const Normalized
 
   Finding f;
   f.type = "AsynchronousProcedureCallQueueing";
-  f.SEVERITY = SEVERITY;
+  f.severity = severity;
   f.confidence = confidence;
   f.ts = ne.ts;
   f.source_pid = srcPid;

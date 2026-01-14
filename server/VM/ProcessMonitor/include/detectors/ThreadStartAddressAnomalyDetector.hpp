@@ -19,5 +19,5 @@ private:
   bool isStartAddressAnomalous(DWORD pid, uint64_t startAddr, const ThreadCaches &caches) const;
 
   Finding buildFinding(const NormalizedEvent &ne, DWORD srcPid, DWORD tgtPid, DWORD tid,
-                       uint64_t startAddr, int SEVERITY, int confidence) const;
+                       uint64_t startAddr, int severity, int confidence) const;
 };

@@ -457,7 +457,7 @@ void EventWriter::writeFinding(const Finding &f) {
     j["RecordType"] = "Finding";
     j["EventTime"] = Utils::iso8601FromTimePoint(f.ts);
     j["Type"] = f.type;
-    j["Severity"] = f.SEVERITY;
+    j["Severity"] = f.severity;
     j["Confidence"] = f.confidence;
     j["SourcePid"] = f.source_pid;
     j["TargetPid"] = f.target_pid;
@@ -495,7 +495,7 @@ void EventWriter::writeFinding(const Finding &f) {
 
   sqlite3_bind_text(stmt, 1, ts.c_str(), -1, SQLITE_TRANSIENT);
   sqlite3_bind_text(stmt, 2, f.type.c_str(), -1, SQLITE_TRANSIENT);
-  sqlite3_bind_int(stmt, 3, f.SEVERITY);
+  sqlite3_bind_int(stmt, 3, f.severity);
   sqlite3_bind_int(stmt, 4, f.confidence);
   sqlite3_bind_int(stmt, 5, static_cast<int>(f.source_pid));
   sqlite3_bind_int(stmt, 6, static_cast<int>(f.target_pid));

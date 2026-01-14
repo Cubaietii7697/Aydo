@@ -4,7 +4,7 @@
 
 struct Finding {
   std::string type;
-  int SEVERITY;
+  int severity;
   int confidence;
   std::chrono::time_point<std::chrono::system_clock> ts;
   DWORD source_pid;
