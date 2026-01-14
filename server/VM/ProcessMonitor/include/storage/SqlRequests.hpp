@@ -209,19 +209,69 @@ CREATE TABLE IF NOT EXISTS Events (
 CREATE INDEX IF NOT EXISTS idx_events_time      ON Events(EventTime);
 CREATE INDEX IF NOT EXISTS idx_events_ids       ON Events(EventId, EventRecordId);
 CREATE INDEX IF NOT EXISTS idx_events_provider  ON Events(Provider);
-CREATE TABLE IF NOT EXISTS Findings (
-    EventTime      DATETIME NOT NULL,
-    Type           TEXT,
-    Severity       INTEGER,
-    Confidence     INTEGER,
-    SourcePid      INTEGER,
-    TargetPid      INTEGER,
-    Tid            INTEGER,
-    EvidenceJson   TEXT,
+
+CREATE TABLE IF NOT EXISTS EventPayloads (
+    EventRecordId  INTEGER PRIMARY KEY,
+    JsonText       TEXT NOT NULL,
     InsertionTime  DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_findings_time ON Findings(EventTime);
-CREATE INDEX IF NOT EXISTS idx_findings_type ON Findings(Type);
+CREATE INDEX IF NOT EXISTS idx_payloads_time ON EventPayloads(InsertionTime);
+
+CREATE TABLE IF NOT EXISTS EventFields (
+    EventRecordId  INTEGER NOT NULL,
+    Key            TEXT NOT NULL,
+    Value          TEXT,
+    ValueType      TEXT,
+    InsertionTime  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (EventRecordId, Key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_eventfields_key   ON EventFields(Key);
+CREATE INDEX IF NOT EXISTS idx_eventfields_eid   ON EventFields(EventRecordId);
+
+-- Compact, low-NULL views for DB browsing
+CREATE VIEW IF NOT EXISTS v_events_core AS
+SELECT
+  EventTime,
+  Provider,
+  EventId,
+  pid,
+  tid,
+  ProcessName,
+  Image,
+  ParentProcessName,
+  ParentImage,
+  CommandLine,
+  TargetImage,
+  SourceImage
+FROM Events;
+
+CREATE VIEW IF NOT EXISTS v_events_with_payload AS
+SELECT
+  e.EventTime,
+  e.Provider,
+  e.EventId,
+  e.pid,
+  e.tid,
+  e.ProcessName,
+  e.Image,
+  e.CommandLine,
+  p.JsonText AS EventJson
+FROM Events e
+LEFT JOIN EventPayloads p ON p.EventRecordId = e.EventRecordId;
+
+CREATE VIEW IF NOT EXISTS v_findings_core AS
+SELECT
+  EventTime,
+  Type,
+  Severity,
+  Confidence,
+  SourcePid,
+  TargetPid,
+  Tid,
+  EvidenceJson,
+  InsertionTime
+FROM Findings;
 )SQL";
 } // namespace SqlRequstes

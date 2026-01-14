@@ -34,6 +34,10 @@ public:
   void writeFinding(const Finding &f);
 
 private:
+  void writeAuxEventTables(const nlohmann::json &j);
+  void flattenJsonOneLevel(const nlohmann::json &obj,
+                           const std::string &prefix,
+                           std::vector<std::pair<std::string, nlohmann::json>> &out);
   void writeEventJson(const EVENT_RECORD &rec, const krabs::trace_context &ctx);
   void collectColumnsAndValues(const nlohmann::json &j,
                                std::vector<std::string> &columns,

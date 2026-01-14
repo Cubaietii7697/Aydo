@@ -83,6 +83,8 @@ void EventWriter::writeToSqlite(const nlohmann::json &j) {
     OutputDebugStringA(msg.c_str());
   } else {
     OutputDebugStringA("writeToSqlite: inserted one event\n");
+
+    writeAuxEventTables(j);
   }
 
   sqlite3_finalize(stmt);
@@ -448,6 +450,111 @@ void EventWriter::fillPropsViaTdh(nlohmann::json &props,
     }
   } catch (const std::exception &e) {
     OutputDebugStringA((std::string("krabs error: ") + e.what() + "\n").c_str());
+  }
+}
+
+void EventWriter::flattenJsonOneLevel(const nlohmann::json &obj,
+                                      const std::string &prefix,
+                                      std::vector<std::pair<std::string, nlohmann::json>> &out) {
+  if (!obj.is_object()) {
+    return;
+  }
+
+  for (auto it = obj.begin(); it != obj.end(); ++it) {
+    const std::string k = prefix.empty() ? it.key() : (prefix + "." + it.key());
+    const nlohmann::json &v = it.value();
+    if (v.is_null()) {
+      continue;
+    }
+
+    out.emplace_back(k, v);
+  }
+}
+
+void EventWriter::writeAuxEventTables(const nlohmann::json &j) {
+  if (!m_db || !j.is_object()) {
+    return;
+  }
+
+  auto itId = j.find("EventRecordId");
+  if (itId == j.end() || !itId->is_number()) {
+    return;
+  }
+  const long long eventRecordId = itId->get<long long>();
+
+  {
+    const char *sql =
+        "INSERT OR REPLACE INTO EventPayloads (EventRecordId, JsonText) VALUES (?, ?);";
+
+    sqlite3_stmt *stmt = nullptr;
+    if (sqlite3_prepare_v2(m_db, sql, -1, &stmt, nullptr) == SQLITE_OK && stmt) {
+      sqlite3_bind_int64(stmt, 1, eventRecordId);
+      const std::string payload = j.dump(); // compact JSON
+      sqlite3_bind_text(stmt, 2, payload.c_str(), static_cast<int>(payload.size()), SQLITE_TRANSIENT);
+
+      (void)sqlite3_step(stmt);
+    }
+    if (stmt)
+      sqlite3_finalize(stmt);
+  }
+
+  {
+    const char *sql =
+        "INSERT OR REPLACE INTO EventFields (EventRecordId, Key, Value, ValueType) VALUES (?, ?, ?, ?);";
+
+    sqlite3_stmt *stmt = nullptr;
+    if (sqlite3_prepare_v2(m_db, sql, -1, &stmt, nullptr) != SQLITE_OK || !stmt) {
+      if (stmt)
+        sqlite3_finalize(stmt);
+      return;
+    }
+
+    std::vector<std::pair<std::string, nlohmann::json>> flat;
+    flat.reserve(256);
+
+    // top-level keys
+    flattenJsonOneLevel(j, "", flat);
+
+    // common nested buckets
+    static const std::array<const char *, 5> buckets = {"props", "proc", "net", "dns", "file"};
+    for (const char *b : buckets) {
+      auto it = j.find(b);
+      if (it != j.end() && it->is_object()) {
+        flattenJsonOneLevel(*it, b, flat);
+      }
+    }
+
+    for (const auto &[k, v] : flat) {
+      // skip very large blobs if you want; keep for now
+      const std::string type = v.type_name();
+
+      std::string valueText;
+      if (v.is_string()) {
+        valueText = v.get<std::string>();
+      } else if (v.is_boolean()) {
+        valueText = v.get<bool>() ? "true" : "false";
+      } else if (v.is_number_integer()) {
+        valueText = std::to_string(v.get<long long>());
+      } else if (v.is_number_unsigned()) {
+        valueText = std::to_string(v.get<unsigned long long>());
+      } else if (v.is_number_float()) {
+        valueText = std::to_string(v.get<double>());
+      } else {
+        valueText = v.dump(); // arrays / objects
+      }
+
+      sqlite3_reset(stmt);
+      sqlite3_clear_bindings(stmt);
+
+      sqlite3_bind_int64(stmt, 1, eventRecordId);
+      sqlite3_bind_text(stmt, 2, k.c_str(), static_cast<int>(k.size()), SQLITE_TRANSIENT);
+      sqlite3_bind_text(stmt, 3, valueText.c_str(), static_cast<int>(valueText.size()), SQLITE_TRANSIENT);
+      sqlite3_bind_text(stmt, 4, type.c_str(), static_cast<int>(type.size()), SQLITE_TRANSIENT);
+
+      (void)sqlite3_step(stmt);
+    }
+
+    sqlite3_finalize(stmt);
   }
 }
 
