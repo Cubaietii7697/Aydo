@@ -96,7 +96,7 @@ void EventWriter::initSqliteSchema() {
   }
 
   char *errMsg = nullptr;
-  const int rc = sqlite3_exec(m_db, SqlRequstes::TABLES_CREATE, nullptr, nullptr, &errMsg);
+  const int rc = sqlite3_exec(m_db, SqlRequests::TABLES_CREATE, nullptr, nullptr, &errMsg);
   if (rc != SQLITE_OK) {
 
     std::string msg = std::format("sqlite3_exec(TABLES_CREATE) failed, rc={}",
@@ -202,7 +202,7 @@ void EventWriter::collectColumnsAndValues(const nlohmann::json &j,
 
   //
   // Read the actual table schema (once per DB handle) so we are not limited to
-  // SqlRequstes::TABLES. This allows new columns to be written without touching code.
+  // SqlRequests::TABLES. This allows new columns to be written without touching code.
   //
   auto getEventsTableColumns = [&]() -> const std::vector<std::string> & {
     static std::mutex s_colsMtx;
@@ -381,7 +381,7 @@ void EventWriter::fillPropsViaTdh(nlohmann::json &props,
       const auto *wname = reinterpret_cast<const wchar_t *>(buf.data() + epi.NameOffset);
       const std::string name = Utils::narrow_utf8(wname);
 
-      if (SqlRequstes::SKIP_FIELDS.contains(name)) {
+      if (SqlRequests::SKIP_FIELDS.contains(name)) {
         props[name] = "<skipped>";
         continue;
       }
@@ -625,13 +625,21 @@ void EventWriter::writeEventJson(const EVENT_RECORD &rec,
     j["raw_ts_100ns"] =
         static_cast<unsigned long long>(rec.EventHeader.TimeStamp.QuadPart);
     j["host"] = Utils::getHostName();
+    uint64_t recId = 0;
 
-#if defined(EVENT_HEADER_EXTENDED_DATA_COUNT)
-    j["EventRecordId"] =
-        static_cast<unsigned long long>(rec.EventHeader.EventRecordId);
-#else
-    j["EventRecordId"] = 0;
+// MSVC-only: compile-time check whether EVENT_HEADER has EventRecordId
+#if defined(_MSC_VER)
+    __if_exists(EVENT_HEADER::EventRecordId) {
+      recId = static_cast<uint64_t>(rec.EventHeader.EventRecordId);
+    }
 #endif
+
+    // If ETW didn't provide it (or it's 0), use our own stable counter
+    if (recId == 0) {
+      recId = m_fallbackEventRecordId.fetch_add(1, std::memory_order_relaxed);
+    }
+
+    j["EventRecordId"] = recId;
 
     j["Channel"] =
         static_cast<unsigned int>(rec.EventHeader.EventDescriptor.Channel);

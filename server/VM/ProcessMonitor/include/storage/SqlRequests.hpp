@@ -2,8 +2,9 @@
 #include <string>
 #include <unordered_set>
 
-namespace SqlRequstes {
-const std::unordered_set<std::string> SKIP_FIELDS = {
+namespace SqlRequests {
+
+inline const std::unordered_set<std::string> SKIP_FIELDS = {
     // file handles / pointers we don't care about
     "FileObject",
     "FileKey",
@@ -25,55 +26,166 @@ const std::unordered_set<std::string> SKIP_FIELDS = {
     // image load internals we don't care about
     "ImageBase",
     "ImageSize",
-    "DefaultBase"};
+    "DefaultBase",
+};
 
-const std::unordered_set<std::string> TABLES = {
-    "EventId", "EventRecordId", "EventTime", "pid", "tid", "Provider", "Category", "Channel",
-    "Computer", "UserSid", "Level", "Task", "Opcode", "Keywords",
-    "Image", "ImageLoaded", "SourceImage", "TargetImage", "ProcessName",
-    "ParentProcessName", "ParentImage", "ParentCommandLine",
-    "CommandLine", "NewProcessName", "OriginalFilename",
-    "Hashes", "Version",
-    "IpAddress", "LocalAddresses", "LocalPorts",
-    "RemoteAddresses", "RemotePorts", "DestinationPort",
+inline const std::unordered_set<std::string> TABLES = {
+    // identity/time
+    "EventId",
+    "EventRecordId",
+    "EventTime",
+
+    // meta
+    "Source",
+    "pid",
+    "tid",
+    "Provider",
+    "Category",
+    "Channel",
+    "Computer",
+    "UserSid",
+    "Level",
+    "Task",
+    "Opcode",
+    "Keywords",
+
+    // process / image metadata
+    "Image",
+    "ImageLoaded",
+    "SourceImage",
+    "TargetImage",
+    "ProcessName",
+    "ParentProcessName",
+    "ParentImage",
+    "ParentCommandLine",
+    "CommandLine",
+    "NewProcessName",
+    "OriginalFilename",
+    "Hashes",
+    "Version",
+
+    // network / IPC
+    "IpAddress",
+    "LocalAddresses",
+    "LocalPorts",
+    "RemoteAddresses",
+    "RemotePorts",
+    "DestinationPort",
     "TransmittedServices",
-    "SubjectUserName", "SubjectUserSid", "TargetUserName",
-    "TargetUserSid", "OldTargetUserName", "NewTargetUserName",
-    "TargetDomainName", "TargetServerName", "LogonProcess",
-    "LogonProcessName", "LogonType",
-    "AuthenticationPackageName", "SecurityPackageName",
-    "TicketOptions", "TicketEncryptionType", "GrantedAccess",
-    "ObjectServer", "ObjectType", "ObjectName", "ObjectDN",
-    "ObjectGUID", "ObjectClass", "ObjectClas",
-    "ObjectAccessMask", "AccessList", "AccessMask",
-    "Properties", "PropertyName", "ModifiedProperties_NewValue",
-    "Operation", "OperationType", "Action", "RegName", "RegValue",
-    "RelativeTargetName", "TargetObject", "TargetInfo", "TargetSid",
-    "ServiceName", "ServiceSid", "ServicePrincipalNames",
+
+    // authentication / logon
+    "SubjectUserName",
+    "SubjectUserSid",
+    "TargetUserName",
+    "TargetUserSid",
+    "OldTargetUserName",
+    "NewTargetUserName",
+    "TargetDomainName",
+    "TargetServerName",
+    "LogonProcess",
+    "LogonProcessName",
+    "LogonType",
+    "AuthenticationPackageName",
+    "SecurityPackageName",
+    "TicketOptions",
+    "TicketEncryptionType",
+    "GrantedAccess",
+
+    // object / registry / service changes
+    "ObjectServer",
+    "ObjectType",
+    "ObjectName",
+    "ObjectDN",
+    "ObjectGUID",
+    "ObjectClass",
+    "ObjectAccessMask",
+    "AccessList",
+    "AccessMask",
+    "Properties",
+    "PropertyName",
+    "ModifiedProperties_NewValue",
+    "Operation",
+    "OperationType",
+    "Action",
+    "RegName",
+    "RegValue",
+    "RelativeTargetName",
+    "TargetObject",
+    "TargetInfo",
+    "TargetSid",
+
+    // services / Kerberos / delegation
+    "ServiceName",
+    "ServiceSid",
+    "ServicePrincipalNames",
     "AllowedToDelegateTo",
-    "AuditPolicyChanges", "SettingType", "SettingValue",
-    "SettingValueString", "AttributeLDAPDisplayName", "AttributeValue",
+
+    // policy / config
+    "AuditPolicyChanges",
+    "SettingType",
+    "SettingValue",
+    "SettingValueString",
+    "AttributeLDAPDisplayName",
+    "AttributeValue",
     "Properties_Name",
-    "ApplicationPath", "CallerProcessName", "ChannelName",
-    "CommandLineParams", "Details", "DeviceDescription", "EventType",
-    "EventXML_Address", "EventXML_Param3", "ForwardTo",
-    "ForwardAsAttachmentTo", "Message", "ModifyingApplication",
-    "Param1", "Param2", "Parameters", "Parameters_Name", "Pattern",
-    "Payload", "PluginDllName", "Process", "Status", "State",
-    "TaskName", "UpdateName", "UserAccountControl", "WorkstationName",
-    "_cmdshell", "action_id", "additional_information", "class_type",
-    "connections", "domain_in_lowercase_xxx", "enabled", "localport",
-    "object_name", "param1_lower", "pwszAutoConfigUrl", "pwszProxy",
-    "pwszProxyBypass", "statement",
+
+    // misc sigma fields seen in rule set
+    "ApplicationPath",
+    "CallerProcessName",
+    "ChannelName",
+    "CommandLineParams",
+    "Details",
+    "DeviceDescription",
+    "EventType",
+    "EventXML_Address",
+    "EventXML_Param3",
+    "ForwardTo",
+    "ForwardAsAttachmentTo",
+    "Message",
+    "ModifyingApplication",
+    "Param1",
+    "Param2",
+    "Parameters",
+    "Parameters_Name",
+    "Pattern",
+    "Payload",
+    "PluginDllName",
+    "Process",
+    "Status",
+    "State",
+    "TaskName",
+    "UpdateName",
+    "UserAccountControl",
+    "WorkstationName",
+    "_cmdshell",
+    "action_id",
+    "additional_information",
+    "class_type",
+    "connections",
+    "domain_in_lowercase_xxx",
+    "enabled",
+    "localport",
+    "object_name",
+    "param1_lower",
+    "pwszAutoConfigUrl",
+    "pwszProxy",
+    "pwszProxyBypass",
+    "statement",
+
+    // housekeeping
     "InsertionTime"};
 
-const char *TABLES_CREATE = R"SQL(
+inline const char *TABLES_CREATE = R"SQL(
 CREATE TABLE IF NOT EXISTS Events (
+    -- identity/time
     EventId            INTEGER NOT NULL,
     EventRecordId      INTEGER,
     EventTime          DATETIME NOT NULL,
-    pid                INTEGER, 
-    tid           INTEGER, 
+
+    -- meta
+    Source             TEXT DEFAULT 'ETW', 
+    pid                INTEGER,
+    tid                INTEGER,
     Provider           TEXT,
     Category           TEXT,
     Channel            TEXT,
@@ -83,6 +195,7 @@ CREATE TABLE IF NOT EXISTS Events (
     Task               INTEGER,
     Opcode             INTEGER,
     Keywords           TEXT,
+
     -- process / image metadata
     Image              TEXT,
     ImageLoaded        TEXT,
@@ -97,6 +210,7 @@ CREATE TABLE IF NOT EXISTS Events (
     OriginalFilename   TEXT,
     Hashes             TEXT,
     Version            TEXT,
+
     -- network / IPC
     IpAddress          TEXT,
     LocalAddresses     TEXT,
@@ -105,6 +219,7 @@ CREATE TABLE IF NOT EXISTS Events (
     RemotePorts        TEXT,
     DestinationPort    TEXT,
     TransmittedServices TEXT,
+
     -- authentication / logon
     SubjectUserName    TEXT,
     SubjectUserSid     TEXT,
@@ -122,14 +237,14 @@ CREATE TABLE IF NOT EXISTS Events (
     TicketOptions      TEXT,
     TicketEncryptionType TEXT,
     GrantedAccess      TEXT,
+
     -- object / registry / service changes
     ObjectServer       TEXT,
     ObjectType         TEXT,
     ObjectName         TEXT,
     ObjectDN           TEXT,
     ObjectGUID         TEXT,
-    ObjectClass        TEXT,
-    ObjectClas         TEXT,          -- typo variant appears in rules
+    ObjectClass        TEXT,       
     ObjectAccessMask   TEXT,
     AccessList         TEXT,
     AccessMask         TEXT,
@@ -145,12 +260,13 @@ CREATE TABLE IF NOT EXISTS Events (
     TargetObject       TEXT,
     TargetInfo         TEXT,
     TargetSid          TEXT,
+
     -- services / Kerberos / delegation
     ServiceName        TEXT,
     ServiceSid         TEXT,
     ServicePrincipalNames TEXT,
     AllowedToDelegateTo TEXT,
-    -- TransmittedServices TEXT,   -- duplicate, commented out
+
     -- policy / config
     AuditPolicyChanges TEXT,
     SettingType        TEXT,
@@ -159,6 +275,7 @@ CREATE TABLE IF NOT EXISTS Events (
     AttributeLDAPDisplayName TEXT,
     AttributeValue     TEXT,
     Properties_Name    TEXT,
+
     -- misc sigma fields seen in rule set
     ApplicationPath    TEXT,
     CallerProcessName  TEXT,
@@ -173,7 +290,6 @@ CREATE TABLE IF NOT EXISTS Events (
     ForwardAsAttachmentTo TEXT,
     Message            TEXT,
     ModifyingApplication TEXT,
-    -- Operation          TEXT,      -- duplicate, commented out
     Param1             TEXT,
     Param2             TEXT,
     Parameters         TEXT,
@@ -202,6 +318,7 @@ CREATE TABLE IF NOT EXISTS Events (
     pwszProxy          TEXT,
     pwszProxyBypass    TEXT,
     statement          TEXT,
+
     -- housekeeping
     InsertionTime      DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -209,69 +326,23 @@ CREATE TABLE IF NOT EXISTS Events (
 CREATE INDEX IF NOT EXISTS idx_events_time      ON Events(EventTime);
 CREATE INDEX IF NOT EXISTS idx_events_ids       ON Events(EventId, EventRecordId);
 CREATE INDEX IF NOT EXISTS idx_events_provider  ON Events(Provider);
+CREATE INDEX IF NOT EXISTS idx_events_pid_time  ON Events(pid, EventTime);
+CREATE INDEX IF NOT EXISTS idx_events_src_time  ON Events(Source, EventTime);
 
-CREATE TABLE IF NOT EXISTS EventPayloads (
-    EventRecordId  INTEGER PRIMARY KEY,
-    JsonText       TEXT NOT NULL,
+CREATE TABLE IF NOT EXISTS Findings (
+    EventTime      DATETIME NOT NULL,
+    Type           TEXT,
+    Severity       INTEGER,
+    Confidence     INTEGER,
+    SourcePid      INTEGER,
+    TargetPid      INTEGER,
+    Tid            INTEGER,
+    EvidenceJson   TEXT,
     InsertionTime  DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_payloads_time ON EventPayloads(InsertionTime);
-
-CREATE TABLE IF NOT EXISTS EventFields (
-    EventRecordId  INTEGER NOT NULL,
-    Key            TEXT NOT NULL,
-    Value          TEXT,
-    ValueType      TEXT,
-    InsertionTime  DATETIME DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (EventRecordId, Key)
-);
-
-CREATE INDEX IF NOT EXISTS idx_eventfields_key   ON EventFields(Key);
-CREATE INDEX IF NOT EXISTS idx_eventfields_eid   ON EventFields(EventRecordId);
-
--- Compact, low-NULL views for DB browsing
-CREATE VIEW IF NOT EXISTS v_events_core AS
-SELECT
-  EventTime,
-  Provider,
-  EventId,
-  pid,
-  tid,
-  ProcessName,
-  Image,
-  ParentProcessName,
-  ParentImage,
-  CommandLine,
-  TargetImage,
-  SourceImage
-FROM Events;
-
-CREATE VIEW IF NOT EXISTS v_events_with_payload AS
-SELECT
-  e.EventTime,
-  e.Provider,
-  e.EventId,
-  e.pid,
-  e.tid,
-  e.ProcessName,
-  e.Image,
-  e.CommandLine,
-  p.JsonText AS EventJson
-FROM Events e
-LEFT JOIN EventPayloads p ON p.EventRecordId = e.EventRecordId;
-
-CREATE VIEW IF NOT EXISTS v_findings_core AS
-SELECT
-  EventTime,
-  Type,
-  Severity,
-  Confidence,
-  SourcePid,
-  TargetPid,
-  Tid,
-  EvidenceJson,
-  InsertionTime
-FROM Findings;
+CREATE INDEX IF NOT EXISTS idx_findings_time ON Findings(EventTime);
+CREATE INDEX IF NOT EXISTS idx_findings_type ON Findings(Type);
 )SQL";
-} // namespace SqlRequstes
+
+}; // namespace SqlRequests

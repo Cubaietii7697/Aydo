@@ -2,12 +2,13 @@
 #include "pch.h"
 #include <krabs.hpp>
 
+#include <atomic>
 #include <fstream>
 #include <functional>
 #include <mutex>
-
 #include <sqlite3.h>
 #include "Finding.hpp"
+
 struct Finding;
 
 class EventWriter {
@@ -68,4 +69,5 @@ private:
   sqlite3 *m_db = nullptr;
 
   bool m_lengthPrefixed = true;
+  std::atomic_uint64_t m_fallbackEventRecordId{1};
 };
