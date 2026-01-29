@@ -3,7 +3,9 @@
 #include "Communications.hpp"
 #include "Constants.hpp"
 #include "Logger.hpp"
+#include "ServiceProtection.hpp"
 #include "Utils.hpp"
+#include "ntifs.h"
 
 extern "C" NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath);
 VOID DriverUnload(PDRIVER_OBJECT DriverObject);
@@ -51,10 +53,36 @@ extern "C" NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING Reg
   DriverObject->MajorFunction[IRP_MJ_CLOSE] = CreateClose;
   DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = Communications::handleDeviceControl;
 
+  // Setup service protection (not ready yet, waiting for service to send us its pid)
+  status = ServiceProtection::registerProcessProtection();
+  if (!NT_SUCCESS(status)) {
+    LOG_ERROR("Failed to register process protection, status: 0x%X", status);
+    IoDeleteSymbolicLink(&symlinkName);
+    IoDeleteDevice(DeviceObject);
+
+    return status;
+  }
+
+  LOG_INFO("Setup process protection (not ready yet)");
+
+  // Registry keys (service in scm) protection
+  status = ServiceProtection::registerRegistryProtection(DriverObject);
+  if (!NT_SUCCESS(status)) {
+    LOG_ERROR("Failed to register registry protection, status: 0x%X", status);
+    ServiceProtection::unregisterProcessProtection();
+    IoDeleteSymbolicLink(&symlinkName);
+    IoDeleteDevice(DeviceObject);
+
+    return status;
+  }
+
+  LOG_INFO("Setup registry protection");
+
   // Initialize process notifications
   status = Utils::initializeProcessNotifications();
   if (!NT_SUCCESS(status)) {
     LOG_ERROR("Failed to initialize process notifications, status: 0x%X", status);
+    ServiceProtection::unregisterProcessProtection();
     IoDeleteSymbolicLink(&symlinkName);
     IoDeleteDevice(DeviceObject);
 
@@ -77,6 +105,10 @@ VOID DriverUnload(PDRIVER_OBJECT DriverObject) {
   UNICODE_STRING symlinkName;
 
   LOG_INFO("Unloading driver...");
+
+  // Cleanup service protection callbacks first
+  ServiceProtection::unregisterProcessProtection();
+  ServiceProtection::unregisterRegistryProtection();
 
   // Cleanup process notifications
   Utils::cleanupProcessNotifications();

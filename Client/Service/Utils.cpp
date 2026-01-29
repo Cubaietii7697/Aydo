@@ -121,15 +121,44 @@ std::string Utils::wstring_to_utf8(const std::wstring &w) {
   if (w.empty()) {
     return {};
   }
-  int sz = WideCharToMultiByte(CP_UTF8, 0, w.c_str(), static_cast<int>(w.size()),
+  int sz = WideCharToMultiByte(CP_UTF8, 0, w.data(), static_cast<int>(w.size()),
                                nullptr, 0, nullptr, nullptr);
   if (sz <= 0) {
     return {};
   }
   std::string out(static_cast<size_t>(sz), '\0');
-  WideCharToMultiByte(CP_UTF8, 0, w.c_str(), static_cast<int>(w.size()),
+  WideCharToMultiByte(CP_UTF8, 0, w.data(), static_cast<int>(w.size()),
                       out.data(), sz, nullptr, nullptr);
   return out;
+}
+
+std::string Utils::wstring_to_utf8(const wchar_t *w) {
+  if (!w || *w == L'\0') {
+    return {};
+  }
+  return wstring_to_utf8(std::wstring(w));
+}
+
+std::wstring Utils::utf8_to_wstring(const std::string &s) {
+  if (s.empty()) {
+    return {};
+  }
+  int sz = MultiByteToWideChar(CP_UTF8, 0, s.data(), static_cast<int>(s.size()),
+                               nullptr, 0);
+  if (sz <= 0) {
+    return {};
+  }
+  std::wstring out(static_cast<size_t>(sz), L'\0');
+  MultiByteToWideChar(CP_UTF8, 0, s.data(), static_cast<int>(s.size()),
+                      out.data(), sz);
+  return out;
+}
+
+std::wstring Utils::utf8_to_wstring(const char *s) {
+  if (!s || *s == '\0') {
+    return {};
+  }
+  return utf8_to_wstring(std::string(s));
 }
 
 std::string Utils::computeSHA256(const std::string &path) {
@@ -172,15 +201,10 @@ double Utils::calculateEntropy(const std::vector<int> &countedBytes, std::stream
 }
 
 bool Utils::isWindowsSigned(const std::string &path) {
-  // Convert UTF-8 path to wide string
-  int sz = MultiByteToWideChar(CP_UTF8, 0, path.c_str(), -1, nullptr, 0);
-  if (sz <= 0) {
+  std::wstring wpath = utf8_to_wstring(path);
+  if (wpath.empty()) {
     return false;
   }
-
-  std::wstring wpath(static_cast<size_t>(sz), L'\0');
-  MultiByteToWideChar(CP_UTF8, 0, path.c_str(), -1, wpath.data(), sz);
-  wpath.resize(sz - 1); // Remove null terminator from size
 
   // Set up WinTrust file info structure
   WINTRUST_FILE_INFO fileInfo = {};
@@ -226,19 +250,19 @@ bool Utils::quarantineFile(const std::string &path) {
     }
 
     std::filesystem::path quarantineDir =
-        std::filesystem::current_path() / "quarantine";
+        std::filesystem::current_path() / Constants::QUARANTINE_DIR_NAME;
     if (!std::filesystem::exists(quarantineDir)) {
       std::filesystem::create_directories(quarantineDir);
     }
 
-    std::filesystem::path dest = quarantineDir / src.filename();
+    const std::string quarantineExt(Constants::QUARANTINE_EXTENSION);
+    std::string stem = src.stem().string();
+    std::filesystem::path dest = quarantineDir / (stem + quarantineExt);
 
     // If destination exists, append a unique ID or timestamp
     if (std::filesystem::exists(dest)) {
-      std::string stem = src.stem().string();
-      std::string ext = src.extension().string();
       dest = quarantineDir /
-             (stem + "_" + std::to_string(GetTickCount()) + ext);
+             (stem + "_" + std::to_string(GetTickCount()) + quarantineExt);
     }
 
     std::filesystem::rename(src, dest);

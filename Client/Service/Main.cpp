@@ -5,9 +5,11 @@
 
 #include <atomic>
 #include <cstdlib>
+#include <functional>
 #include <iostream>
 #include <string>
 #include <thread>
+
 
 #include "Constants.hpp"
 #include "Databases/HashesDatabase.hpp"
@@ -33,7 +35,7 @@ static void pipeServerLoop(ProcessMonitor *monitor) {
         PIPE_UNLIMITED_INSTANCES,
         Constants::PIPE_BUFFER_SIZE,
         Constants::PIPE_BUFFER_SIZE,
-        0,  // No timeout
+        0, // No timeout
         NULL);
 
     if (hPipe == INVALID_HANDLE_VALUE) {
@@ -143,6 +145,22 @@ int main() {
     std::cerr << "Fail: Driver device unavailable." << std::endl;
     return EXIT_FAILURE;
   }
+
+  std::cout << "Successfully connected to driver!" << std::endl;
+  std::cout << std::endl;
+
+  // Register itself as a service
+  if (!driver->registerSelfAsService()) {
+    std::cerr << "Failed to register as service. Error: " << GetLastError() << std::endl;
+
+    std::cin.get();
+
+    return EXIT_FAILURE;
+  }
+
+  std::cout << "Successfully registered as service!" << std::endl;
+
+  std::cout << "Initializing scanning engines..." << std::endl;
 
   try {
     YScanningEngine yara(Constants::YARA_RULES_FILES, config.killThreshold);

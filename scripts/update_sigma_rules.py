@@ -99,30 +99,36 @@ def convert_sigma_rules() -> bool:
                 with open(rule_file, "r", encoding="utf-8") as f:
                     rule_content = f.read()
                 
-                rule = SigmaCollection.from_yaml(rule_content)
-                converted = sqlite_backend.convert(rule)
-                
-                for query in converted:
-                    if not query:
-                        continue  # Skip empty queries
-                    
-                    normalized = query
-                    for placeholder in TABLE_NAME_PLACEHOLDERS:
-                        if placeholder in normalized:
-                            normalized = normalized.replace(
-                                placeholder, PROCESS_MONITOR_TABLE_NAME
-                            )
-                    queries.append(normalized)
+                collection = SigmaCollection.from_yaml(rule_content)
+                for rule in collection.rules:
+                    try:
+                        converted = sqlite_backend.convert_rule(rule)
+                        level = str(rule.level) if rule.level else "unknown"
+
+
+                        for query in converted:
+                            if not query:
+                                continue  # Skip empty queries
+                            
+                            normalized = query
+                            for placeholder in TABLE_NAME_PLACEHOLDERS:
+                                if placeholder in normalized:
+                                    normalized = normalized.replace(
+                                        placeholder, PROCESS_MONITOR_TABLE_NAME
+                                    )
+                            queries.append({"query": normalized, "level": level})
+                    except Exception as e:
+                        errors += 1
+
                         
             except Exception as e:
                 errors += 1
-                # Skip rules that fail to convert (unsupported logsources, etc.)
                 continue
         
         # Save queries to JSON file
         os.makedirs(OUTPUT_DIR, exist_ok=True)
         with open(SIGMA_QUERIES_FILE, "w", encoding="utf-8") as f:
-            json.dump(queries, f, indent=2)
+            json.dump(queries, f)
         
         print(f"Successfully converted {len(queries)} queries (skipped {errors} rules with errors)")
         print(f"Saved to {SIGMA_QUERIES_FILE}")

@@ -295,7 +295,8 @@ bool ProcessMonitor::isThreat(const std::string &path) {
             std::string virusType = response.value("virusType", "Unknown");
             int score = response.value("score", 0);
 
-            if (virusType != "Clean" || score > 0) {
+            if (virusType != "Clean" || score > config.dynamicScanThreshold) {
+              std::cout << "  -> [SERVER] Threat detected: " << virusType << " (Score: " << score << ")" << std::endl;
               {
                 std::lock_guard<std::mutex> lock(m_cacheMutex);
                 m_scannedHashes[hexHash] = true;
@@ -339,6 +340,10 @@ bool ProcessMonitor::isThreat(const std::string &path) {
   return false;
 }
 
+void ProcessMonitor::setBlockingActive(bool active) {
+  m_blockingActive.store(active, std::memory_order_relaxed);
+}
+
 void ProcessMonitor::handleProcessStarted(uint32_t pid, const std::string &path) {
   try {
     if (isThreat(path)) {
@@ -379,6 +384,12 @@ void ProcessMonitor::monitorLoop() {
         continue;
       }
 
+      // If synchronous blocking is active, skip reactive scanning
+      // to avoid redundant scans and logs.
+      if (m_blockingActive.load(std::memory_order_relaxed)) {
+        continue;
+      }
+
       // Skip our own process
       if (notification.ProcessId == currentPid) {
         continue;
@@ -393,11 +404,9 @@ void ProcessMonitor::monitorLoop() {
       }
 
       // Convert image name for display
-      char imageFileNameA[MAX_PATH];
-      WideCharToMultiByte(CP_UTF8, 0, notification.ImageFileName, -1,
-                          imageFileNameA, sizeof(imageFileNameA), nullptr, nullptr);
+      std::string imageFileName = Utils::wstring_to_utf8(notification.ImageFileName);
 
-      std::string msg = "[NEW PROCESS] PID: " + std::to_string(notification.ProcessId) + " | Image: " + imageFileNameA;
+      std::string msg = "[NEW PROCESS] PID: " + std::to_string(notification.ProcessId) + " | Image: " + imageFileName;
       log(msg);
       log("  -> Scanning: " + path);
 
