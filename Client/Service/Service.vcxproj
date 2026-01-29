@@ -189,6 +189,7 @@
     <ClCompile Include="Utils.cpp" />
     <ClCompile Include="Yara\YScanningEngine.cpp" />
     <ClCompile Include="Yara\YaraScoringSystem.cpp" />
+    <ClCompile Include="MinifilterCommunications\MinifilterCommunications.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AhoCorasick\ACNode.hpp" />
@@ -213,6 +214,7 @@
     <ClInclude Include="Yara\YScanningEngine.hpp" />
     <ClInclude Include="Yara\YaraRuleConstants.hpp" />
     <ClInclude Include="Yara\YaraScoringSystem.hpp" />
+    <ClInclude Include="MinifilterCommunications\MinifilterCommunications.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

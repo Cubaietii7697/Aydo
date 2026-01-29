@@ -10,6 +10,7 @@
 #include "Constants.hpp"
 #include "Databases/HashesDatabase.hpp"
 #include "KernelCommunications/KernelCommunications.hpp"
+#include "MinifilterCommunications/MinifilterCommunications.hpp"
 #include "ProcessMonitor.hpp"
 #include "Yara/YScanningEngine.hpp"
 
@@ -42,6 +43,7 @@ static void handleUserAuth() {
   std::cout << "Authentication required." << std::endl;
   std::cout << "1. Login" << std::endl;
   std::cout << "2. Register" << std::endl;
+  std::cout << "3. Continue as Guest" << std::endl;
   std::cout << "Choice: ";
 
   std::string choice;
@@ -75,6 +77,11 @@ static void handleUserAuth() {
       std::cerr << "Registration failed. Please restart the service to try again." << std::endl;
       exit(EXIT_FAILURE);
     }
+  } else if (choice == "3") {
+    std::cout << "Continuing as guest (CLOUD SCANS ARE DISABLED)..." << std::endl;
+    config.accessToken = "";
+    config.refreshToken = "";
+    config.save();
   } else {
     std::cerr << "Invalid choice." << std::endl;
     exit(EXIT_FAILURE);
@@ -123,6 +130,17 @@ int main() {
   std::cout << "Successfully connected to driver!" << std::endl;
   std::cout << std::endl;
 
+  // Register itself as a service
+  if (!driver->registerSelfAsService()) {
+    std::cerr << "Failed to register as service. Error: " << GetLastError() << std::endl;
+
+    std::cin.get();
+
+    return EXIT_FAILURE;
+  }
+
+  std::cout << "Successfully registered as service!" << std::endl;
+
   std::cout << "Initializing scanning engines..." << std::endl;
 
   try {
@@ -139,6 +157,22 @@ int main() {
 
     ProcessMonitor monitor(driver, yara, hashDb);
     g_monitor = &monitor;
+
+    // Connect to Minifilter for synchronous process blocking
+    std::cout << "Connecting to minifilter for pre-execution scanning..." << std::endl;
+    MinifilterCommunications minifilter;
+
+    if (!minifilter.connect(std::wstring(Constants::AYDO_MINIFILTER_PORT_NAME))) {
+      std::cerr << "Warning: Failed to connect to minifilter. Pre-execution blocking will not work!" << std::endl;
+      std::cerr << "Make sure the minifilter driver is loaded." << std::endl;
+    } else {
+      minifilter.updateConfig(config.maxScanSize);
+      minifilter.setProcessMonitor(&monitor);
+      minifilter.startListener();
+      monitor.setBlockingActive(true);
+      std::cout << "Minifilter connected successfully! Pre-execution scanning is active." << std::endl
+                << std::endl;
+    }
 
     std::cout << "Starting background monitoring thread..." << std::endl;
     monitor.start();

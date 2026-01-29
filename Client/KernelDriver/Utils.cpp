@@ -119,26 +119,37 @@ VOID Utils::cleanupProcessNotifications() {
     return;
   }
 
-  // Unregister the callback
+  LOG_INFO("Starting process notifications cleanup");
+
+  // Unregister the callback first
   NTSTATUS status = PsSetCreateProcessNotifyRoutineEx(Hooks::onProcessStart, TRUE);
   if (!NT_SUCCESS(status)) {
     LOG_ERROR("Failed to unregister process notify routine, status: 0x%X", status);
+  } else {
+    LOG_INFO("Process notify routine unregistered successfully");
   }
+
+  // Wait a bit to ensure no more callbacks are coming
+  LARGE_INTEGER delay;
+  delay.QuadPart = -10000 * 50; // 50ms delay
+  KeDelayExecutionThread(KernelMode, FALSE, &delay);
 
   // Clean up the queue
   KIRQL oldIrql;
   KeAcquireSpinLock(&g_QueueLock, &oldIrql);
 
+  ULONG notificationCount = 0;
   while (!IsListEmpty(&g_ProcessNotificationQueue)) {
     PLIST_ENTRY entry = RemoveHeadList(&g_ProcessNotificationQueue);
     PPROCESS_NOTIFICATION notification = CONTAINING_RECORD(entry, PROCESS_NOTIFICATION, ListEntry);
     ExFreePoolWithTag(notification, 'nPrP');
+    notificationCount++;
   }
 
   KeReleaseSpinLock(&g_QueueLock, oldIrql);
 
   g_IsInitialized = FALSE;
-  LOG_INFO("Process notifications cleaned up successfully");
+  LOG_INFO("Process notifications cleaned up successfully, freed %lu notifications", notificationCount);
 }
 
 PVOID Utils::dequeueProcessNotification() {
@@ -166,7 +177,7 @@ VOID Utils::enqueueProcessNotification(PVOID notificationPtr) {
     return;
   }
 
-  PPROCESS_NOTIFICATION notification = (PPROCESS_NOTIFICATION)notificationPtr;
+  auto notification = (PPROCESS_NOTIFICATION)notificationPtr;
 
   KIRQL oldIrql;
   KeAcquireSpinLock(&g_QueueLock, &oldIrql);

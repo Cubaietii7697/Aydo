@@ -38,6 +38,12 @@ bool UserConfig::load(const std::string &configPath) {
     if (j.contains("entropyThreshold")) {
       entropyThreshold = j["entropyThreshold"];
     }
+    if (j.contains("dynamicScanThreshold")) {
+      dynamicScanThreshold = j["dynamicScanThreshold"];
+    }
+    if (j.contains("maxScanSize")) {
+      maxScanSize = j["maxScanSize"];
+    }
 
     return true;
   } catch (const std::exception &e) {
@@ -55,6 +61,8 @@ bool UserConfig::save(const std::string &configPath) const {
     j["refreshToken"] = refreshToken;
     j["runtime"] = runtime;
     j["entropyThreshold"] = entropyThreshold;
+    j["dynamicScanThreshold"] = dynamicScanThreshold;
+    j["maxScanSize"] = maxScanSize;
 
     std::ofstream file(configPath);
     if (!file.is_open()) {

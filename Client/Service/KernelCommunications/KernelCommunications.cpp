@@ -86,3 +86,7 @@ std::optional<IOCTL_GET_PROCESS_NOTIFICATION_OUTPUT> KernelCommunications::getPr
 
   return std::nullopt;
 }
+
+bool KernelCommunications::registerSelfAsService() {
+  return sendIoctl(IOCTL_REGISTER_SERVICE, nullptr, 0, nullptr, 0);
+}

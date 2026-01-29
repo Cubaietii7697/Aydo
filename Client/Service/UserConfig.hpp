@@ -11,6 +11,8 @@ public:
   std::string accessToken;
   std::string refreshToken;
   int runtime = 60;
+  int dynamicScanThreshold = 25;
+  unsigned long long maxScanSize = 50 * 1024 * 1024; // 50MB default
 
   static UserConfig &getInstance();
   bool load(const std::string &configPath = "config.json");

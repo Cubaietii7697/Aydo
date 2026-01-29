@@ -47,7 +47,7 @@ std::wstring Utils::device_to_dos_path(const std::wstring &devicePath) {
 
   // Map \Device\HarddiskVolumeX to a DOS drive letter
   wchar_t drives[kDriveStringsBufChars] = {0};
-  DWORD len = GetLogicalDriveStringsW(static_cast<DWORD>(std::size(drives) - 1), drives);
+  GetLogicalDriveStringsW(static_cast<DWORD>(std::size(drives) - 1), drives);
   for (wchar_t const *p = drives; p && *p; p += wcslen(p) + 1) {
     // p is like "C:\"
     const std::wstring dosRoot = p;                  // "C:\"
@@ -122,15 +122,44 @@ std::string Utils::wstring_to_utf8(const std::wstring &w) {
   if (w.empty()) {
     return {};
   }
-  int sz = WideCharToMultiByte(CP_UTF8, 0, w.c_str(), static_cast<int>(w.size()),
+  int sz = WideCharToMultiByte(CP_UTF8, 0, w.data(), static_cast<int>(w.size()),
                                nullptr, 0, nullptr, nullptr);
   if (sz <= 0) {
     return {};
   }
   std::string out(static_cast<size_t>(sz), '\0');
-  WideCharToMultiByte(CP_UTF8, 0, w.c_str(), static_cast<int>(w.size()),
+  WideCharToMultiByte(CP_UTF8, 0, w.data(), static_cast<int>(w.size()),
                       out.data(), sz, nullptr, nullptr);
   return out;
+}
+
+std::string Utils::wstring_to_utf8(const wchar_t *w) {
+  if (!w || *w == L'\0') {
+    return {};
+  }
+  return wstring_to_utf8(std::wstring(w));
+}
+
+std::wstring Utils::utf8_to_wstring(const std::string &s) {
+  if (s.empty()) {
+    return {};
+  }
+  int sz = MultiByteToWideChar(CP_UTF8, 0, s.data(), static_cast<int>(s.size()),
+                               nullptr, 0);
+  if (sz <= 0) {
+    return {};
+  }
+  std::wstring out(static_cast<size_t>(sz), L'\0');
+  MultiByteToWideChar(CP_UTF8, 0, s.data(), static_cast<int>(s.size()),
+                      out.data(), sz);
+  return out;
+}
+
+std::wstring Utils::utf8_to_wstring(const char *s) {
+  if (!s || *s == '\0') {
+    return {};
+  }
+  return utf8_to_wstring(std::string(s));
 }
 
 std::string Utils::computeSHA256(const std::string &path) {
@@ -142,7 +171,7 @@ std::string Utils::computeSHA256(const std::string &path) {
   auto hasher = Botan::HashFunction::create_or_throw("SHA-256");
   std::vector<uint8_t> buf(Constants::SHA256_BUFFER_SIZE);
   while (file) {
-    file.read(reinterpret_cast<char *>(buf.data()), buf.size());
+    file.read(reinterpret_cast<char *>(buf.data()), static_cast<std::streamsize>(buf.size()));
     std::streamsize bytesRead = file.gcount();
     if (bytesRead > 0) {
       hasher->update(buf.data(), static_cast<size_t>(bytesRead));
@@ -173,15 +202,10 @@ double Utils::calculateEntropy(const std::vector<int> &countedBytes, std::stream
 }
 
 bool Utils::isWindowsSigned(const std::string &path) {
-  // Convert UTF-8 path to wide string
-  int sz = MultiByteToWideChar(CP_UTF8, 0, path.c_str(), -1, nullptr, 0);
-  if (sz <= 0) {
+  std::wstring wpath = utf8_to_wstring(path);
+  if (wpath.empty()) {
     return false;
   }
-
-  std::wstring wpath(static_cast<size_t>(sz), L'\0');
-  MultiByteToWideChar(CP_UTF8, 0, path.c_str(), -1, wpath.data(), sz);
-  wpath.resize(sz - 1); // Remove null terminator from size
 
   // Set up WinTrust file info structure
   WINTRUST_FILE_INFO fileInfo = {};

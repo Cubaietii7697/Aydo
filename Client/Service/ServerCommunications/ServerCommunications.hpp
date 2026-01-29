@@ -30,6 +30,7 @@ private:
   };
 
   long postRequest(const std::string &endpoint, const std::string &body, std::string &responseBody);
+  bool refreshToken();
 
 public:
   ~ServerCommunications();

@@ -1,6 +1,7 @@
 #include "Hooks.hpp"
 
 #include "Logger.hpp"
+#include "ServiceProtection.hpp"
 #include "Types.hpp"
 #include "Utils.hpp"
 
@@ -67,6 +68,22 @@ VOID onProcessStart(PEPROCESS Process, HANDLE ProcessId, PPS_CREATE_NOTIFY_INFO 
     notification->CommandLine[0] = L'\0';
 
     LOG_INFO("Process terminated - PID: %lu", notification->ProcessId);
+
+    // Check if this is our protected service process
+    KIRQL oldIrql;
+    PEPROCESS currentServiceProcess;
+    HANDLE currentServicePID;
+
+    KeAcquireSpinLock(&ServiceProtection::g_serviceLock, &oldIrql);
+    currentServiceProcess = ServiceProtection::g_serviceProcess;
+    currentServicePID = ServiceProtection::g_servicePID;
+    KeReleaseSpinLock(&ServiceProtection::g_serviceLock, oldIrql);
+
+    if (currentServiceProcess != nullptr && Process == currentServiceProcess) {
+      LOG_WARNING("Protected service process (PID: %lu) terminated unexpectedly!",
+                  HandleToULong(ProcessId));
+      ServiceProtection::clearServiceProcess();
+    }
   }
 
   // Add to queue
