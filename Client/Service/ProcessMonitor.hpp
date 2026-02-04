@@ -36,6 +36,7 @@ public:
   void stop();
 
   bool isMonitoring() const;
+  bool scanFile(const std::string &path);
 
 private:
   void monitorLoop();

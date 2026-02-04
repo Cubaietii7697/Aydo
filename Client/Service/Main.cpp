@@ -6,6 +6,8 @@
 #include <atomic>
 #include <cstdlib>
 #include <iostream>
+#include <string>
+#include <thread>
 
 #include "Constants.hpp"
 #include "Databases/HashesDatabase.hpp"
@@ -17,6 +19,50 @@
 
 static std::atomic<bool> g_stopMonitoring{false};
 static ProcessMonitor *g_monitor = nullptr;
+
+static std::string trim(const std::string &value) {
+  const auto start = value.find_first_not_of(" \t\r\n");
+  if (start == std::string::npos) {
+    return "";
+  }
+  const auto end = value.find_last_not_of(" \t\r\n");
+  return value.substr(start, end - start + 1);
+}
+
+static std::string stripQuotes(const std::string &value) {
+  if (value.size() >= 2 && value.front() == '"' && value.back() == '"') {
+    return value.substr(1, value.size() - 2);
+  }
+  return value;
+}
+
+static void commandLoop(ProcessMonitor *monitor) {
+  std::string line;
+  while (std::getline(std::cin, line)) {
+    const auto trimmed = trim(line);
+    if (trimmed.empty()) {
+      continue;
+    }
+
+    if (trimmed == "ping") {
+      std::cout << "[PING] OK" << std::endl;
+      continue;
+    }
+
+    if (trimmed.rfind("scan", 0) == 0) {
+      auto path = trim(trimmed.substr(4));
+      path = stripQuotes(path);
+      if (path.empty()) {
+        std::cerr << "[SCAN ERROR] Missing path" << std::endl;
+        continue;
+      }
+      monitor->scanFile(path);
+      continue;
+    }
+
+    std::cerr << "[CMD] Unknown command: " << trimmed << std::endl;
+  }
+}
 
 static BOOL WINAPI CtrlHandler(DWORD t) {
   if (t == CTRL_C_EVENT || t == CTRL_BREAK_EVENT || t == CTRL_CLOSE_EVENT) {
@@ -142,6 +188,9 @@ int main() {
 
     std::cout << "Starting background monitoring thread..." << std::endl;
     monitor.start();
+
+    std::thread commandThread(commandLoop, &monitor);
+    commandThread.detach();
 
     std::cout << "Monitoring active. Press Ctrl+C to stop." << std::endl
               << std::endl;

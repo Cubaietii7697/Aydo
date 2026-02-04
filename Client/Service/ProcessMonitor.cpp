@@ -2,6 +2,7 @@
 #include <windows.h>
 #include <array>
 #include <cstdint>
+#include <filesystem>
 #include <iostream>
 #include <utility>
 #include <vector>
@@ -49,6 +50,38 @@ void ProcessMonitor::stop() {
 
 bool ProcessMonitor::isMonitoring() const {
   return !m_stopMonitoring.load(std::memory_order_relaxed) && m_monitorThread.joinable();
+}
+
+bool ProcessMonitor::scanFile(const std::string &path) {
+  if (path.empty()) {
+    std::cerr << "[SCAN ERROR] Missing path" << std::endl;
+    return false;
+  }
+
+  if (!std::filesystem::exists(path)) {
+    std::cerr << "[SCAN ERROR] File not found: " << path << std::endl;
+    return false;
+  }
+
+  if (std::filesystem::is_directory(path)) {
+    std::cerr << "[SCAN ERROR] Directory scans are not supported: " << path << std::endl;
+    return false;
+  }
+
+  std::cout << "[SCAN] Requested: " << path << std::endl;
+
+  try {
+    const bool threat = isThreat(path);
+    if (threat) {
+      std::cout << "[SCAN RESULT] THREAT: " << path << std::endl;
+    } else {
+      std::cout << "[SCAN RESULT] CLEAN: " << path << std::endl;
+    }
+    return threat;
+  } catch (const std::exception &ex) {
+    std::cerr << "[SCAN ERROR] " << ex.what() << std::endl;
+    return false;
+  }
 }
 
 bool ProcessMonitor::isThreat(const std::string &path) {
