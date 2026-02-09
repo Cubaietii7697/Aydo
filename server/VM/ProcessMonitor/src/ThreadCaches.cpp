@@ -3,44 +3,124 @@
 
 #include <algorithm>
 #include <chrono>
+#include <optional>
 #include <utility>
 
 void ThreadCaches::update(const NormalizedEvent &e) {
-  // 1) per-thread updates
-  if (e.tid != 0) {
-    auto &st = byTid[e.tid];
-    if (ThreadHelpers::isSuspend(e))
-      st.lastSuspend = e.ts;
-    if (ThreadHelpers::isResume(e))
-      st.lastResume = e.ts;
-    if (ThreadHelpers::isContextChange(e))
-      st.lastContextChange = e.ts;
+  const auto now = ThreadHelpers::eventTsOrNow(e);
+  const auto srcPid = ThreadHelpers::getSourcePid(e);
+  const auto tgtPid = ThreadHelpers::getTargetPid(e);
+  const auto tgtTid = ThreadHelpers::getTargetTid(e);
+
+  // Track owner mapping from kernel thread-start events.
+  if (ThreadHelpers::isThreadStart(e) && tgtTid && *tgtTid != 0) {
+    auto &st = byTid[*tgtTid];
+    if (auto ownerPid = ThreadHelpers::getU32(e, "ProcessId")) {
+      st.ownerPid = static_cast<DWORD>(*ownerPid);
+    } else if (tgtPid) {
+      st.ownerPid = static_cast<DWORD>(*tgtPid);
+    }
+    st.lastObserved = now;
   }
 
-  // 2) cross-proc updates (only when you have both pids)
-  const auto src = ThreadHelpers::getU32(e, "SourcePid");
-  const auto tgt = ThreadHelpers::getU32(e, "TargetPid");
-  if (src && tgt) {
-    auto &w = crossProcWindows[{static_cast<DWORD>(*src), static_cast<DWORD>(*tgt)}];
-    if (ThreadHelpers::isProcessAccess(e))
-      w.lastProcessAccess = e.ts;
-    if (ThreadHelpers::isRemoteThread(e))
-      w.lastRemoteThread = e.ts;
-    if (ThreadHelpers::isApcQueue(e))
-      w.lastApcQueue = e.ts;
+  // Track sequence state for suspend/context/resume.
+  const DWORD seqTid = tgtTid ? static_cast<DWORD>(*tgtTid) : e.tid;
+  if (seqTid != 0) {
+    auto &st = byTid[seqTid];
+    if (st.ownerPid == 0 && tgtPid) {
+      st.ownerPid = static_cast<DWORD>(*tgtPid);
+    }
+
+    const DWORD actorPid = srcPid ? static_cast<DWORD>(*srcPid) : e.pid;
+
+    if (ThreadHelpers::isSuspend(e)) {
+      st.lastSuspend = now;
+      st.suspendActorPid = actorPid;
+    }
+    if (ThreadHelpers::isContextChange(e)) {
+      st.lastContextChange = now;
+      st.contextActorPid = actorPid;
+    }
+    if (ThreadHelpers::isResume(e)) {
+      st.lastResume = now;
+      st.resumeActorPid = actorPid;
+    }
+    st.lastObserved = now;
   }
+
+  // Track cross-process access/action windows.
+  if (srcPid && tgtPid &&
+      *srcPid != 0 && *tgtPid != 0 &&
+      *srcPid != *tgtPid) {
+    auto &w = crossProcWindows[{static_cast<DWORD>(*srcPid), static_cast<DWORD>(*tgtPid)}];
+    if (ThreadHelpers::isProcessAccess(e))
+      w.lastProcessAccess = now;
+    if (ThreadHelpers::isRemoteThread(e))
+      w.lastRemoteThread = now;
+    if (ThreadHelpers::isApcQueue(e))
+      w.lastApcQueue = now;
+  }
+}
+
+bool ThreadCaches::hasRecentProcessAccess(
+    DWORD sourcePid,
+    DWORD targetPid,
+    std::chrono::time_point<std::chrono::system_clock> now,
+    std::chrono::seconds window) const {
+  const auto it = crossProcWindows.find({sourcePid, targetPid});
+  if (it == crossProcWindows.end())
+    return false;
+
+  const auto ts = it->second.lastProcessAccess;
+  if (ts.time_since_epoch().count() == 0)
+    return false;
+
+  return ts <= now && (now - ts) <= window;
+}
+
+std::optional<DWORD> ThreadCaches::findRecentSourceForTarget(
+    DWORD targetPid,
+    std::chrono::time_point<std::chrono::system_clock> now,
+    std::chrono::seconds window) const {
+  std::optional<DWORD> bestSource;
+  std::chrono::time_point<std::chrono::system_clock> bestTs{};
+
+  for (const auto &[key, val] : crossProcWindows) {
+    const auto &[srcPid, tgtPid] = key;
+    if (tgtPid != targetPid)
+      continue;
+
+    const auto ts = val.lastProcessAccess;
+    if (ts.time_since_epoch().count() == 0)
+      continue;
+    if (ts > now || (now - ts) > window)
+      continue;
+
+    if (!bestSource || ts > bestTs) {
+      bestSource = srcPid;
+      bestTs = ts;
+    }
+  }
+
+  return bestSource;
 }
 
 void ThreadCaches::cleanup(std::chrono::time_point<std::chrono::system_clock> now) {
   std::erase_if(byTid, [&](const auto &kv) {
     const auto &s = kv.second;
-    const auto last = std::max({s.lastSuspend, s.lastResume, s.lastContextChange});
+    const auto last = std::max({s.lastSuspend, s.lastResume, s.lastContextChange, s.lastObserved});
+    if (last.time_since_epoch().count() == 0) {
+      return true;
+    }
     return (now - last) > TID_TTL;
   });
 
   std::erase_if(crossProcWindows, [&](const auto &kv) {
     const auto &w = kv.second;
     const auto last = std::max({w.lastProcessAccess, w.lastRemoteThread, w.lastApcQueue});
+    if (last.time_since_epoch().count() == 0) {
+      return true;
+    }
     return (now - last) > XPROC_TTL;
   });
 }

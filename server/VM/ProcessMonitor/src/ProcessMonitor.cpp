@@ -2,9 +2,12 @@
 #include <algorithm>
 #include <cstring>
 #include <format>
+#include <initializer_list>
 #include <iostream>
 #include <mutex>
+#include <optional>
 #include <sstream>
+#include <string_view>
 #include <vector>
 #include "Utils.hpp"
 
@@ -35,8 +38,41 @@ ProcessMonitor::ProcessMonitor(const std::set<DWORD> &initialPids, const std::ws
   g_targetPids = initialPids;
 }
 
-bool ProcessMonitor::pidAllowed(DWORD pid) const {
-  return g_targetPids.empty() || g_targetPids.contains(pid);
+bool ProcessMonitor::pidAllowed(const EVENT_RECORD &record,
+                                const krabs::trace_context &ctx) const {
+  if (g_targetPids.empty()) {
+    return true;
+  }
+
+  auto inTargets = [](DWORD pid) {
+    return pid != 0 && g_targetPids.contains(pid);
+  };
+
+  if (inTargets(record.EventHeader.ProcessId)) {
+    return true;
+  }
+
+  try {
+    krabs::schema schema(record, ctx.schema_locator);
+    krabs::parser parser(schema);
+
+    auto tryU32 = [&](const wchar_t *name) -> std::optional<uint32_t> {
+      try {
+        return parser.parse<uint32_t>(name);
+      } catch (...) {
+        return std::nullopt;
+      }
+    };
+
+    for (const auto *field : {L"SourcePid", L"SourceProcessId", L"TargetPid", L"TargetProcessId", L"ProcessId"}) {
+      if (auto v = tryU32(field); v && inTargets(static_cast<DWORD>(*v))) {
+        return true;
+      }
+    }
+  } catch (...) {
+  }
+
+  return false;
 }
 
 void ProcessMonitor::analysisRecord(const EVENT_RECORD &record,
@@ -44,10 +80,11 @@ void ProcessMonitor::analysisRecord(const EVENT_RECORD &record,
   std::scoped_lock lk(m_analysisMtx);
 
   NormalizedEvent ne{};
-  ne.ts = std::chrono::system_clock::now(); 
+  ne.ts = std::chrono::system_clock::now();
   ne.pid = record.EventHeader.ProcessId;
   ne.tid = record.EventHeader.ThreadId;
   ne.eventId = static_cast<int>(record.EventHeader.EventDescriptor.Id);
+  ne.fields["SourcePid"] = static_cast<uint32_t>(ne.pid);
 
   try {
     krabs::schema schema(record, ctx.schema_locator);
@@ -79,22 +116,45 @@ void ProcessMonitor::analysisRecord(const EVENT_RECORD &record,
       }
     };
 
-    if (auto v = tryU32(L"SourcePid"))
-      ne.fields["SourcePid"] = *v;
-    if (auto v = tryU32(L"TargetPid"))
-      ne.fields["TargetPid"] = *v;
-    if (auto v = tryU32(L"SourceProcessId"))
-      ne.fields["SourcePid"] = *v;
-    if (auto v = tryU32(L"TargetProcessId"))
-      ne.fields["TargetPid"] = *v;
+    auto tryU64 = [&](const wchar_t *name) -> std::optional<uint64_t> {
+      try {
+        return parser.parse<uint64_t>(name);
+      } catch (...) {
+        return std::nullopt;
+      }
+    };
 
-    if (auto v = tryU32(L"TargetTid"))
-      ne.fields["TargetTid"] = *v;
-    if (auto v = tryU32(L"TargetThreadId"))
-      ne.fields["TargetTid"] = *v;
+    auto setFirstU32 = [&](std::string_view dst, std::initializer_list<const wchar_t *> aliases) {
+      for (const auto *a : aliases) {
+        if (auto v = tryU32(a)) {
+          ne.fields[std::string(dst)] = *v;
+          return true;
+        }
+      }
+      return false;
+    };
 
+    const bool hasSourcePid = setFirstU32("SourcePid", {L"SourcePid", L"SourceProcessId"});
+    (void)hasSourcePid;
+    setFirstU32("TargetPid", {L"TargetPid", L"TargetProcessId", L"ProcessId"});
+    setFirstU32("TargetTid", {L"TargetTid", L"TargetThreadId", L"TargetThreatId", L"TThreadId"});
+    setFirstU32("ProcessId", {L"ProcessId"});
+    setFirstU32("TThreadId", {L"TThreadId"});
+    setFirstU32("DesiredAccess", {L"DesiredAccess"});
+    setFirstU32("ReturnCode", {L"ReturnCode", L"ReturnValue"});
+
+    if (auto v = tryU64(L"TargetProcessStartKey")) {
+      ne.fields["TargetProcessStartKey"] = *v;
+    }
+    if (auto v = tryU64(L"TargetProcessCreationTime")) {
+      ne.fields["TargetProcessCreationTime"] = *v;
+    }
   } catch (...) {
     ne.provider = "<no_schema>";
+  }
+
+  if (!ne.fields.contains("SourcePid")) {
+    ne.fields["SourcePid"] = static_cast<uint32_t>(ne.pid);
   }
 
   m_threadAnalysis.onEvent(ne);
@@ -102,7 +162,7 @@ void ProcessMonitor::analysisRecord(const EVENT_RECORD &record,
 
 void ProcessMonitor::onKernelEvent(const EVENT_RECORD &record,
                                    const krabs::trace_context &ctx) {
-  if (!pidAllowed(record.EventHeader.ProcessId)) {
+  if (!pidAllowed(record, ctx)) {
     return;
   }
 
@@ -111,7 +171,7 @@ void ProcessMonitor::onKernelEvent(const EVENT_RECORD &record,
 
 void ProcessMonitor::onUserEvent(const EVENT_RECORD &record,
                                  const krabs::trace_context &ctx) {
-  if (!pidAllowed(record.EventHeader.ProcessId)) {
+  if (!pidAllowed(record, ctx)) {
     return;
   }
 

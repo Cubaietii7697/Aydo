@@ -54,6 +54,9 @@
     <ClCompile Include="src\ThreadCaches.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\SelfTest.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="src\detectors\RemoteThreadCreationDetector.cpp">
       <Filter>Source Files\detectors</Filter>
     </ClCompile>
@@ -78,6 +81,9 @@
       <Filter>Header Files\core</Filter>
     </ClInclude>
     <ClInclude Include="include\core\Threads.hpp">
+      <Filter>Header Files\core</Filter>
+    </ClInclude>
+    <ClInclude Include="include\core\SelfTest.hpp">
       <Filter>Header Files\core</Filter>
     </ClInclude>
     <ClInclude Include="include\etw\EtwGuids.hpp">

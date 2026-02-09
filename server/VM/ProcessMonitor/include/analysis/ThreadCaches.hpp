@@ -3,6 +3,8 @@
 #include "NormalizedEvent.hpp"
 #include "CrossProcWindow.hpp"
 #include "ThreadState.hpp"
+#include <chrono>
+#include <optional>
 
 class ThreadCaches {
 public:
@@ -14,5 +16,13 @@ public:
   std::map<std::pair<DWORD, DWORD>, CrossProcWindow> crossProcWindows;
 
   void update(const NormalizedEvent& normEvent);
+  bool hasRecentProcessAccess(DWORD sourcePid,
+                              DWORD targetPid,
+                              std::chrono::time_point<std::chrono::system_clock> now,
+                              std::chrono::seconds window) const;
+  std::optional<DWORD> findRecentSourceForTarget(
+      DWORD targetPid,
+      std::chrono::time_point<std::chrono::system_clock> now,
+      std::chrono::seconds window) const;
   void cleanup(std::chrono::time_point<std::chrono::system_clock> now);
 };

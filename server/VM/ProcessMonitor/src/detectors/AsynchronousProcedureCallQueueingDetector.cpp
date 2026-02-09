@@ -1,18 +1,54 @@
 #include "AsynchronousProcedureCallQueueingDetector.hpp"
 
+#include <algorithm>
+
 #include "ThreadHelpers.hpp"
 
-std::vector<Finding> AsynchronousProcedureCallQueueingDetector::evaluate(const NormalizedEvent &ne, ThreadCaches &) {
+std::vector<Finding> AsynchronousProcedureCallQueueingDetector::evaluate(const NormalizedEvent &ne, ThreadCaches &caches) {
   if (!isMatch(ne)) {
     return {};
   }
 
-  DWORD tgtPid = 0, tgtTid = 0;
+  const auto now = ThreadHelpers::eventTsOrNow(ne);
+  const DWORD srcPid = static_cast<DWORD>(ThreadHelpers::actorPidOrFallback(ne));
+
+  DWORD tgtPid = 0;
+  DWORD tgtTid = 0;
   if (!tryGetTarget(ne, tgtPid, tgtTid)) {
     return {};
   }
 
-  return {buildFinding(ne, ne.pid, tgtPid, tgtTid, SEVERITY, CONFIDENCE)};
+  if (srcPid == 0 || tgtPid == 0 || srcPid == tgtPid) {
+    return {};
+  }
+
+  if (!caches.hasRecentProcessAccess(srcPid, tgtPid, now, CORRELATION_WINDOW)) {
+    return {};
+  }
+
+  if (isDuplicate(srcPid, tgtPid, tgtTid, now)) {
+    return {};
+  }
+
+  return {buildFinding(ne, srcPid, tgtPid, tgtTid, 8, 75)};
+}
+
+bool AsynchronousProcedureCallQueueingDetector::isDuplicate(
+    DWORD srcPid,
+    DWORD tgtPid,
+    DWORD tgtTid,
+    std::chrono::time_point<std::chrono::system_clock> now) {
+  const auto key = std::make_tuple(srcPid, tgtPid, tgtTid);
+  const auto it = m_recentFindings.find(key);
+  if (it != m_recentFindings.end() && (now - it->second) <= DEDUP_WINDOW) {
+    return true;
+  }
+
+  m_recentFindings[key] = now;
+  std::erase_if(m_recentFindings, [&](const auto &kv) {
+    return (now - kv.second) > std::chrono::minutes(1);
+  });
+  return false;
 }
 
 bool AsynchronousProcedureCallQueueingDetector::isMatch(const NormalizedEvent &ne) const {
@@ -20,17 +56,13 @@ bool AsynchronousProcedureCallQueueingDetector::isMatch(const NormalizedEvent &n
 }
 
 bool AsynchronousProcedureCallQueueingDetector::tryGetTarget(const NormalizedEvent &ne, DWORD &targetPid, DWORD &targetTid) const {
-  if (auto p = ThreadHelpers::getU32(ne, "TargetProcessId")) {
-    targetPid = static_cast<DWORD>(*p);
-  } else if (auto p = ThreadHelpers::getU32(ne, "TargetPid")) {
+  if (auto p = ThreadHelpers::getTargetPid(ne)) {
     targetPid = static_cast<DWORD>(*p);
   } else {
     return false;
   }
 
-  if (auto t = ThreadHelpers::getU32(ne, "TargetThreadId")) {
-    targetTid = static_cast<DWORD>(*t);
-  } else if (auto t = ThreadHelpers::getU32(ne, "TargetTid")) {
+  if (auto t = ThreadHelpers::getTargetTid(ne)) {
     targetTid = static_cast<DWORD>(*t);
   } else {
     targetTid = 0;

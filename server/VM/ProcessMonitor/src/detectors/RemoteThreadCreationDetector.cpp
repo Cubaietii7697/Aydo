@@ -1,20 +1,63 @@
 #include "RemoteThreadCreationDetector.hpp"
 
+#include <algorithm>
+
 #include "ThreadHelpers.hpp"
 
-std::vector<Finding> RemoteThreadCreationDetector::evaluate(const NormalizedEvent &ne, ThreadCaches &) {
-  if (!isMatch(ne)) {
-    return {};
+std::vector<Finding> RemoteThreadCreationDetector::evaluate(const NormalizedEvent &ne, ThreadCaches &caches) {
+  const auto now = ThreadHelpers::eventTsOrNow(ne);
+  std::vector<Finding> findings;
+
+  DWORD srcPid = static_cast<DWORD>(ThreadHelpers::actorPidOrFallback(ne));
+
+  // Path 1: explicit remote-thread API match plus recent access correlation.
+  if (isMatch(ne)) {
+    DWORD tgtPid = 0;
+    DWORD tgtTid = 0;
+    if (tryGetTarget(ne, tgtPid, tgtTid) &&
+        srcPid != 0 &&
+        tgtPid != 0 &&
+        srcPid != tgtPid &&
+        caches.hasRecentProcessAccess(srcPid, tgtPid, now, CORRELATION_WINDOW) &&
+        !isDuplicate(srcPid, tgtPid, tgtTid, now)) {
+      findings.emplace_back(buildFinding(ne, srcPid, tgtPid, tgtTid, 8, 75));
+    }
   }
 
-  DWORD tgtPid = 0;
-  DWORD tgtTid = 0;
-  if (!tryGetTarget(ne, tgtPid, tgtTid))
-    return {};
+  // Path 2: fallback heuristic, thread start in target after cross-proc access.
+  if (ThreadHelpers::isThreadStart(ne)) {
+    const auto targetPid = ThreadHelpers::getTargetPid(ne);
+    const auto targetTid = ThreadHelpers::getTargetTid(ne);
+    if (targetPid && *targetPid != 0) {
+      if (auto recentSource = caches.findRecentSourceForTarget(static_cast<DWORD>(*targetPid), now, CORRELATION_WINDOW);
+          recentSource && *recentSource != *targetPid) {
+        const DWORD tgtTid = targetTid ? static_cast<DWORD>(*targetTid) : 0;
+        if (!isDuplicate(*recentSource, static_cast<DWORD>(*targetPid), tgtTid, now)) {
+          findings.emplace_back(buildFinding(ne, *recentSource, static_cast<DWORD>(*targetPid), tgtTid, 7, 70));
+        }
+      }
+    }
+  }
 
-  // default scoring; tune later.
+  return findings;
+}
 
-  return {buildFinding(ne, ne.pid, tgtPid, tgtTid, SEVERITY, CONFIDENCE)};
+bool RemoteThreadCreationDetector::isDuplicate(
+    DWORD srcPid,
+    DWORD tgtPid,
+    DWORD tgtTid,
+    std::chrono::time_point<std::chrono::system_clock> now) {
+  const auto key = std::make_tuple(srcPid, tgtPid, tgtTid);
+  const auto it = m_recentFindings.find(key);
+  if (it != m_recentFindings.end() && (now - it->second) <= DEDUP_WINDOW) {
+    return true;
+  }
+
+  m_recentFindings[key] = now;
+  std::erase_if(m_recentFindings, [&](const auto &kv) {
+    return (now - kv.second) > std::chrono::minutes(1);
+  });
+  return false;
 }
 
 bool RemoteThreadCreationDetector::isMatch(const NormalizedEvent &ne) const {
@@ -22,16 +65,12 @@ bool RemoteThreadCreationDetector::isMatch(const NormalizedEvent &ne) const {
 }
 
 bool RemoteThreadCreationDetector::tryGetTarget(const NormalizedEvent &ne, DWORD &targetPid, DWORD &targetTid) const {
-  if (auto p = ThreadHelpers::getU32(ne, "TargetProcessId"))
-    targetPid = static_cast<DWORD>(*p);
-  else if (auto p = ThreadHelpers::getU32(ne, "TargetPid"))
+  if (auto p = ThreadHelpers::getTargetPid(ne))
     targetPid = static_cast<DWORD>(*p);
   else
     return false;
 
-  if (auto t = ThreadHelpers::getU32(ne, "TargetThreadId"))
-    targetTid = static_cast<DWORD>(*t);
-  else if (auto t = ThreadHelpers::getU32(ne, "TargetTid"))
+  if (auto t = ThreadHelpers::getTargetTid(ne))
     targetTid = static_cast<DWORD>(*t);
   else
     targetTid = 0;

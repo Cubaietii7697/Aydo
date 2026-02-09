@@ -1,36 +1,77 @@
 #include "ThreadHijackDetector.hpp"
 
-#include <chrono>
+#include <algorithm>
 
 #include "ThreadHelpers.hpp"
 
 std::vector<Finding> ThreadHijackDetector::evaluate(const NormalizedEvent &ne, ThreadCaches &caches) {
-  const auto tidKey = static_cast<uint64_t>(ne.tid);
-  auto it = caches.byTid.find(tidKey);
+  if (!ThreadHelpers::isResume(ne)) {
+    return {};
+  }
+
+  const auto targetTidOpt = ThreadHelpers::getTargetTid(ne);
+  const DWORD targetTid = targetTidOpt ? static_cast<DWORD>(*targetTidOpt) : ne.tid;
+  if (targetTid == 0) {
+    return {};
+  }
+
+  const auto it = caches.byTid.find(targetTid);
   if (it == caches.byTid.end())
     return {};
 
   const ThreadState &st = it->second;
-  const auto now = ne.ts.time_since_epoch().count() == 0 ? std::chrono::system_clock::now() : ne.ts;
+  const auto now = ThreadHelpers::eventTsOrNow(ne);
+  const DWORD actorPid = ThreadHelpers::actorPidOrFallback(ne);
 
-  if (ThreadHelpers::isContextChange(ne)) {
-    if (st.lastSuspend.time_since_epoch().count() != 0 &&
-        (now - st.lastSuspend) < std::chrono::seconds(10)) {
-      return {buildFinding(ne, st.ownerPid, ne.tid, 5, 45, "context_change")};
-    }
+  if (st.ownerPid == 0 || actorPid == 0 || actorPid == st.ownerPid) {
+    return {};
   }
 
-  if (ThreadHelpers::isResume(ne)) {
-    if (st.lastSuspend.time_since_epoch().count() != 0 &&
-        st.lastContextChange.time_since_epoch().count() != 0 &&
-        st.lastSuspend <= st.lastContextChange &&
-        st.lastContextChange <= now &&
-        (now - st.lastSuspend) < std::chrono::seconds(10)) {
-      return {buildFinding(ne, st.ownerPid, ne.tid, 7, 65, "resume_after_context_change")};
-    }
+  if (st.lastSuspend.time_since_epoch().count() == 0 ||
+      st.lastContextChange.time_since_epoch().count() == 0) {
+    return {};
   }
 
-  return {};
+  if (!(st.lastSuspend <= st.lastContextChange && st.lastContextChange <= now)) {
+    return {};
+  }
+
+  if ((now - st.lastSuspend) > SEQUENCE_WINDOW) {
+    return {};
+  }
+
+  if (st.suspendActorPid == 0 || st.contextActorPid == 0) {
+    return {};
+  }
+
+  if (!(st.suspendActorPid == st.contextActorPid &&
+        st.contextActorPid == actorPid)) {
+    return {};
+  }
+
+  if (isDuplicate(actorPid, st.ownerPid, targetTid, now)) {
+    return {};
+  }
+
+  return {buildFinding(ne, st.ownerPid, targetTid, 8, 75, "resume_after_context_change")};
+}
+
+bool ThreadHijackDetector::isDuplicate(
+    DWORD actorPid,
+    DWORD ownerPid,
+    DWORD tid,
+    std::chrono::time_point<std::chrono::system_clock> now) {
+  const auto key = std::make_tuple(actorPid, ownerPid, tid);
+  const auto it = m_recentFindings.find(key);
+  if (it != m_recentFindings.end() && (now - it->second) <= DEDUP_WINDOW) {
+    return true;
+  }
+
+  m_recentFindings[key] = now;
+  std::erase_if(m_recentFindings, [&](const auto &kv) {
+    return (now - kv.second) > std::chrono::minutes(1);
+  });
+  return false;
 }
 
 Finding ThreadHijackDetector::buildFinding(const NormalizedEvent &ne,
@@ -55,8 +96,8 @@ Finding ThreadHijackDetector::buildFinding(const NormalizedEvent &ne,
   f.severity = severity;
   f.confidence = confidence;
   f.ts = ne.ts;
-  f.source_pid = ne.pid;   // process performing the action (best-effort)
-  f.target_pid = ownerPid; // thread owner process
+  f.source_pid = ThreadHelpers::actorPidOrFallback(ne);
+  f.target_pid = ownerPid;
   f.tid = tid;
   f.evidence_json = ev.dump();
   return f;

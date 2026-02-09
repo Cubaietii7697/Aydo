@@ -11,10 +11,16 @@
 
 #include "Constants.hpp"
 #include "ProcessMonitor.hpp"
+#include "SelfTest.hpp"
 
 int wmain(int argc, wchar_t *argv[]) {
+  if (argc == 2 && _wcsicmp(argv[1], L"--self-test") == 0) {
+    return RunProcessMonitorSelfTest();
+  }
+
   if (argc < 3 || argc > 4) {
     std::wcerr << L"Usage: " << argv[0] << L" <exefile> <logFile> [TraceTime]" << std::endl;
+    std::wcerr << L"       " << argv[0] << L" --self-test" << std::endl;
 
     return EXIT_FAILURE;
   }

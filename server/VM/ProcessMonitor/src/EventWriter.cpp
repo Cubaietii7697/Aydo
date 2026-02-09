@@ -10,6 +10,50 @@
 
 struct Mapping;
 
+namespace {
+
+void execSql(sqlite3 *db, const char *sql, const char *tag) {
+  if (!db || !sql) {
+    return;
+  }
+
+  char *errMsg = nullptr;
+  const int rc = sqlite3_exec(db, sql, nullptr, nullptr, &errMsg);
+  if (rc != SQLITE_OK) {
+    std::string msg = std::format("{} failed, rc={}", tag ? tag : "sqlite3_exec", rc);
+    if (errMsg) {
+      msg += ", err=";
+      msg += errMsg;
+      sqlite3_free(errMsg);
+    }
+    msg += "\n";
+    OutputDebugStringA(msg.c_str());
+  }
+}
+
+void ensureFindingsSchema(sqlite3 *db) {
+  static constexpr const char *FINDINGS_DDL = R"SQL(
+CREATE TABLE IF NOT EXISTS Findings (
+    EventTime      DATETIME NOT NULL,
+    Type           TEXT,
+    Severity       INTEGER,
+    Confidence     INTEGER,
+    SourcePid      INTEGER,
+    TargetPid      INTEGER,
+    Tid            INTEGER,
+    EvidenceJson   TEXT,
+    InsertionTime  DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_findings_time ON Findings(EventTime);
+CREATE INDEX IF NOT EXISTS idx_findings_type ON Findings(Type);
+)SQL";
+
+  execSql(db, FINDINGS_DDL, "sqlite3_exec(FINDINGS_DDL)");
+}
+
+} // namespace
+
 EventWriter::EventWriter(std::wstring path,
                          WireFormat fmt,
                          bool pretty,
@@ -95,21 +139,9 @@ void EventWriter::initSqliteSchema() {
     return;
   }
 
-  char *errMsg = nullptr;
-  const int rc = sqlite3_exec(m_db, SqlRequests::TABLES_CREATE, nullptr, nullptr, &errMsg);
-  if (rc != SQLITE_OK) {
-
-    std::string msg = std::format("sqlite3_exec(TABLES_CREATE) failed, rc={}",
-                                  std::to_string(rc));
-
-    if (errMsg) {
-      msg += ", err=";
-      msg += errMsg;
-      sqlite3_free(errMsg);
-    }
-    msg += "\n";
-    OutputDebugStringA(msg.c_str());
-  }
+  execSql(m_db, SqlRequests::TABLES_CREATE, "sqlite3_exec(TABLES_CREATE)");
+  // Always attempt Findings DDL independently in case legacy Events schema migration fails.
+  ensureFindingsSchema(m_db);
 }
 
 bool EventWriter::bindJsonValues(sqlite3_stmt *stmt,
@@ -593,9 +625,18 @@ void EventWriter::writeFinding(const Finding &f) {
 
   sqlite3_stmt *stmt = nullptr;
   if (sqlite3_prepare_v2(m_db, SQL, -1, &stmt, nullptr) != SQLITE_OK || !stmt) {
-    if (stmt)
+    if (stmt) {
       sqlite3_finalize(stmt);
-    return;
+      stmt = nullptr;
+    }
+
+    ensureFindingsSchema(m_db);
+    if (sqlite3_prepare_v2(m_db, SQL, -1, &stmt, nullptr) != SQLITE_OK || !stmt) {
+      if (stmt) {
+        sqlite3_finalize(stmt);
+      }
+      return;
+    }
   }
 
   const auto ts = Utils::iso8601FromTimePoint(f.ts);

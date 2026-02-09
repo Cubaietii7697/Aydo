@@ -1,5 +1,7 @@
 #pragma once
+#include <chrono>
 #include <cstdint>
+#include <initializer_list>
 #include <limits>
 #include <optional>
 #include <string>
@@ -67,6 +69,54 @@ static inline std::optional<uint32_t> getU32(const NormalizedEvent &e, std::stri
   return std::nullopt;
 }
 
+static inline std::optional<uint64_t> getU64(const NormalizedEvent &e, std::string_view key) {
+  auto it = e.fields.find(std::string(key));
+  if (it == e.fields.end())
+    return std::nullopt;
+
+  const FieldValue &v = it->second;
+  if (const auto p = std::get_if<uint64_t>(&v))
+    return *p;
+  if (const auto p = std::get_if<uint32_t>(&v))
+    return static_cast<uint64_t>(*p);
+  if (const auto p = std::get_if<int64_t>(&v)) {
+    if (*p < 0)
+      return std::nullopt;
+    return static_cast<uint64_t>(*p);
+  }
+  if (const auto p = std::get_if<int32_t>(&v)) {
+    if (*p < 0)
+      return std::nullopt;
+    return static_cast<uint64_t>(*p);
+  }
+  if (const auto p = std::get_if<std::string>(&v)) {
+    try {
+      return static_cast<uint64_t>(std::stoull(*p, nullptr, 0));
+    } catch (...) {
+      return std::nullopt;
+    }
+  }
+  if (const auto p = std::get_if<std::wstring>(&v)) {
+    try {
+      return static_cast<uint64_t>(std::stoull(*p, nullptr, 0));
+    } catch (...) {
+      return std::nullopt;
+    }
+  }
+
+  return std::nullopt;
+}
+
+static inline std::optional<uint32_t> getFirstU32(
+    const NormalizedEvent &e,
+    std::initializer_list<std::string_view> keys) {
+  for (const auto key : keys) {
+    if (auto v = getU32(e, key))
+      return v;
+  }
+  return std::nullopt;
+}
+
 static inline std::optional<std::string> getStr(const NormalizedEvent &e, std::string_view key) {
   auto it = e.fields.find(std::string(key));
   if (it == e.fields.end())
@@ -102,6 +152,14 @@ static inline bool containsI(std::string_view hay, std::string_view needle) {
   return false;
 }
 
+static inline bool hasFieldNamedLike(const NormalizedEvent &e, std::string_view token) {
+  for (const auto &[k, _] : e.fields) {
+    if (containsI(k, token))
+      return true;
+  }
+  return false;
+}
+
 static inline std::string bestName(const NormalizedEvent &e) {
   if (auto v = getStr(e, "event"))
     return *v;
@@ -112,14 +170,66 @@ static inline std::string bestName(const NormalizedEvent &e) {
   return {};
 }
 
+static inline std::optional<uint32_t> getSourcePid(const NormalizedEvent &e) {
+  if (auto v = getFirstU32(e, {"SourcePid", "SourceProcessId"}))
+    return v;
+  if (e.pid != 0)
+    return static_cast<uint32_t>(e.pid);
+  return std::nullopt;
+}
+
+static inline std::optional<uint32_t> getTargetPid(const NormalizedEvent &e) {
+  return getFirstU32(e, {"TargetPid", "TargetProcessId", "ProcessId"});
+}
+
+static inline std::optional<uint32_t> getTargetTid(const NormalizedEvent &e) {
+  return getFirstU32(e, {"TargetTid", "TargetThreadId", "TargetThreatId", "TThreadId"});
+}
+
+static inline uint32_t actorPidOrFallback(const NormalizedEvent &e) {
+  if (auto src = getSourcePid(e))
+    return *src;
+  return static_cast<uint32_t>(e.pid);
+}
+
+static inline bool isKernelAuditApiProvider(const NormalizedEvent &e) {
+  return containsI(e.provider, "Microsoft-Windows-Kernel-Audit-API-Calls");
+}
+
+static inline bool hasSuccessfulReturnCode(const NormalizedEvent &e) {
+  if (auto v = getU32(e, "ReturnCode"))
+    return *v == 0;
+  if (auto v = getU32(e, "ReturnValue"))
+    return *v == 0;
+  return false;
+}
+
+static inline bool isThreadStart(const NormalizedEvent &e) {
+  const auto n = bestName(e);
+  if (containsI(n, "Thread/Start"))
+    return true;
+
+  if (containsI(n, "Start") && containsI(n, "Thread"))
+    return true;
+
+  if (auto task = getStr(e, "task_name"); task && containsI(*task, "Thread")) {
+    if (getU32(e, "ProcessId") && getTargetTid(e))
+      return true;
+  }
+
+  return false;
+}
+
 static inline bool isSuspend(const NormalizedEvent &e) {
   const auto n = bestName(e);
   return containsI(n, "SuspendThread");
 }
+
 static inline bool isResume(const NormalizedEvent &e) {
   const auto n = bestName(e);
   return containsI(n, "ResumeThread");
 }
+
 static inline bool isContextChange(const NormalizedEvent &e) {
   const auto n = bestName(e);
   return containsI(n, "SetThreadContext") || containsI(n, "GetThreadContext");
@@ -127,15 +237,40 @@ static inline bool isContextChange(const NormalizedEvent &e) {
 
 static inline bool isProcessAccess(const NormalizedEvent &e) {
   const auto n = bestName(e);
-  return containsI(n, "OpenProcess") || containsI(n, "NtOpenProcess") || containsI(n, "OpenThread") || containsI(n, "NtOpenThread");
+  if (containsI(n, "OpenProcess") || containsI(n, "NtOpenProcess") || containsI(n, "OpenThread") || containsI(n, "NtOpenThread")) {
+    return true;
+  }
+
+  // Provider-level fallback when schema names are generic "Info".
+  if (isKernelAuditApiProvider(e) &&
+      (e.eventId == 5 || e.eventId == 6) &&
+      hasSuccessfulReturnCode(e)) {
+    return true;
+  }
+
+  return false;
 }
+
 static inline bool isRemoteThread(const NormalizedEvent &e) {
   const auto n = bestName(e);
-  return containsI(n, "CreateRemoteThread") || containsI(n, "NtCreateThreadEx") || containsI(n, "RtlCreateUserThread");
+  if (containsI(n, "CreateRemoteThread") || containsI(n, "NtCreateThreadEx") || containsI(n, "RtlCreateUserThread"))
+    return true;
+
+  return hasFieldNamedLike(e, "RemoteThread");
 }
+
 static inline bool isApcQueue(const NormalizedEvent &e) {
   const auto n = bestName(e);
-  return containsI(n, "QueueUserAPC") || containsI(n, "NtQueueApcThread");
+  if (containsI(n, "QueueUserAPC") || containsI(n, "NtQueueApcThread"))
+    return true;
+
+  return hasFieldNamedLike(e, "Apc");
+}
+
+static inline std::chrono::time_point<std::chrono::system_clock> eventTsOrNow(const NormalizedEvent &e) {
+  if (e.ts.time_since_epoch().count() == 0)
+    return std::chrono::system_clock::now();
+  return e.ts;
 }
 
 } // namespace ThreadHelpers
