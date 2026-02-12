@@ -1,206 +1,263 @@
-#include "Utils.hpp"
-#include "../IOCTLs.hpp"
-#include "Constants.hpp"
+#include "utils.hpp"
+
 #include "Logger.hpp"
+#include "Minifilter.hpp"
+#include "ntstrsafe.h"
 
-namespace FileProtection {
+namespace Minifilter {
 
-BOOLEAN isProtectedPath(PUNICODE_STRING filePath) {
-  if (filePath == nullptr || filePath->Buffer == nullptr || filePath->Length == 0) {
-    return FALSE;
+static NTSTATUS QueryDriveNtDeviceName(
+    _In_ WCHAR DriveLetter,
+    _Out_writes_(OutCch) PWCHAR Out,
+    _In_ SIZE_T OutCch) {
+  if (Out == nullptr || OutCch == 0) {
+    return STATUS_INVALID_PARAMETER;
   }
 
-  // Convert to uppercase for case-insensitive comparison
-  UNICODE_STRING upperPath;
-  upperPath.Length = filePath->Length;
-  upperPath.MaximumLength = filePath->MaximumLength;
-  upperPath.Buffer = (PWCH)ExAllocatePoolZero(PagedPool, filePath->MaximumLength, 'tPpU');
-
-  if (upperPath.Buffer == nullptr) {
-    return FALSE;
+  WCHAR linkNameBuf[8] = {0};
+  NTSTATUS status = RtlStringCchPrintfW(linkNameBuf, ARRAYSIZE(linkNameBuf), L"\\??\\%c:", DriveLetter);
+  if (!NT_SUCCESS(status)) {
+    return status;
   }
 
-  RtlCopyUnicodeString(&upperPath, filePath);
-  RtlUpcaseUnicodeString(&upperPath, &upperPath, FALSE);
+  UNICODE_STRING linkName;
+  RtlInitUnicodeString(&linkName, linkNameBuf);
 
-  // Find where the volume name ends (\Device\HarddiskVolumeX\Users...)
-  UNICODE_STRING searchPath = upperPath;
-  if (upperPath.Length >= 8 * sizeof(WCHAR) && _wcsnicmp(upperPath.Buffer, L"\\DEVICE\\", 8) == 0) {
-    USHORT backslashCount = 0;
-    for (size_t i = 0; i < (size_t)(upperPath.Length / sizeof(WCHAR)); i++) {
-      if (upperPath.Buffer[i] == L'\\') {
-        backslashCount++;
-        if (backslashCount == 3) {
-          searchPath.Buffer = &upperPath.Buffer[i];
-          // Add bounds checking to prevent USHORT overflow
-          size_t lengthBytes = upperPath.Length - (i * sizeof(WCHAR));
-          if (lengthBytes > MAXUSHORT) {
-            lengthBytes = MAXUSHORT;
-          }
-          searchPath.Length = (USHORT)lengthBytes;
-          searchPath.MaximumLength = searchPath.Length;
-          break;
-        }
-      }
-    }
+  OBJECT_ATTRIBUTES oa;
+  InitializeObjectAttributes(&oa, &linkName, OBJ_KERNEL_HANDLE | OBJ_CASE_INSENSITIVE, NULL, NULL);
+
+  HANDLE linkHandle = NULL;
+  status = ZwOpenSymbolicLinkObject(&linkHandle, GENERIC_READ, &oa);
+  if (!NT_SUCCESS(status)) {
+    return status;
   }
 
-  UNICODE_STRING protectedDir1, protectedDir2;
-  RtlInitUnicodeString(&protectedDir1, Constants::PROTECTED_DIR_1);
-  RtlInitUnicodeString(&protectedDir2, Constants::PROTECTED_DIR_2);
+  UNICODE_STRING target;
+  target.Buffer = Out;
+  target.Length = 0;
+  target.MaximumLength = (USHORT)min((SIZE_T)0xFFFF, OutCch * sizeof(WCHAR));
 
-  // Convert protected paths to uppercase
-  UNICODE_STRING upperProtected1, upperProtected2;
-  upperProtected1.Length = protectedDir1.Length;
-  upperProtected1.MaximumLength = protectedDir1.MaximumLength;
-  upperProtected1.Buffer = (PWCH)ExAllocatePoolZero(PagedPool, protectedDir1.MaximumLength, '1PpU');
+  ULONG returnedLength = 0;
+  status = ZwQuerySymbolicLinkObject(linkHandle, &target, &returnedLength);
+  ZwClose(linkHandle);
 
-  upperProtected2.Length = protectedDir2.Length;
-  upperProtected2.MaximumLength = protectedDir2.MaximumLength;
-  upperProtected2.Buffer = (PWCH)ExAllocatePoolZero(PagedPool, protectedDir2.MaximumLength, '2PpU');
-
-  BOOLEAN isProtected = FALSE;
-
-  // Fix memory leak: Check both allocations succeeded before proceeding
-  if (!upperProtected1.Buffer || !upperProtected2.Buffer) {
-    // Cleanup any successful allocation
-    if (upperProtected1.Buffer) {
-      ExFreePoolWithTag(upperProtected1.Buffer, '1PpU');
-    }
-    if (upperProtected2.Buffer) {
-      ExFreePoolWithTag(upperProtected2.Buffer, '2PpU');
-    }
-    ExFreePoolWithTag(upperPath.Buffer, 'tPpU');
-    return FALSE;
+  if (!NT_SUCCESS(status)) {
+    return status;
   }
 
-  RtlCopyUnicodeString(&upperProtected1, &protectedDir1);
-  RtlUpcaseUnicodeString(&upperProtected1, &upperProtected1, FALSE);
+  if (target.MaximumLength < sizeof(WCHAR)) {
+    return STATUS_BUFFER_TOO_SMALL;
+  }
 
-  RtlCopyUnicodeString(&upperProtected2, &protectedDir2);
-  RtlUpcaseUnicodeString(&upperProtected2, &upperProtected2, FALSE);
-
-  // Check if path starts with protected directory
-  isProtected = RtlPrefixUnicodeString(&upperProtected1, &searchPath, TRUE) ||
-                RtlPrefixUnicodeString(&upperProtected2, &searchPath, TRUE);
-
-  // Cleanup
-  ExFreePoolWithTag(upperProtected1.Buffer, '1PpU');
-  ExFreePoolWithTag(upperProtected2.Buffer, '2PpU');
-  ExFreePoolWithTag(upperPath.Buffer, 'tPpU');
-
-  return isProtected;
+  Out[(target.Length / sizeof(WCHAR))] = L'\0';
+  return STATUS_SUCCESS;
 }
 
-BOOLEAN isProtectedProcess() {
-  HANDLE currentPID = PsGetCurrentProcessId();
-  KIRQL oldIrql;
-  HANDLE protectedPID;
+NTSTATUS
+InitProtectedPathFromDosPath(
+    _In_ PCWSTR DosPath // e.g. L"C:\\Users\\KAN12\\Desktop\\Aydo"
+) {
+  if (DosPath == nullptr || DosPath[0] == L'\0') {
+    return STATUS_INVALID_PARAMETER;
+  }
 
-  KeAcquireSpinLock(&g_filterData.Lock, &oldIrql);
-  protectedPID = g_filterData.ProtectedPID;
-  KeReleaseSpinLock(&g_filterData.Lock, oldIrql);
+  // If caller passes our global buffer as input, we must not write into it while still reading.
+  // This happens because DriverEntryImpl currently calls InitProtectedPathFromDosPath(gState.ProtectedPath.Buffer)
+  // after loading the registry value into gState.ProtectedPathBuffer.
+  WCHAR inputCopy[ARRAYSIZE(gState.ProtectedPathBuffer)] = {0};
+  PCWSTR stableInput = DosPath;
+  if (DosPath == gState.ProtectedPathBuffer) {
+    NTSTATUS copyStatus = RtlStringCchCopyW(inputCopy, ARRAYSIZE(inputCopy), DosPath);
+    if (!NT_SUCCESS(copyStatus)) {
+      return copyStatus;
+    }
+    stableInput = inputCopy;
+  }
 
-  return currentPID == protectedPID;
+  if (stableInput[0] == L'\\') {
+    SIZE_T bytes = (wcslen(stableInput) + 1) * sizeof(WCHAR);
+    if (bytes > sizeof(gState.ProtectedPathBuffer)) {
+      return STATUS_BUFFER_TOO_SMALL;
+    }
+
+    RtlZeroMemory(gState.ProtectedPathBuffer, sizeof(gState.ProtectedPathBuffer));
+    RtlCopyMemory(gState.ProtectedPathBuffer, stableInput, bytes);
+    RtlInitUnicodeString(&gState.ProtectedPath, gState.ProtectedPathBuffer);
+    DbgPrint("Protected NT path (direct) = %wZ\n", &gState.ProtectedPath);
+    return STATUS_SUCCESS;
+  }
+
+  if (!((stableInput[0] >= L'A' && stableInput[0] <= L'Z') || (stableInput[0] >= L'a' && stableInput[0] <= L'z')) ||
+      stableInput[1] != L':') {
+    return STATUS_INVALID_PARAMETER;
+  }
+
+  WCHAR driveLetter = (WCHAR)RtlUpcaseUnicodeChar(stableInput[0]);
+
+  WCHAR deviceNameBuf[256] = {0};
+  NTSTATUS status = QueryDriveNtDeviceName(driveLetter, deviceNameBuf, ARRAYSIZE(deviceNameBuf));
+  if (!NT_SUCCESS(status)) {
+    DbgPrint("InitProtectedPathFromDosPath: QueryDriveNtDeviceName failed 0x%08x\n", status);
+    return status;
+  }
+
+  PCWSTR subPath = stableInput + 2;
+  if (subPath[0] == L'\0') {
+    subPath = L"\\";
+  }
+
+  status = RtlStringCchPrintfW(
+      gState.ProtectedPathBuffer,
+      ARRAYSIZE(gState.ProtectedPathBuffer),
+      L"%s%s",
+      deviceNameBuf,
+      subPath);
+  if (!NT_SUCCESS(status)) {
+    RtlZeroMemory(gState.ProtectedPathBuffer, sizeof(gState.ProtectedPathBuffer));
+    return status;
+  }
+
+  RtlInitUnicodeString(&gState.ProtectedPath, gState.ProtectedPathBuffer);
+  DbgPrint("Protected NT path (converted) = %wZ\n", &gState.ProtectedPath);
+  return STATUS_SUCCESS;
 }
 
-NTSTATUS connectToCoreDriver() {
-  UNICODE_STRING deviceName;
+BOOLEAN
+IsPathProtected(
+    _In_ PUNICODE_STRING Name) {
+  if (Name == nullptr || Name->Buffer == nullptr) {
+    return FALSE;
+  }
+
+  if (gState.ProtectedPath.Buffer == nullptr || gState.ProtectedPath.Length == 0) {
+    return FALSE;
+  }
+
+  if (Name->Length < gState.ProtectedPath.Length) {
+    return FALSE;
+  }
+
+  return RtlPrefixUnicodeString(&gState.ProtectedPath, Name, TRUE) ? TRUE : FALSE;
+}
+
+NTSTATUS
+LoadProtectedPathFromRegistry(
+    _In_ PUNICODE_STRING RegistryPath) {
+  NTSTATUS status = STATUS_UNSUCCESSFUL;
   OBJECT_ATTRIBUTES objAttr;
-  IO_STATUS_BLOCK iosb;
-  NTSTATUS status;
+  HANDLE key = NULL;
+  UNICODE_STRING valueName;
+  ULONG requiredLength = 0;
+  PKEY_VALUE_PARTIAL_INFORMATION kv = NULL;
+  SIZE_T allocSize = 0;
 
-  RtlInitUnicodeString(&deviceName, Constants::CORE_DEVICE_NAME);
-  InitializeObjectAttributes(&objAttr, &deviceName, OBJ_KERNEL_HANDLE | OBJ_CASE_INSENSITIVE, nullptr, nullptr);
-
-  status = ZwCreateFile(
-      &g_filterData.CoreDriverHandle,
-      GENERIC_READ | GENERIC_WRITE | SYNCHRONIZE,
-      &objAttr,
-      &iosb,
-      nullptr,
-      0,
-      FILE_SHARE_READ | FILE_SHARE_WRITE,
-      FILE_OPEN,
-      FILE_NON_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT,
-      nullptr,
-      0);
-
-  if (NT_SUCCESS(status)) {
-    status = getProtectedPID();
+  if (RegistryPath == NULL || RegistryPath->Buffer == NULL) {
+    return STATUS_INVALID_PARAMETER;
   }
 
-  return status;
+  InitializeObjectAttributes(&objAttr, RegistryPath, OBJ_KERNEL_HANDLE | OBJ_CASE_INSENSITIVE, NULL, NULL);
+
+  status = ZwOpenKey(&key, KEY_QUERY_VALUE, &objAttr);
+  if (!NT_SUCCESS(status)) {
+    LOG_ERROR("ZwOpenKey failed 0x%08x", status);
+    return status;
+  }
+
+  RtlInitUnicodeString(&valueName, L"ProtectedPath");
+
+  // Query to get required buffer size
+  status = ZwQueryValueKey(key, &valueName, KeyValuePartialInformation, NULL, 0, &requiredLength);
+  if (status != STATUS_BUFFER_TOO_SMALL && status != STATUS_BUFFER_OVERFLOW) {
+    LOG_ERROR("ZwQueryValueKey initial returned 0x%08x", status);
+    ZwClose(key);
+    return status;
+  }
+
+  allocSize = requiredLength;
+#if defined(_MSC_VER) && !defined(__clang__)
+  kv = (PKEY_VALUE_PARTIAL_INFORMATION)ExAllocatePool2(POOL_FLAG_NON_PAGED, allocSize, Constants::PROTECTED_POOL_TAG);
+#else
+  kv = (PKEY_VALUE_PARTIAL_INFORMATION)ExAllocatePoolWithTag(NonPagedPoolNx, allocSize, Constants::PROTECTED_POOL_TAG);
+#endif
+  if (kv == NULL) {
+    ZwClose(key);
+    return STATUS_INSUFFICIENT_RESOURCES;
+  }
+
+  status = ZwQueryValueKey(key, &valueName, KeyValuePartialInformation, kv, (ULONG)allocSize, &requiredLength);
+  if (!NT_SUCCESS(status)) {
+    LOG_ERROR("ZwQueryValueKey read failed 0x%08x", status);
+    ExFreePoolWithTag(kv, Constants::PROTECTED_POOL_TAG);
+    ZwClose(key);
+    return status;
+  }
+
+  // We expect a string
+  if (kv->Type != REG_SZ && kv->Type != REG_EXPAND_SZ) {
+    LOG_ERROR("Registry value type not string: %u", kv->Type);
+    ExFreePoolWithTag(kv, Constants::PROTECTED_POOL_TAG);
+    ZwClose(key);
+    return STATUS_INVALID_PARAMETER;
+  }
+
+  // Ensure we don't overflow our buffer; kv->DataLength is in bytes.
+  if (kv->DataLength == 0) {
+    ExFreePoolWithTag(kv, Constants::PROTECTED_POOL_TAG);
+    ZwClose(key);
+    return STATUS_INVALID_PARAMETER;
+  }
+
+  // number of WCHARs we can store (including null)
+  SIZE_T maxWchars = ARRAYSIZE(gState.ProtectedPathBuffer);
+  SIZE_T bytesToCopy = kv->DataLength;
+  SIZE_T wcharCount = (bytesToCopy / sizeof(WCHAR));
+
+  // clamp
+  if (wcharCount >= maxWchars) {
+    // copy up to maxWchars-1 and null terminate
+    wcharCount = maxWchars - 1;
+    bytesToCopy = wcharCount * sizeof(WCHAR);
+  }
+
+  RtlZeroMemory(gState.ProtectedPathBuffer, sizeof(gState.ProtectedPathBuffer));
+  RtlCopyMemory(gState.ProtectedPathBuffer, kv->Data, bytesToCopy);
+  // ensure null termination already by zeroing
+
+  // Initialize UNICODE_STRING from buffer
+  RtlInitUnicodeString(&gState.ProtectedPath, gState.ProtectedPathBuffer);
+
+  LOG_INFO("CONFIG: %wZ", &gState.ProtectedPath);
+
+  ExFreePoolWithTag(kv, Constants::PROTECTED_POOL_TAG);
+  ZwClose(key);
+
+  return STATUS_SUCCESS;
 }
 
-NTSTATUS getProtectedPID() {
-  if (g_filterData.CoreDriverHandle == nullptr) {
-    return STATUS_INVALID_HANDLE;
+FLT_PREOP_CALLBACK_STATUS
+BlockIfProtected(
+    _Inout_ PFLT_CALLBACK_DATA Data,
+    _In_ PFLT_FILE_NAME_INFORMATION NameInfo) {
+  if (NameInfo == NULL) {
+    return FLT_PREOP_SUCCESS_NO_CALLBACK;
   }
 
-  IO_STATUS_BLOCK iosb;
-  HANDLE pid = nullptr;
+  if (IsPathProtected(&NameInfo->Name)) {
+    // Deny access. Set IoStatus and return COMPLETE.
+    Data->IoStatus.Status = STATUS_ACCESS_DENIED;
+    Data->IoStatus.Information = 0;
 
-  NTSTATUS status = ZwDeviceIoControlFile(
-      g_filterData.CoreDriverHandle,
-      nullptr,
-      nullptr,
-      nullptr,
-      &iosb,
-      IOCTL_GET_PROTECTED_PID,
-      nullptr,
-      0,
-      &pid,
-      sizeof(HANDLE));
-
-  if (NT_SUCCESS(status)) {
-    KIRQL oldIrql;
-    KeAcquireSpinLock(&g_filterData.Lock, &oldIrql);
-    g_filterData.ProtectedPID = pid;
-    KeReleaseSpinLock(&g_filterData.Lock, oldIrql);
-
-    LOG_INFO("Protected PID set to %lu", (ULONG)(ULONG_PTR)pid);
+    LOG_WARNING("BLOCKED: %wZ", &NameInfo->Name);
+    return FLT_PREOP_COMPLETE;
   }
 
-  return status;
+  // small op logging to confirm behavior (first few ops)
+  if (gState.OpLogCount < 8) {
+    LOG_DEBUG("ALLOW: %wZ", &NameInfo->Name);
+    gState.OpLogCount++;
+  }
+
+  return FLT_PREOP_SUCCESS_NO_CALLBACK;
 }
 
-BOOLEAN isExecutable(PUNICODE_STRING extension) {
-  if (extension == nullptr || extension->Length == 0) {
-    return FALSE;
-  }
-  if (extension->Length > 64) {
-    return FALSE;
-  }
-
-  WCHAR ext[32] = {0};
-  USHORT copyLen = (USHORT)min((ULONG)extension->Length, (ULONG)sizeof(ext) - (ULONG)sizeof(WCHAR));
-  RtlCopyMemory(ext, extension->Buffer, copyLen);
-
-  for (USHORT i = 0; i < copyLen / (USHORT)sizeof(WCHAR); i++) {
-    ext[i] = (WCHAR)RtlDowncaseUnicodeChar(ext[i]);
-  }
-
-  UNICODE_STRING uExt;
-  uExt.Buffer = ext;
-  uExt.Length = copyLen;
-  uExt.MaximumLength = sizeof(ext);
-
-  UNICODE_STRING dangerousExts[] = {
-      RTL_CONSTANT_STRING(L"exe"),
-      RTL_CONSTANT_STRING(L"dll"),
-      RTL_CONSTANT_STRING(L"sys"),
-      RTL_CONSTANT_STRING(L"scr"),
-      RTL_CONSTANT_STRING(L"bat"),
-      RTL_CONSTANT_STRING(L"cmd"),
-      RTL_CONSTANT_STRING(L"ps1")};
-
-  for (ULONG i = 0; i < sizeof(dangerousExts) / sizeof(dangerousExts[0]); i++) {
-    if (RtlCompareUnicodeString(&uExt, &dangerousExts[i], TRUE) == 0) {
-      return TRUE;
-    }
-  }
-  return FALSE;
-}
-
-} // namespace FileProtection
+} // namespace Minifilter

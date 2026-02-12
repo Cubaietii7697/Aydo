@@ -1,6 +1,7 @@
 #include "KernelCommunications.hpp"
 
 #include "../../IOCTLs.hpp"
+#include <iostream>
 
 KernelCommunications::KernelCommunications()
     : m_hDevice(INVALID_HANDLE_VALUE) {
@@ -74,6 +75,15 @@ bool KernelCommunications::killProcess(ULONG processId) {
   input.ProcessId = processId;
 
   return sendIoctl(IOCTL_KILL_PROCESS, &input, sizeof(input), nullptr, 0);
+}
+
+bool KernelCommunications::resumeProcess(ULONG processId) {
+  IOCTL_RESUME_PROCESS_INPUT input;
+  input.ProcessId = processId;
+
+  std::cout << "  -> [DEBUG] Resuming process with PID: " << processId << std::endl;
+
+  return sendIoctl(IOCTL_RESUME_PROCESS, &input, sizeof(input), nullptr, 0);
 }
 
 std::optional<IOCTL_GET_PROCESS_NOTIFICATION_OUTPUT> KernelCommunications::getProcessNotification() {

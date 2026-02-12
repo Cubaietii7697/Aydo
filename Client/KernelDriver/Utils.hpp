@@ -30,4 +30,6 @@ NTSTATUS initializeProcessNotifications();
 VOID cleanupProcessNotifications();
 PVOID dequeueProcessNotification();
 VOID enqueueProcessNotification(PVOID notification);
+NTSTATUS suspendProcess(HANDLE processId);
+NTSTATUS resumeProcess(ULONG pid);
 } // namespace Utils

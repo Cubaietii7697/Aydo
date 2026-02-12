@@ -24,21 +24,15 @@
     </Inf>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="FileProtection.cpp">
+    <ClCompile Include="Minifilter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Logger.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Driver.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="Utils.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="FileProtection.hpp">
+    <ClInclude Include="Minifilter.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Constants.hpp">
@@ -47,8 +41,10 @@
     <ClInclude Include="Logger.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Utils.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="MinifilterDriver.def">
+      <Filter>Source Files</Filter>
+    </None>
   </ItemGroup>
 </Project>

@@ -128,6 +128,29 @@ NTSTATUS handleGetProtectedPIDRequest(PIRP Irp, ULONG *BytesReturned) {
   return STATUS_SUCCESS;
 }
 
+NTSTATUS handleResumeProcessRequest(PIRP Irp) {
+  IOCTL_RESUME_PROCESS_INPUT *input = nullptr;
+  NTSTATUS status = Validation::validateInputBuffer(Irp, &input);
+
+  if (!NT_SUCCESS(status)) {
+    LOG_ERROR("Invalid input buffer for IOCTL_RESUME_PROCESS, status: 0x%X",
+              status);
+    return status;
+  }
+
+  status = Utils::resumeProcess(input->ProcessId);
+
+  if (!NT_SUCCESS(status)) {
+    LOG_ERROR("Failed to resume process %lu, status: 0x%X", input->ProcessId,
+              status);
+    return status;
+  }
+
+  LOG_INFO("Successfully resumed process %lu", input->ProcessId);
+
+  return STATUS_SUCCESS;
+}
+
 NTSTATUS handleDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp) {
   UNREFERENCED_PARAMETER(DeviceObject);
 
@@ -153,7 +176,9 @@ NTSTATUS handleDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp) {
   case IOCTL_GET_PROTECTED_PID:
     status = handleGetProtectedPIDRequest(Irp, &bytesReturned);
     break;
-
+  case IOCTL_RESUME_PROCESS:
+    status = handleResumeProcessRequest(Irp);
+    break;
   default:
     status = STATUS_INVALID_DEVICE_REQUEST;
     LOG_ERROR("Unknown IOCTL code: 0x%X", ioControlCode);

@@ -1,25 +1,25 @@
+#pragma once
+
 #include <ntifs.h>
 #include <fltKernel.h>
 
-namespace FileProtection {
-// Forward declarations or include header
-struct FileContext;
-struct ScanRequest;
-struct ScanResponse;
-typedef struct FileContext *PFileContext;
-typedef struct ScanRequest *PScanRequest;
-typedef struct ScanResponse *PScanResponse;
+namespace Minifilter {
 
-} // namespace FileProtection
+NTSTATUS
+InitProtectedPathFromDosPath(
+    _In_ PCWSTR DosPath);
 
-#include "FileProtection.hpp"
+BOOLEAN
+IsPathProtected(
+    _In_ PUNICODE_STRING Name);
 
-namespace FileProtection {
+NTSTATUS
+LoadProtectedPathFromRegistry(
+    _In_ PUNICODE_STRING RegistryPath);
 
-BOOLEAN isProtectedPath(PUNICODE_STRING filePath);
-BOOLEAN isProtectedProcess();
-NTSTATUS connectToCoreDriver();
-NTSTATUS getProtectedPID();
-BOOLEAN isExecutable(PUNICODE_STRING extension);
+FLT_PREOP_CALLBACK_STATUS
+BlockIfProtected(
+    _Inout_ PFLT_CALLBACK_DATA Data,
+    _In_ PFLT_FILE_NAME_INFORMATION NameInfo);
 
-} // namespace FileProtection
+} // namespace Minifilter

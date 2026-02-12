@@ -54,18 +54,8 @@ ServiceType      = 1                            ;SERVICE_KERNEL_DRIVER (not file
 StartType        = 3                            ;SERVICE_DEMAND_START
 ErrorControl     = 1                            ;SERVICE_ERROR_NORMAL
 LoadOrderGroup   = "FSFilter Activity Monitor"  ;Load with filter drivers for proper ordering
-AddReg           = KernelDriver.AddRegistry
-
 ;
-; Registry Modifications - Add filter-specific entries for Filter Manager
-;
-
-[KernelDriver.AddRegistry]
-HKR,,"DebugFlags",0x00010001 ,0x0
-HKR,,"SupportedFeatures",0x00010001,0x3
-HKR,"Instances","DefaultInstance",0x00000000,%DefaultInstance%
-HKR,"Instances\"%Instance1.Name%,"Altitude",0x00000000,%Instance1.Altitude%
-HKR,"Instances\"%Instance1.Name%,"Flags",0x00010001,%Instance1.Flags%
+; No additional service registry configuration required for this kernel driver.
 
 ;
 ; Copy Files

@@ -225,6 +225,10 @@ void ProcessMonitor::handleProcessStarted(uint32_t pid, const std::string &path)
                   << std::endl;
       }
     } else {
+        if (!m_driver->resumeProcess(pid)) {
+          std::cout << "  -> [FAILED] Could not resume process (Error: " << GetLastError() << ")" << std::endl
+                    << std::endl;
+        }
       std::cout << "  -> [CLEAN] Process is safe: " << path << std::endl
                 << std::endl;
     }

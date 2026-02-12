@@ -28,8 +28,13 @@ VOID onProcessStart(PEPROCESS Process, HANDLE ProcessId, PPS_CREATE_NOTIFY_INFO 
   notification->ProcessId = HandleToULong(ProcessId);
   notification->IsCreated = (CreateInfo != nullptr);
 
+  // Process is being created
   if (CreateInfo != nullptr) {
-    // Process is being created
+    // Suspend the process (ONLY IF OUR SERVICE IS RUNNING!!!!!!!!!!!!!!!!!!!!!!!!!!!!!)
+    if(ServiceProtection::g_servicePID != nullptr) {
+       Utils::suspendProcess(ProcessId);
+    }
+
     notification->ParentProcessId = HandleToULong(CreateInfo->ParentProcessId);
 
     // Copy the image file name if available

@@ -68,4 +68,8 @@ double calculateEntropy(const std::vector<int> &countedBytes, std::streamsize to
 // Check if a file is digitally signed by Microsoft/Windows
 bool isWindowsSigned(const std::string &path);
 
+// Write ProtectedPath to minifilter driver's registry key
+// Returns true on success, false on failure
+bool writeMinifilterProtectedPath(const std::wstring &protectedPath);
+
 } // namespace Utils

@@ -10,8 +10,8 @@
 #include "Constants.hpp"
 #include "Databases/HashesDatabase.hpp"
 #include "KernelCommunications/KernelCommunications.hpp"
-#include "MinifilterCommunications/MinifilterCommunications.hpp"
 #include "ProcessMonitor.hpp"
+#include "Utils.hpp"
 #include "Yara/YScanningEngine.hpp"
 
 #pragma comment(lib, "ws2_32.lib")
@@ -141,6 +141,16 @@ int main() {
 
   std::cout << "Successfully registered as service!" << std::endl;
 
+  // Write minifilter protected path to registry (after service is registered with kernel driver)
+  wchar_t currentDir[MAX_PATH] = {0};
+  if (GetCurrentDirectoryW(static_cast<DWORD>(std::size(currentDir)), currentDir)) {
+    if (Utils::writeMinifilterProtectedPath(currentDir)) {
+      std::cout << "Registered protected path with minifilter: " << Utils::wstring_to_utf8(currentDir) << std::endl;
+    } else {
+      std::cerr << "Warning: Failed to pre-populate minifilter registry" << std::endl;
+    }
+  }
+
   std::cout << "Initializing scanning engines..." << std::endl;
 
   try {
@@ -157,22 +167,6 @@ int main() {
 
     ProcessMonitor monitor(driver, yara, hashDb);
     g_monitor = &monitor;
-
-    // Connect to Minifilter for synchronous process blocking
-    std::cout << "Connecting to minifilter for pre-execution scanning..." << std::endl;
-    MinifilterCommunications minifilter;
-
-    if (!minifilter.connect(std::wstring(Constants::AYDO_MINIFILTER_PORT_NAME))) {
-      std::cerr << "Warning: Failed to connect to minifilter. Pre-execution blocking will not work!" << std::endl;
-      std::cerr << "Make sure the minifilter driver is loaded." << std::endl;
-    } else {
-      minifilter.updateConfig(config.maxScanSize);
-      minifilter.setProcessMonitor(&monitor);
-      minifilter.startListener();
-      monitor.setBlockingActive(true);
-      std::cout << "Minifilter connected successfully! Pre-execution scanning is active." << std::endl
-                << std::endl;
-    }
 
     std::cout << "Starting background monitoring thread..." << std::endl;
     monitor.start();
