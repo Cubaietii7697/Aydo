@@ -54,8 +54,6 @@ ServiceType      = 1                            ;SERVICE_KERNEL_DRIVER (not file
 StartType        = 3                            ;SERVICE_DEMAND_START
 ErrorControl     = 1                            ;SERVICE_ERROR_NORMAL
 LoadOrderGroup   = "FSFilter Activity Monitor"  ;Load with filter drivers for proper ordering
-AddReg           = KernelDriver.AddRegistry
-
 ;
 ; Registry Modifications - Add filter-specific entries for Filter Manager
 ;

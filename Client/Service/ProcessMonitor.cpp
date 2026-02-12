@@ -365,6 +365,16 @@ void ProcessMonitor::handleProcessStarted(uint32_t pid, const std::string &path)
           notifyEvent(Protocol::EventType::Delete, "medium", "Removed: " + path);
         }
       }
+<<<<<<< HEAD
+=======
+    } else {
+        if (!m_driver->resumeProcess(pid)) {
+          std::cout << "  -> [FAILED] Could not resume process (Error: " << GetLastError() << ")" << std::endl
+                    << std::endl;
+        }
+      std::cout << "  -> [CLEAN] Process is safe: " << path << std::endl
+                << std::endl;
+>>>>>>> 47b9043 (IMPLEMENT FILE PAUSING LETS GOOOOOOOOOOOOOOOOOOOOOO)
     }
   } catch (...) {
   }

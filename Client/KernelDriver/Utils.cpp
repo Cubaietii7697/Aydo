@@ -4,6 +4,10 @@
 #include "Logger.hpp"
 #include "Types.hpp"
 
+// PsSuspendProcess/PsResumeProcess declarations (available in Windows XP+)
+extern "C" NTSTATUS PsSuspendProcess(PEPROCESS Process);
+extern "C" NTSTATUS PsResumeProcess(PEPROCESS Process);
+
 static LIST_ENTRY g_ProcessNotificationQueue;
 static KSPIN_LOCK g_QueueLock;
 static BOOLEAN g_IsInitialized = FALSE;
@@ -183,4 +187,54 @@ VOID Utils::enqueueProcessNotification(PVOID notificationPtr) {
   KeAcquireSpinLock(&g_QueueLock, &oldIrql);
   InsertTailList(&g_ProcessNotificationQueue, &notification->ListEntry);
   KeReleaseSpinLock(&g_QueueLock, oldIrql);
+}
+
+// Suspends a process using PsSuspendProcess
+NTSTATUS Utils::suspendProcess(HANDLE processId) {
+  LOG_INFO("Suspending process by PID: %lu", HandleToULong(processId));
+
+  // Find the process
+  PEPROCESS process;
+  NTSTATUS status = PsLookupProcessByProcessId(processId, &process);
+  if (!NT_SUCCESS(status)) {
+    LOG_ERROR("Failed to find process by PID: %lu, status: 0x%X", HandleToULong(processId), status);
+    return status;
+  }
+
+  // Suspend the process
+  status = PsSuspendProcess(process);
+  ObDereferenceObject(process);
+
+  if (!NT_SUCCESS(status)) {
+    LOG_ERROR("Failed to suspend process PID: %lu, status: 0x%X", HandleToULong(processId), status);
+    return status;
+  }
+
+  LOG_INFO("Successfully suspended process PID: %lu", HandleToULong(processId));
+  return STATUS_SUCCESS;
+}
+
+// Resumes a process using PsResumeProcess
+NTSTATUS Utils::resumeProcess(ULONG pid) {
+  LOG_INFO("Resuming process by PID: %lu", pid);
+
+  // Find the process
+  PEPROCESS process;
+  NTSTATUS status = PsLookupProcessByProcessId(ULongToHandle(pid), &process);
+  if (!NT_SUCCESS(status)) {
+    LOG_ERROR("Failed to find process by PID: %lu, status: 0x%X", pid, status);
+    return status;
+  }
+
+  // Resume the process
+  status = PsResumeProcess(process);
+  ObDereferenceObject(process);
+
+  if (!NT_SUCCESS(status)) {
+    LOG_ERROR("Failed to resume process PID: %lu, status: 0x%X", pid, status);
+    return status;
+  }
+
+  LOG_INFO("Successfully resumed process PID: %lu", pid);
+  return STATUS_SUCCESS;
 }

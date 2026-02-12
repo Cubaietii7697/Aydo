@@ -150,9 +150,13 @@ NTSTATUS registryCallback(PVOID context, PVOID arg1, PVOID arg2) {
 
     if (info->CompleteName != nullptr && info->CompleteName->Buffer != nullptr) {
       if (isProtectedServiceKey(info->CompleteName)) {
-        if (info->DesiredAccess & (DELETE | WRITE_DAC | WRITE_OWNER | KEY_SET_VALUE)) {
-          LOG_INFO("ServiceProtection: Blocked dangerous registry access to protected key");
-          return STATUS_ACCESS_DENIED;
+        PEPROCESS callerProcess = PsGetCurrentProcess();
+        if (callerProcess != g_serviceProcess) {
+          // Block dangerous access rights for other processes
+          if (info->DesiredAccess & (DELETE | WRITE_DAC | WRITE_OWNER | KEY_SET_VALUE)) {
+            LOG_INFO("ServiceProtection: Blocked dangerous registry access to protected key");
+            return STATUS_ACCESS_DENIED;
+          }
         }
       }
     }
@@ -162,8 +166,12 @@ NTSTATUS registryCallback(PVOID context, PVOID arg1, PVOID arg2) {
   case RegNtPreSetValueKey: {
     auto info = (PREG_SET_VALUE_KEY_INFORMATION)arg2;
     if (isProtectedRegistryObject(g_RegCookie, info->Object)) {
-      LOG_INFO("ServiceProtection: Blocked attempt to set value in protected key");
-      return STATUS_ACCESS_DENIED;
+      // Allow the protected service process to write to its own registry key
+      PEPROCESS callerProcess = PsGetCurrentProcess();
+      if (callerProcess != g_serviceProcess) {
+        LOG_INFO("ServiceProtection: Blocked attempt to set value in protected key");
+        return STATUS_ACCESS_DENIED;
+      }
     }
     break;
   }
