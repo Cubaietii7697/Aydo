@@ -124,8 +124,34 @@ const resolvePreloadPath = (): string => {
   return candidates[0];
 };
 
-const createWindow = (): void => {
+const findDevServer = async (): Promise<string | undefined> => {
+  // Try common dev server ports
+  const ports = [5173, 5174, 5175, 5176];
+  
+  for (const port of ports) {
+    try {
+      const url = `http://localhost:${port}`;
+      const response = await fetch(url, { method: "HEAD", timeout: 1000 });
+      if (response.ok || response.status === 304) {
+        return url;
+      }
+    } catch {
+      // Port not responding, try next
+    }
+  }
+  
+  return undefined;
+};
+
+const createWindow = async (): Promise<void> => {
   const preloadPath = resolvePreloadPath();
+  
+  // Detect dev server URL
+  let devServerUrl = process.env.VITE_DEV_SERVER_URL;
+  if (!devServerUrl) {
+    devServerUrl = await findDevServer();
+  }
+  
   const mainWindow = new BrowserWindow({
     width: 1280,
     height: 820,
@@ -149,8 +175,8 @@ const createWindow = (): void => {
     return { action: "allow" };
   });
 
-  if (process.env.VITE_DEV_SERVER_URL) {
-    mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
+  if (devServerUrl) {
+    mainWindow.loadURL(devServerUrl);
   } else {
     mainWindow.loadFile(path.join(__dirname, "../renderer/index.html"));
   }
@@ -181,13 +207,13 @@ ipcMain.handle(
     performAuth("register", payload)
 );
 
-app.whenReady().then(() => {
-  createWindow();
+app.whenReady().then(async () => {
+  await createWindow();
   bridge.connect();
 
-  app.on("activate", () => {
+  app.on("activate", async () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
+      await createWindow();
     }
   });
 });
