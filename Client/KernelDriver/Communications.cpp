@@ -19,42 +19,29 @@ namespace Communications {
 NTSTATUS handleKillProcessRequest(PIRP Irp) {
   IOCTL_KILL_PROCESS_INPUT *input = nullptr;
   NTSTATUS status = Validation::validateInputBuffer(Irp, &input);
-
-  if (!NT_SUCCESS(status)) {
-    LOG_ERROR("Invalid input buffer for IOCTL_KILL_PROCESS, status: 0x%X", status);
-
-    return status;
-  }
+  CHECK_NT_RETURN(status, "Invalid input buffer for IOCTL_KILL_PROCESS (0x%X)", status);
 
   LOG_INFO("Received IOCTL_KILL_PROCESS for PID: %lu", input->ProcessId);
 
   if (!Utils::isProcessKillable(input->ProcessId)) {
     LOG_ERROR("Process by PID: %lu is not killable (protected or critical)", input->ProcessId);
-
     return STATUS_ACCESS_DENIED;
   }
 
   status = Utils::killProcessByPID(input->ProcessId);
-  if (!NT_SUCCESS(status)) {
-    LOG_ERROR("Failed to kill process PID: %lu, status: 0x%X", input->ProcessId, status);
-  } else {
-    LOG_INFO("Successfully killed process PID: %lu", input->ProcessId);
-  }
+  CHECK_NT_RETURN(status, "Failed to kill process PID: %lu (0x%X)", input->ProcessId, status);
 
+  LOG_INFO("Successfully killed process PID: %lu", input->ProcessId);
   return status;
 }
 
 NTSTATUS handleGetProcessNotificationRequest(PIRP Irp, ULONG *BytesReturned) {
   IOCTL_GET_PROCESS_NOTIFICATION_OUTPUT *output = nullptr;
+  PPROCESS_NOTIFICATION notification = nullptr;
   NTSTATUS status = Validation::validateOutputBuffer(Irp, &output);
+  CHECK_NT_RETURN(status, "Invalid output buffer for IOCTL_GET_PROCESS_NOTIFICATION (0x%X)", status);
 
-  if (!NT_SUCCESS(status)) {
-    LOG_ERROR("Invalid output buffer for IOCTL_GET_PROCESS_NOTIFICATION, status: 0x%X", status);
-    return status;
-  }
-
-  // Dequeue a notification
-  PPROCESS_NOTIFICATION notification = (PPROCESS_NOTIFICATION)Utils::dequeueProcessNotification();
+  notification = (PPROCESS_NOTIFICATION)Utils::dequeueProcessNotification();
 
   if (notification == nullptr) {
     *BytesReturned = 0;
@@ -108,12 +95,7 @@ NTSTATUS handleRegisterService(PIRP Irp) {
 NTSTATUS handleGetProtectedPIDRequest(PIRP Irp, ULONG *BytesReturned) {
   HANDLE *output = nullptr;
   NTSTATUS status = Validation::validateOutputBuffer(Irp, &output);
-
-  if (!NT_SUCCESS(status)) {
-    LOG_ERROR("Invalid output buffer for IOCTL_GET_PROTECTED_PID, status: 0x%X",
-              status);
-    return status;
-  }
+  CHECK_NT_RETURN(status, "Invalid output buffer for IOCTL_GET_PROTECTED_PID (0x%X)", status);
 
   KIRQL oldIrql;
   KeAcquireSpinLock(&ServiceProtection::g_serviceLock, &oldIrql);
@@ -131,23 +113,12 @@ NTSTATUS handleGetProtectedPIDRequest(PIRP Irp, ULONG *BytesReturned) {
 NTSTATUS handleResumeProcessRequest(PIRP Irp) {
   IOCTL_RESUME_PROCESS_INPUT *input = nullptr;
   NTSTATUS status = Validation::validateInputBuffer(Irp, &input);
-
-  if (!NT_SUCCESS(status)) {
-    LOG_ERROR("Invalid input buffer for IOCTL_RESUME_PROCESS, status: 0x%X",
-              status);
-    return status;
-  }
+  CHECK_NT_RETURN(status, "Invalid input buffer for IOCTL_RESUME_PROCESS (0x%X)", status);
 
   status = Utils::resumeProcess(input->ProcessId);
-
-  if (!NT_SUCCESS(status)) {
-    LOG_ERROR("Failed to resume process %lu, status: 0x%X", input->ProcessId,
-              status);
-    return status;
-  }
+  CHECK_NT_RETURN(status, "Failed to resume process %lu (0x%X)", input->ProcessId, status);
 
   LOG_INFO("Successfully resumed process %lu", input->ProcessId);
-
   return STATUS_SUCCESS;
 }
 
