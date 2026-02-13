@@ -3,6 +3,7 @@
 #include <ntifs.h>
 #include "Constants.hpp"
 #include "Logger.hpp"
+#include "Utils.hpp"
 
 namespace ServiceProtection {
 PVOID g_registrationHandle = nullptr;
@@ -244,14 +245,10 @@ NTSTATUS registerProcessProtection() {
   cbReg.RegistrationContext = nullptr;
 
   NTSTATUS status = ObRegisterCallbacks(&cbReg, &g_registrationHandle);
+  CHECK_NT_RETURN(status, "ServiceProtection: Failed to register process protection (0x%X)", status);
 
-  if (NT_SUCCESS(status)) {
-    g_isInitialized = TRUE;
-    LOG_INFO("ServiceProtection: Process protection registered successfully");
-  } else {
-    LOG_ERROR("ServiceProtection: Failed to register process protection: 0x%X", status);
-  }
-
+  g_isInitialized = TRUE;
+  LOG_INFO("ServiceProtection: Process protection registered successfully");
   return status;
 }
 
@@ -266,14 +263,9 @@ NTSTATUS registerRegistryProtection(PDRIVER_OBJECT driverObject) {
       nullptr,
       &g_RegCookie,
       nullptr);
+  CHECK_NT_RETURN_CLEANUP(status, (g_RegCookie.QuadPart = 0), "ServiceProtection: CmRegisterCallbackEx failed (0x%X)", status);
 
-  if (!NT_SUCCESS(status)) {
-    LOG_ERROR("ServiceProtection: CmRegisterCallbackEx failed: 0x%X", status);
-    g_RegCookie.QuadPart = 0;
-  } else {
-    LOG_INFO("ServiceProtection: Registry callback registered successfully");
-  }
-
+  LOG_INFO("ServiceProtection: Registry callback registered successfully");
   return status;
 }
 

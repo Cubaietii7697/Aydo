@@ -17,36 +17,23 @@ static BOOLEAN g_IsInitialized = FALSE;
 NTSTATUS Utils::killProcessByPID(ULONG pid) {
   LOG_INFO("Killing process by PID: %lu", pid);
 
-  // Find the process
   PEPROCESS process;
-  if (!NT_SUCCESS(PsLookupProcessByProcessId(ULongToHandle(pid), &process))) {
-    LOG_ERROR("Failed to find process by PID: %lu", pid);
-
-    return STATUS_INVALID_PARAMETER;
-  }
-
-  // Open the process
   HANDLE hProcess;
-  if (!NT_SUCCESS(ObOpenObjectByPointer(process, OBJ_KERNEL_HANDLE, nullptr, PROCESS_TERMINATE, *PsProcessType, KernelMode, &hProcess))) {
-    LOG_ERROR("Failed to open process by PID: %lu", pid);
-    ObDereferenceObject(process);
+  NTSTATUS status;
 
-    return STATUS_UNSUCCESSFUL;
-  }
+  status = PsLookupProcessByProcessId(ULongToHandle(pid), &process);
+  CHECK_NT_RETURN(status, "Failed to find process by PID: %lu (0x%X)", pid, status);
 
-  // Terminate the process
-  NTSTATUS terminateStatus = ZwTerminateProcess(hProcess, STATUS_SUCCESS);
-  if (!NT_SUCCESS(terminateStatus)) {
-    LOG_ERROR("Failed to terminate process by PID: %lu, status: 0x%X", pid, terminateStatus);
-  } else {
-    LOG_INFO("Process by PID: %lu terminated successfully", pid);
-  }
+  status = ObOpenObjectByPointer(process, OBJ_KERNEL_HANDLE, nullptr, PROCESS_TERMINATE, *PsProcessType, KernelMode, &hProcess);
+  CHECK_NT_RETURN_CLEANUP(status, ObDereferenceObject(process), "Failed to open process by PID: %lu (0x%X)", pid, status);
 
-  // Close the process
+  status = ZwTerminateProcess(hProcess, STATUS_SUCCESS);
+  CHECK_NT_RETURN_CLEANUP(status, (ZwClose(hProcess), ObDereferenceObject(process)), "Failed to terminate process by PID: %lu (0x%X)", pid, status);
+
   ZwClose(hProcess);
   ObDereferenceObject(process);
-
-  return terminateStatus;
+  LOG_INFO("Process by PID: %lu terminated successfully", pid);
+  return status;
 }
 
 // Checks if a process is killable by its PID (it's not in the protected list and is not critical)
@@ -62,34 +49,25 @@ bool Utils::isProcessKillable(ULONG pid) {
     }
   }
 
-  // Find the process
   PEPROCESS process;
-  if (!NT_SUCCESS(PsLookupProcessByProcessId(ULongToHandle(pid), &process))) {
-    LOG_ERROR("Failed to find process by PID: %lu", pid);
-
-    return false;
-  }
-
-  // Open the process
   HANDLE hProcess;
-  if (!NT_SUCCESS(ObOpenObjectByPointer(process, OBJ_KERNEL_HANDLE, nullptr, PROCESS_QUERY_INFORMATION, *PsProcessType, KernelMode, &hProcess))) {
-    LOG_ERROR("Failed to open process by PID: %lu for query", pid);
-    ObDereferenceObject(process);
-
-    return false;
-  }
-
-  // Check if the process is critical
+  NTSTATUS status;
   ULONG isCritical = 0;
   ULONG returnLength = 0;
-  NTSTATUS status = ZwQueryInformationProcess(hProcess, ProcessBreakOnTermination, &isCritical, sizeof(isCritical), &returnLength);
+
+  status = PsLookupProcessByProcessId(ULongToHandle(pid), &process);
+  CHECK_NT_RETURN_FALSE(status, "Failed to find process by PID: %lu (0x%X)", pid, status);
+
+  status = ObOpenObjectByPointer(process, OBJ_KERNEL_HANDLE, nullptr, PROCESS_QUERY_INFORMATION, *PsProcessType, KernelMode, &hProcess);
+  CHECK_NT_RETURN_FALSE_CLEANUP(status, ObDereferenceObject(process), "Failed to open process by PID: %lu for query (0x%X)", pid, status);
+
+  status = ZwQueryInformationProcess(hProcess, ProcessBreakOnTermination, &isCritical, sizeof(isCritical), &returnLength);
 
   ZwClose(hProcess);
   ObDereferenceObject(process);
 
   if (!NT_SUCCESS(status)) {
     LOG_WARNING("Failed to query critical status for process by PID: %lu, status: 0x%X", pid, status);
-
     return true; // If we can't query, assume it's killable
   }
 
@@ -104,17 +82,11 @@ NTSTATUS Utils::initializeProcessNotifications() {
   InitializeListHead(&g_ProcessNotificationQueue);
   KeInitializeSpinLock(&g_QueueLock);
 
-  // Register the process notification callback
   NTSTATUS status = PsSetCreateProcessNotifyRoutineEx(Hooks::onProcessStart, FALSE);
-  if (!NT_SUCCESS(status)) {
-    LOG_ERROR("Failed to register process notify routine, status: 0x%X", status);
-
-    return status;
-  }
+  CHECK_NT_RETURN(status, "Failed to register process notify routine (0x%X)", status);
 
   g_IsInitialized = TRUE;
   LOG_INFO("Process notifications initialized successfully");
-
   return STATUS_SUCCESS;
 }
 
@@ -193,22 +165,13 @@ VOID Utils::enqueueProcessNotification(PVOID notificationPtr) {
 NTSTATUS Utils::suspendProcess(HANDLE processId) {
   LOG_INFO("Suspending process by PID: %lu", HandleToULong(processId));
 
-  // Find the process
   PEPROCESS process;
   NTSTATUS status = PsLookupProcessByProcessId(processId, &process);
-  if (!NT_SUCCESS(status)) {
-    LOG_ERROR("Failed to find process by PID: %lu, status: 0x%X", HandleToULong(processId), status);
-    return status;
-  }
+  CHECK_NT_RETURN(status, "Failed to find process by PID: %lu (0x%X)", HandleToULong(processId), status);
 
-  // Suspend the process
   status = PsSuspendProcess(process);
   ObDereferenceObject(process);
-
-  if (!NT_SUCCESS(status)) {
-    LOG_ERROR("Failed to suspend process PID: %lu, status: 0x%X", HandleToULong(processId), status);
-    return status;
-  }
+  CHECK_NT_RETURN(status, "Failed to suspend process PID: %lu (0x%X)", HandleToULong(processId), status);
 
   LOG_INFO("Successfully suspended process PID: %lu", HandleToULong(processId));
   return STATUS_SUCCESS;
@@ -218,22 +181,13 @@ NTSTATUS Utils::suspendProcess(HANDLE processId) {
 NTSTATUS Utils::resumeProcess(ULONG pid) {
   LOG_INFO("Resuming process by PID: %lu", pid);
 
-  // Find the process
   PEPROCESS process;
   NTSTATUS status = PsLookupProcessByProcessId(ULongToHandle(pid), &process);
-  if (!NT_SUCCESS(status)) {
-    LOG_ERROR("Failed to find process by PID: %lu, status: 0x%X", pid, status);
-    return status;
-  }
+  CHECK_NT_RETURN(status, "Failed to find process by PID: %lu (0x%X)", pid, status);
 
-  // Resume the process
   status = PsResumeProcess(process);
   ObDereferenceObject(process);
-
-  if (!NT_SUCCESS(status)) {
-    LOG_ERROR("Failed to resume process PID: %lu, status: 0x%X", pid, status);
-    return status;
-  }
+  CHECK_NT_RETURN(status, "Failed to resume process PID: %lu (0x%X)", pid, status);
 
   LOG_INFO("Successfully resumed process PID: %lu", pid);
   return STATUS_SUCCESS;
