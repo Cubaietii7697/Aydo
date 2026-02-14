@@ -16,9 +16,7 @@ static NTSTATUS QueryDriveNtDeviceName(
 
   WCHAR linkNameBuf[8] = {0};
   NTSTATUS status = RtlStringCchPrintfW(linkNameBuf, ARRAYSIZE(linkNameBuf), L"\\??\\%c:", DriveLetter);
-  if (!NT_SUCCESS(status)) {
-    return status;
-  }
+  CHECK_NT_RETURN(status, "RtlStringCchPrintfW failed 0x%08x", status);
 
   UNICODE_STRING linkName;
   RtlInitUnicodeString(&linkName, linkNameBuf);
@@ -28,9 +26,7 @@ static NTSTATUS QueryDriveNtDeviceName(
 
   HANDLE linkHandle = NULL;
   status = ZwOpenSymbolicLinkObject(&linkHandle, GENERIC_READ, &oa);
-  if (!NT_SUCCESS(status)) {
-    return status;
-  }
+  CHECK_NT_RETURN(status, "ZwOpenSymbolicLinkObject failed 0x%08x", status);
 
   UNICODE_STRING target;
   target.Buffer = Out;
@@ -41,9 +37,7 @@ static NTSTATUS QueryDriveNtDeviceName(
   status = ZwQuerySymbolicLinkObject(linkHandle, &target, &returnedLength);
   ZwClose(linkHandle);
 
-  if (!NT_SUCCESS(status)) {
-    return status;
-  }
+  CHECK_NT_RETURN(status, "ZwQuerySymbolicLinkObject failed 0x%08x", status);
 
   if (target.MaximumLength < sizeof(WCHAR)) {
     return STATUS_BUFFER_TOO_SMALL;
@@ -68,9 +62,7 @@ InitProtectedPathFromDosPath(
   PCWSTR stableInput = DosPath;
   if (DosPath == gState.ProtectedPathBuffer) {
     NTSTATUS copyStatus = RtlStringCchCopyW(inputCopy, ARRAYSIZE(inputCopy), DosPath);
-    if (!NT_SUCCESS(copyStatus)) {
-      return copyStatus;
-    }
+    CHECK_NT_RETURN(copyStatus, "RtlStringCchCopyW failed 0x%08x", copyStatus);
     stableInput = inputCopy;
   }
 
@@ -96,10 +88,7 @@ InitProtectedPathFromDosPath(
 
   WCHAR deviceNameBuf[256] = {0};
   NTSTATUS status = QueryDriveNtDeviceName(driveLetter, deviceNameBuf, ARRAYSIZE(deviceNameBuf));
-  if (!NT_SUCCESS(status)) {
-    DbgPrint("InitProtectedPathFromDosPath: QueryDriveNtDeviceName failed 0x%08x\n", status);
-    return status;
-  }
+  CHECK_NT_RETURN(status, "QueryDriveNtDeviceName failed 0x%08x", status);
 
   PCWSTR subPath = stableInput + 2;
   if (subPath[0] == L'\0') {
@@ -112,10 +101,9 @@ InitProtectedPathFromDosPath(
       L"%s%s",
       deviceNameBuf,
       subPath);
-  if (!NT_SUCCESS(status)) {
-    RtlZeroMemory(gState.ProtectedPathBuffer, sizeof(gState.ProtectedPathBuffer));
-    return status;
-  }
+  CHECK_NT_RETURN_CLEANUP(status, 
+    RtlZeroMemory(gState.ProtectedPathBuffer, sizeof(gState.ProtectedPathBuffer));, 
+    "RtlStringCchPrintfW failed 0x%08x", status);
 
   RtlInitUnicodeString(&gState.ProtectedPath, gState.ProtectedPathBuffer);
   DbgPrint("Protected NT path (converted) = %wZ\n", &gState.ProtectedPath);
@@ -158,10 +146,7 @@ LoadProtectedPathFromRegistry(
   InitializeObjectAttributes(&objAttr, RegistryPath, OBJ_KERNEL_HANDLE | OBJ_CASE_INSENSITIVE, NULL, NULL);
 
   status = ZwOpenKey(&key, KEY_QUERY_VALUE, &objAttr);
-  if (!NT_SUCCESS(status)) {
-    LOG_ERROR("ZwOpenKey failed 0x%08x", status);
-    return status;
-  }
+  CHECK_NT_RETURN(status, "ZwOpenKey failed 0x%08x", status);
 
   RtlInitUnicodeString(&valueName, L"ProtectedPath");
 
@@ -185,12 +170,10 @@ LoadProtectedPathFromRegistry(
   }
 
   status = ZwQueryValueKey(key, &valueName, KeyValuePartialInformation, kv, (ULONG)allocSize, &requiredLength);
-  if (!NT_SUCCESS(status)) {
-    LOG_ERROR("ZwQueryValueKey read failed 0x%08x", status);
+  CHECK_NT_RETURN_CLEANUP(status, 
     ExFreePoolWithTag(kv, Constants::PROTECTED_POOL_TAG);
-    ZwClose(key);
-    return status;
-  }
+    ZwClose(key);, 
+    "ZwQueryValueKey read failed 0x%08x", status);
 
   // We expect a string
   if (kv->Type != REG_SZ && kv->Type != REG_EXPAND_SZ) {

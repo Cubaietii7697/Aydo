@@ -68,10 +68,7 @@ DriverEntryImpl(
 
   // Register filter
   status = FltRegisterFilter(DriverObject, &FilterRegistration, &gState.Filter);
-  if (!NT_SUCCESS(status)) {
-    LOG_ERROR("FltRegisterFilter failed 0x%08x", status);
-    return status;
-  }
+  CHECK_NT_RETURN(status, "FltRegisterFilter failed 0x%08x", status);
 
   status = LoadProtectedPathFromRegistry(RegistryPath);
   if (!NT_SUCCESS(status)) {
@@ -88,12 +85,10 @@ DriverEntryImpl(
   }
 
   status = FltStartFiltering(gState.Filter);
-  if (!NT_SUCCESS(status)) {
-    LOG_ERROR("FltStartFiltering failed 0x%08x", status);
+  CHECK_NT_RETURN_CLEANUP(status, 
     FltUnregisterFilter(gState.Filter);
-    gState.Filter = nullptr;
-    return status;
-  }
+    gState.Filter = nullptr;, 
+    "FltStartFiltering failed 0x%08x", status);
 
   LOG_INFO("started");
   return STATUS_SUCCESS;

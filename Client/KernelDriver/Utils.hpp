@@ -2,7 +2,6 @@
 
 #include <ntifs.h>
 
-/* Log and return on failure. Caller includes " (0x%X)" in fmt and passes status last (MSVC). */
 #define CHECK_NT_RETURN(status, fmt, ...) \
     do { \
         if (!NT_SUCCESS(status)) { \
@@ -11,7 +10,6 @@
         } \
     } while (0)
 
-/* Same, but run cleanup (e.g. ObDereferenceObject(process)) before return. */
 #define CHECK_NT_RETURN_CLEANUP(status, cleanup, fmt, ...) \
     do { \
         if (!NT_SUCCESS(status)) { \
@@ -21,7 +19,6 @@
         } \
     } while (0)
 
-/* For functions that return bool on failure. */
 #define CHECK_NT_RETURN_FALSE(status, fmt, ...) \
     do { \
         if (!NT_SUCCESS(status)) { \
