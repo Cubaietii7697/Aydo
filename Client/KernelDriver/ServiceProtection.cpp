@@ -117,7 +117,6 @@ BOOLEAN isProtectedRegistryObject(LARGE_INTEGER cookie, PVOID regObject) {
 
   BOOLEAN isProtected = isProtectedServiceKey(keyPath);
 
-  // FIX: Must release the string allocated by CmCallbackGetKeyObjectIDEx
   CmCallbackReleaseKeyObjectIDEx(keyPath);
 
   return isProtected;
@@ -225,7 +224,7 @@ NTSTATUS registerProcessProtection() {
   cbReg.OperationRegistrationCount = 2;
   cbReg.OperationRegistration = opReg;
   RtlInitUnicodeString(&cbReg.Altitude, Constants::ALTITUDE);
-  cbReg.RegistrationContext = nullptr; // FIX: Initialize this field
+  cbReg.RegistrationContext = nullptr;
 
   NTSTATUS status = ObRegisterCallbacks(&cbReg, &g_registrationHandle);
   CHECK_NT_RETURN(status, "ServiceProtection: Failed to register process protection (0x%X)", status);

@@ -4,9 +4,10 @@
 #include "Logger.hpp"
 #include "Types.hpp"
 
-// PsSuspendProcess/PsResumeProcess declarations (available in Windows XP+)
-extern "C" NTSTATUS PsSuspendProcess(PEPROCESS Process);
-extern "C" NTSTATUS PsResumeProcess(PEPROCESS Process);
+extern "C" {
+  NTSTATUS PsSuspendProcess(PEPROCESS Process);
+  NTSTATUS PsResumeProcess(PEPROCESS Process);
+}
 
 static LIST_ENTRY g_ProcessNotificationQueue;
 static KSPIN_LOCK g_QueueLock;
