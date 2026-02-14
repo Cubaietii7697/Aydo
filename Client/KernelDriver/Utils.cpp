@@ -5,8 +5,8 @@
 #include "Types.hpp"
 
 extern "C" {
-  NTSTATUS PsSuspendProcess(PEPROCESS Process);
-  NTSTATUS PsResumeProcess(PEPROCESS Process);
+NTSTATUS PsSuspendProcess(PEPROCESS Process);
+NTSTATUS PsResumeProcess(PEPROCESS Process);
 }
 
 static LIST_ENTRY g_ProcessNotificationQueue;
@@ -192,4 +192,10 @@ NTSTATUS Utils::resumeProcess(ULONG pid) {
 
   LOG_INFO("Successfully resumed process PID: %lu", pid);
   return STATUS_SUCCESS;
+}
+
+BOOLEAN Utils::isValidUnicodeString(PCUNICODE_STRING unicodeString) {
+  return (unicodeString != nullptr &&
+          unicodeString->Buffer != nullptr &&
+          unicodeString->Length > 0);
 }

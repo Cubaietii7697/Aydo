@@ -73,7 +73,7 @@ OB_PREOP_CALLBACK_STATUS preOperationCallback(
 }
 
 BOOLEAN isProtectedServiceKey(PCUNICODE_STRING keyPath) {
-  if (keyPath == nullptr || keyPath->Buffer == nullptr || keyPath->Length == 0) {
+  if (!Utils::isValidUnicodeString(keyPath)) {
     return FALSE;
   }
 
@@ -83,13 +83,8 @@ BOOLEAN isProtectedServiceKey(PCUNICODE_STRING keyPath) {
     UNICODE_STRING us;
     RtlInitUnicodeString(&us, Constants::PROTECTED_REGISTRY_PATHS[i]);
 
-    // Exact match
-    if (RtlEqualUnicodeString(keyPath, &us, TRUE)) {
-      return TRUE;
-    }
-
-    // Prefix match
-    if (RtlPrefixUnicodeString(&us, keyPath, TRUE)) {
+    // Exact match or Prefix match
+    if (RtlEqualUnicodeString(keyPath, &us, TRUE) || RtlPrefixUnicodeString(&us, keyPath, TRUE)) {
       return TRUE;
     }
   }
@@ -98,8 +93,7 @@ BOOLEAN isProtectedServiceKey(PCUNICODE_STRING keyPath) {
 }
 
 BOOLEAN isProtectedServiceName(PCUNICODE_STRING serviceName) {
-  if (serviceName == nullptr || serviceName->Buffer == nullptr ||
-      serviceName->Length == 0) {
+  if (!Utils::isValidUnicodeString(serviceName)) {
     return FALSE;
   }
 
@@ -134,25 +128,38 @@ BOOLEAN isProtectedRegistryObject(LARGE_INTEGER cookie, PVOID regObject) {
 
   return isProtected;
 }
-
 NTSTATUS registryCallback(PVOID context, PVOID arg1, PVOID arg2) {
   UNREFERENCED_PARAMETER(context);
+
   auto notifyClass = (REG_NOTIFY_CLASS)(ULONG_PTR)arg1;
 
-  if (isProtectedServiceCaller()) {
-    return STATUS_SUCCESS;
-  }
+  auto denyIfProtected =
+      [&](PVOID object, const char *message, bool allowServiceProcess = false) -> NTSTATUS {
+    if (!isProtectedRegistryObject(g_RegCookie, object)) {
+      return STATUS_SUCCESS;
+    }
+
+    PEPROCESS callerProcess = PsGetCurrentProcess();
+
+    if (allowServiceProcess && callerProcess == g_serviceProcess) {
+      return STATUS_SUCCESS;
+    }
+
+    LOG_INFO(message);
+    return STATUS_ACCESS_DENIED;
+  };
 
   switch (notifyClass) {
   case RegNtPreOpenKeyEx: {
     auto info = (PREG_OPEN_KEY_INFORMATION_V1)arg2;
 
-    if (info->CompleteName != nullptr && info->CompleteName->Buffer != nullptr) {
+    if (info->CompleteName && info->CompleteName->Buffer) {
       if (isProtectedServiceKey(info->CompleteName)) {
         PEPROCESS callerProcess = PsGetCurrentProcess();
+
         if (callerProcess != g_serviceProcess) {
-          // Block dangerous access rights for other processes
-          if (info->DesiredAccess & (DELETE | WRITE_DAC | WRITE_OWNER | KEY_SET_VALUE)) {
+          if (info->DesiredAccess &
+              (DELETE | WRITE_DAC | WRITE_OWNER | KEY_SET_VALUE)) {
             LOG_INFO("ServiceProtection: Blocked dangerous registry access to protected key");
             return STATUS_ACCESS_DENIED;
           }
@@ -164,51 +171,38 @@ NTSTATUS registryCallback(PVOID context, PVOID arg1, PVOID arg2) {
 
   case RegNtPreSetValueKey: {
     auto info = (PREG_SET_VALUE_KEY_INFORMATION)arg2;
-    if (isProtectedRegistryObject(g_RegCookie, info->Object)) {
-      // Allow the protected service process to write to its own registry key
-      PEPROCESS callerProcess = PsGetCurrentProcess();
-      if (callerProcess != g_serviceProcess) {
-        LOG_INFO("ServiceProtection: Blocked attempt to set value in protected key");
-        return STATUS_ACCESS_DENIED;
-      }
-    }
-    break;
+    return denyIfProtected(
+        info->Object,
+        "ServiceProtection: Blocked attempt to set value in protected key",
+        true);
   }
 
   case RegNtPreDeleteValueKey: {
     auto info = (PREG_DELETE_VALUE_KEY_INFORMATION)arg2;
-    if (isProtectedRegistryObject(g_RegCookie, info->Object)) {
-      LOG_INFO("ServiceProtection: Blocked attempt to delete value in protected key");
-      return STATUS_ACCESS_DENIED;
-    }
-    break;
+    return denyIfProtected(
+        info->Object,
+        "ServiceProtection: Blocked attempt to delete value in protected key");
   }
 
   case RegNtPreDeleteKey: {
     auto info = (PREG_DELETE_KEY_INFORMATION)arg2;
-    if (isProtectedRegistryObject(g_RegCookie, info->Object)) {
-      LOG_INFO("ServiceProtection: Blocked attempt to delete protected key");
-      return STATUS_ACCESS_DENIED;
-    }
-    break;
+    return denyIfProtected(
+        info->Object,
+        "ServiceProtection: Blocked attempt to delete protected key");
   }
 
   case RegNtPreRenameKey: {
     auto info = (PREG_RENAME_KEY_INFORMATION)arg2;
-    if (isProtectedRegistryObject(g_RegCookie, info->Object)) {
-      LOG_INFO("ServiceProtection: Blocked attempt to rename protected key");
-      return STATUS_ACCESS_DENIED;
-    }
-    break;
+    return denyIfProtected(
+        info->Object,
+        "ServiceProtection: Blocked attempt to rename protected key");
   }
 
   case RegNtPreSetInformationKey: {
     auto info = (PREG_SET_INFORMATION_KEY_INFORMATION)arg2;
-    if (isProtectedRegistryObject(g_RegCookie, info->Object)) {
-      LOG_INFO("ServiceProtection: Blocked attempt to modify protected key metadata");
-      return STATUS_ACCESS_DENIED;
-    }
-    break;
+    return denyIfProtected(
+        info->Object,
+        "ServiceProtection: Blocked attempt to modify protected key metadata");
   }
 
   default:
@@ -319,15 +313,16 @@ void unregisterProcessProtection() {
 }
 
 void unregisterRegistryProtection() {
-  if (g_RegCookie.QuadPart != 0) {
-    NTSTATUS status = CmUnRegisterCallback(g_RegCookie);
-    if (NT_SUCCESS(status)) {
-      LOG_INFO("ServiceProtection: Registry callback unregistered successfully");
-    } else {
-      LOG_ERROR("ServiceProtection: Failed to unregister registry callback: 0x%X",
-                status);
-    }
-    g_RegCookie.QuadPart = 0;
+  if (g_RegCookie.QuadPart == 0) {
+    return;
   }
+  NTSTATUS status = CmUnRegisterCallback(g_RegCookie);
+  if (NT_SUCCESS(status)) {
+    LOG_INFO("ServiceProtection: Registry callback unregistered successfully");
+  } else {
+    LOG_ERROR("ServiceProtection: Failed to unregister registry callback: 0x%X",
+              status);
+  }
+  g_RegCookie.QuadPart = 0;
 }
 } // namespace ServiceProtection
