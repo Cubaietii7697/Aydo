@@ -14,6 +14,7 @@ static NTSTATUS QueryDriveNtDeviceName(
     return STATUS_INVALID_PARAMETER;
   }
 
+  // 8 wide chars for the size of the path
   WCHAR linkNameBuf[8] = {0};
   NTSTATUS status = RtlStringCchPrintfW(linkNameBuf, ARRAYSIZE(linkNameBuf), L"\\??\\%c:", DriveLetter);
   CHECK_NT_RETURN(status, "RtlStringCchPrintfW failed 0x%08x", status);
@@ -24,7 +25,7 @@ static NTSTATUS QueryDriveNtDeviceName(
   OBJECT_ATTRIBUTES oa;
   InitializeObjectAttributes(&oa, &linkName, OBJ_KERNEL_HANDLE | OBJ_CASE_INSENSITIVE, NULL, NULL);
 
-  HANDLE linkHandle = NULL;
+  HANDLE linkHandle = nullptr;
   status = ZwOpenSymbolicLinkObject(&linkHandle, GENERIC_READ, &oa);
   CHECK_NT_RETURN(status, "ZwOpenSymbolicLinkObject failed 0x%08x", status);
 

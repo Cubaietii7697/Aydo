@@ -35,5 +35,6 @@ static const ULONG PROTECTED_POOL_TAG = 'tPrF';
 static const ULONG AYDO_CONTEXT_MAGIC = 0x67676767; // six sevennnn
 
 static const unsigned int MAX_PATH = 512;
+static const unsigned int MAX_LOG_SIZE_DEFAULT = 512;
 
 } // namespace Constants

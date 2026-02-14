@@ -2,6 +2,7 @@
 #include <ntstrsafe.h>
 #include <stdarg.h>
 
+#include "Constants.hpp"
 #include "Logger.hpp"
 
 void Logger::log(LogLevel level, const char *format, ...) {
@@ -47,7 +48,7 @@ void Logger::log(LogLevel level, const char *format, ...) {
     }
   } else {
     // For format strings without %wZ, print them normally
-    char formatted[512] = {0};
+    char formatted[Constants::MAX_LOG_SIZE_DEFAULT] = {0};
     (void)RtlStringCbVPrintfA(formatted, sizeof(formatted), format, args);
     DbgPrint("[AydoMinifilter:%s] %s\n", levelStr, formatted);
   }
