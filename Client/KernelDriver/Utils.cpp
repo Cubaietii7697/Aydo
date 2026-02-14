@@ -68,7 +68,7 @@ bool Utils::isProcessKillable(ULONG pid) {
 
   if (!NT_SUCCESS(status)) {
     LOG_WARNING("Failed to query critical status for process by PID: %lu, status: 0x%X", pid, status);
-    return true; // If we can't query, assume it's killable
+    return false; // If we can't query, assume it's not killable
   }
 
   return isCritical == 0;
