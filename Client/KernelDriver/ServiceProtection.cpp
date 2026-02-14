@@ -87,9 +87,7 @@ BOOLEAN isProtectedServiceName(PCUNICODE_STRING serviceName) {
     return FALSE;
   }
 
-  for (ULONG i = 0; i < (sizeof(Constants::PROTECTED_SERVICE_NAMES) /
-                         sizeof(Constants::PROTECTED_SERVICE_NAMES[0]));
-       ++i) {
+for (ULONG i = 0; i < RTL_NUMBER_OF(Constants::PROTECTED_SERVICE_NAMES); ++i) {
     UNICODE_STRING us;
     RtlInitUnicodeString(&us, Constants::PROTECTED_SERVICE_NAMES[i]);
 
@@ -101,7 +99,7 @@ BOOLEAN isProtectedServiceName(PCUNICODE_STRING serviceName) {
   return FALSE;
 }
 
-// NEW: Helper to get and check key path
+// Helper to get and check key path
 BOOLEAN isProtectedRegistryObject(LARGE_INTEGER cookie, PVOID regObject) {
   PCUNICODE_STRING keyPath = nullptr;
   NTSTATUS status = CmCallbackGetKeyObjectIDEx(
