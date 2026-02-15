@@ -3,7 +3,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { AntivirusBridge } from "./antivirus/bridge";
 import { createAntivirusEngine } from "./antivirus/engineFactory";
-import type { AvEventEnvelope, AvSettings, ScanRequest } from "@shared/antivirus";
+import type {
+  AvEventEnvelope,
+  AvSettings,
+  ScanRequest,
+} from "@shared/antivirus";
 
 const sendToRenderer = (channel: string, payload: AvEventEnvelope) => {
   for (const window of BrowserWindow.getAllWindows()) {
@@ -33,16 +37,22 @@ const normalizeServerUrl = (raw: string): string => {
 
 const performAuth = async (
   mode: "login" | "register",
-  payload: { email: string; password: string; nickname?: string; serverUrl: string }
+  payload: {
+    email: string;
+    password: string;
+    nickname?: string;
+    serverUrl: string;
+  },
 ): Promise<AuthResponse> => {
   if (process.env.AYDO_AUTH_OFFLINE === "1") {
-    const nickname = payload.nickname ?? payload.email.split("@")[0] ?? "Analyst";
+    const nickname =
+      payload.nickname ?? payload.email.split("@")[0] ?? "Analyst";
     return {
       ok: true,
       message: "Offline auth",
       accessToken: "offline-access",
       refreshToken: "offline-refresh",
-      nickname
+      nickname,
     };
   }
 
@@ -55,18 +65,25 @@ const performAuth = async (
   const body =
     mode === "login"
       ? { email: payload.email, password: payload.password }
-      : { email: payload.email, nickname: payload.nickname ?? payload.email, password: payload.password };
+      : {
+          email: payload.email,
+          nickname: payload.nickname ?? payload.email,
+          password: payload.password,
+        };
 
   try {
     const response = await fetch(`${serverUrl}${endpoint}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
     });
 
     const data = await response.json().catch(() => null);
     if (!response.ok) {
-      return { ok: false, message: data?.message ?? `Auth failed (${response.status})` };
+      return {
+        ok: false,
+        message: data?.message ?? `Auth failed (${response.status})`,
+      };
     }
 
     const accessToken = data?.accessToken as string | undefined;
@@ -76,7 +93,7 @@ const performAuth = async (
     if (accessToken) {
       try {
         const meResponse = await fetch(`${serverUrl}/api/auth/me`, {
-          headers: { Authorization: `Bearer ${accessToken}` }
+          headers: { Authorization: `Bearer ${accessToken}` },
         });
         if (meResponse.ok) {
           const meData = await meResponse.json().catch(() => null);
@@ -94,16 +111,17 @@ const performAuth = async (
       message: data?.message ?? "Authenticated",
       accessToken,
       refreshToken,
-      nickname
+      nickname,
     };
   } catch (error) {
-    const nickname = payload.nickname ?? payload.email.split("@")[0] ?? "Analyst";
+    const nickname =
+      payload.nickname ?? payload.email.split("@")[0] ?? "Analyst";
     const message = error instanceof Error ? error.message : "Network error";
     return {
       ok: true,
       message: `Server offline. Offline session enabled. (${message})`,
       nickname,
-      offline: true
+      offline: true,
     };
   }
 };
@@ -112,7 +130,7 @@ const resolvePreloadPath = (): string => {
   const candidates = [
     path.join(__dirname, "../preload/preload.mjs"),
     path.join(process.cwd(), "dist/preload/preload.mjs"),
-    path.join(process.cwd(), "out/preload/preload.mjs")
+    path.join(process.cwd(), "out/preload/preload.mjs"),
   ];
 
   for (const candidate of candidates) {
@@ -127,7 +145,7 @@ const resolvePreloadPath = (): string => {
 const findDevServer = async (): Promise<string | undefined> => {
   // Try common dev server ports
   const ports = [5173, 5174, 5175, 5176];
-  
+
   for (const port of ports) {
     try {
       const url = `http://localhost:${port}`;
@@ -139,32 +157,43 @@ const findDevServer = async (): Promise<string | undefined> => {
       // Port not responding, try next
     }
   }
-  
+
   return undefined;
 };
 
 const createWindow = async (): Promise<void> => {
   const preloadPath = resolvePreloadPath();
-  
+
   // Detect dev server URL
   let devServerUrl = process.env.VITE_DEV_SERVER_URL;
   if (!devServerUrl) {
     devServerUrl = await findDevServer();
   }
-  
+
   const mainWindow = new BrowserWindow({
     width: 1280,
     height: 820,
     minWidth: 1080,
     minHeight: 720,
     backgroundColor: "#0c1219",
-    titleBarStyle: "hiddenInset",
+    frame: false,
+    show: false,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
-      preload: preloadPath
-    }
+      preload: preloadPath,
+    },
+  });
+
+  // Ensure developer tools are never opened automatically
+  mainWindow.webContents.on("devtools-opened", () => {
+    mainWindow.webContents.closeDevTools();
+  });
+
+  // Show window only after it's ready to prevent flicker
+  mainWindow.once("ready-to-show", () => {
+    mainWindow.show();
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -185,12 +214,16 @@ const createWindow = async (): Promise<void> => {
 ipcMain.handle("av:connect", async () => bridge.connect());
 ipcMain.handle("av:disconnect", async () => bridge.disconnect());
 ipcMain.handle("av:snapshot", async () => bridge.getSnapshot());
-ipcMain.handle("av:start-scan", async (_event, request: ScanRequest) => bridge.startScan(request));
-ipcMain.handle("av:set-settings", async (_event, settings: AvSettings) => bridge.setSettings(settings));
+ipcMain.handle("av:start-scan", async (_event, request: ScanRequest) =>
+  bridge.startScan(request),
+);
+ipcMain.handle("av:set-settings", async (_event, settings: AvSettings) =>
+  bridge.setSettings(settings),
+);
 ipcMain.handle("av:pick-scan-target", async () => {
   const result = await dialog.showOpenDialog({
     title: "Select file to scan",
-    properties: ["openFile"]
+    properties: ["openFile"],
   });
   if (result.canceled || result.filePaths.length === 0) {
     return null;
@@ -198,13 +231,86 @@ ipcMain.handle("av:pick-scan-target", async () => {
   return result.filePaths[0] ?? null;
 });
 
-ipcMain.handle("auth:login", async (_event, payload: { email: string; password: string; serverUrl: string }) =>
-  performAuth("login", payload)
+ipcMain.handle("fs:read-directory", async (_event, dirPath: string) => {
+  try {
+    const entries = await fs.promises.readdir(dirPath, { withFileTypes: true });
+    const mapped = await Promise.all(
+      entries.map(async (entry) => {
+        const fullPath = path.join(dirPath, entry.name);
+        const isDirectory = entry.isDirectory();
+        let size: number | undefined;
+        let extension: string | undefined;
+
+        if (!isDirectory) {
+          try {
+            const stat = await fs.promises.stat(fullPath);
+            size = stat.size;
+          } catch {
+            // ignore stat errors
+          }
+          const ext = path.extname(entry.name);
+          if (ext) extension = ext;
+        }
+
+        return {
+          name: entry.name,
+          path: fullPath,
+          isDirectory,
+          size,
+          extension,
+        };
+      }),
+    );
+
+    return { ok: true, entries: mapped };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : "Failed to read directory",
+    };
+  }
+});
+
+// Window controls
+ipcMain.handle("window:close", () => {
+  const window = BrowserWindow.getFocusedWindow();
+  if (window) window.close();
+});
+
+ipcMain.handle("window:minimize", () => {
+  const window = BrowserWindow.getFocusedWindow();
+  if (window) window.minimize();
+});
+
+ipcMain.handle("window:maximize", () => {
+  const window = BrowserWindow.getFocusedWindow();
+  if (window) {
+    if (window.isMaximized()) {
+      window.unmaximize();
+    } else {
+      window.maximize();
+    }
+  }
+});
+
+ipcMain.handle(
+  "auth:login",
+  async (
+    _event,
+    payload: { email: string; password: string; serverUrl: string },
+  ) => performAuth("login", payload),
 );
 ipcMain.handle(
   "auth:register",
-  async (_event, payload: { email: string; password: string; nickname: string; serverUrl: string }) =>
-    performAuth("register", payload)
+  async (
+    _event,
+    payload: {
+      email: string;
+      password: string;
+      nickname: string;
+      serverUrl: string;
+    },
+  ) => performAuth("register", payload),
 );
 
 app.whenReady().then(async () => {

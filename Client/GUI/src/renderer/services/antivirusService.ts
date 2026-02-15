@@ -1,5 +1,11 @@
 ﻿import { useSyncExternalStore } from "react";
-import type { AvEventEnvelope, AvSettings, AvSnapshot, ScanRequest, ScanDepth } from "@shared/antivirus";
+import type {
+  AvEventEnvelope,
+  AvSettings,
+  AvSnapshot,
+  ScanRequest,
+  ScanDepth,
+} from "@shared/antivirus";
 
 export type AntivirusState = AvSnapshot & {
   loading: boolean;
@@ -16,7 +22,7 @@ class AntivirusService {
       detections: 0,
       quarantined: 0,
       lastScanAt: null,
-      lastScanDurationSec: null
+      lastScanDurationSec: null,
     },
     activity: [],
     breakdown: [],
@@ -32,11 +38,19 @@ class AntivirusService {
       refreshToken: "",
       killThreshold: 150,
       entropyThreshold: 6.0,
-      runtime: 60
+      runtime: 60,
+      infectedFileAction: "none",
     },
     scan: { inProgress: false, progress: 0, target: null },
+    capabilities: {
+      driver: false,
+      hashdb: false,
+      yara: false,
+      entropy: false,
+      cloud: false,
+    },
     loading: true,
-    error: null
+    error: null,
   };
 
   private listeners = new Set<() => void>();
@@ -62,7 +76,10 @@ class AntivirusService {
       const snapshot = await bridge.getSnapshot();
       this.update({ ...snapshot, loading: false, error: null });
     } catch (error) {
-      this.update({ loading: false, error: error instanceof Error ? error.message : "Failed to load" });
+      this.update({
+        loading: false,
+        error: error instanceof Error ? error.message : "Failed to load",
+      });
     }
 
     const bridge = this.getBridge();
@@ -86,15 +103,24 @@ class AntivirusService {
   }
 
   async connect(): Promise<{ ok: boolean; message: string }> {
-    this.update({ connectionState: "connecting", statusMessage: "Negotiating secure channel" });
+    this.update({
+      connectionState: "connecting",
+      statusMessage: "Negotiating secure channel",
+    });
     const bridge = this.getBridge();
     if (!bridge) {
-      this.update({ connectionState: "disconnected", statusMessage: "Bridge unavailable" });
+      this.update({
+        connectionState: "disconnected",
+        statusMessage: "Bridge unavailable",
+      });
       return { ok: false, message: "Bridge unavailable" };
     }
     const result = await bridge.connect();
     if (!result.ok) {
-      this.update({ connectionState: "disconnected", statusMessage: result.message });
+      this.update({
+        connectionState: "disconnected",
+        statusMessage: result.message,
+      });
     }
     return result;
   }
@@ -102,37 +128,53 @@ class AntivirusService {
   async disconnect(): Promise<{ ok: boolean; message: string }> {
     const bridge = this.getBridge();
     if (!bridge) {
-      this.update({ connectionState: "disconnected", statusMessage: "Bridge unavailable" });
+      this.update({
+        connectionState: "disconnected",
+        statusMessage: "Bridge unavailable",
+      });
       return { ok: false, message: "Bridge unavailable" };
     }
     const result = await bridge.disconnect();
-    this.update({ connectionState: "disconnected", statusMessage: "Engine offline" });
+    this.update({
+      connectionState: "disconnected",
+      statusMessage: "Engine offline",
+    });
     return result;
   }
 
-  async startScan(request: ScanRequest): Promise<{ ok: boolean; message: string }> {
+  async startScan(
+    request: ScanRequest,
+  ): Promise<{ ok: boolean; message: string }> {
     this.update({
       scan: {
         inProgress: true,
         progress: 0,
-        target: request.paths?.[0] ?? "System"
-      }
+        target: request.paths?.[0] ?? "System",
+      },
     });
     const bridge = this.getBridge();
     if (!bridge) {
-      this.update({ scan: { inProgress: false, progress: 0, target: null }, error: "Bridge unavailable" });
+      this.update({
+        scan: { inProgress: false, progress: 0, target: null },
+        error: "Bridge unavailable",
+      });
       return { ok: false, message: "Bridge unavailable" };
     }
     try {
       return await bridge.startScan(request);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Scan failed";
-      this.update({ scan: { inProgress: false, progress: 0, target: null }, error: message });
+      this.update({
+        scan: { inProgress: false, progress: 0, target: null },
+        error: message,
+      });
       return { ok: false, message };
     }
   }
 
-  async requestScan(depth: ScanDepth): Promise<{ ok: boolean; message: string }> {
+  async requestScan(
+    depth: ScanDepth,
+  ): Promise<{ ok: boolean; message: string }> {
     const bridge = this.getBridge();
     if (!bridge) {
       this.update({ error: "Bridge unavailable" });
@@ -177,5 +219,5 @@ export const useAntivirus = (): AntivirusState =>
   useSyncExternalStore(
     (listener) => antivirusService.subscribe(listener),
     () => antivirusService.getState(),
-    () => antivirusService.getState()
+    () => antivirusService.getState(),
   );

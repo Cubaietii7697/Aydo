@@ -17,4 +17,5 @@ constexpr std::wstring_view AYDO_DRIVER_DEVICE_PATH = LR"(\\.\AydoDriver)";
 constexpr std::string_view HASHES_DB_PATH = "file_hashes.db";
 constexpr std::string_view SERVER_URL = "http://127.0.0.1";
 constexpr int DYNAMIC_SCAN_POLL_INTERVAL = 5;
+constexpr std::string_view AYDO_GUI_PIPE_NAME = R"(\\.\pipe\AydoServicePipe)";
 }; // namespace Constants

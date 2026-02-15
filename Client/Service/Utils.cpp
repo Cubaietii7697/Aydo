@@ -4,6 +4,7 @@
 #include <botan/hash.h>
 #include <botan/hex.h>
 #include <cwctype>
+#include <filesystem>
 #include <fstream>
 #include <psapi.h>
 #include <softpub.h>
@@ -47,7 +48,7 @@ std::wstring Utils::device_to_dos_path(const std::wstring &devicePath) {
 
   // Map \Device\HarddiskVolumeX to a DOS drive letter
   wchar_t drives[kDriveStringsBufChars] = {0};
-  DWORD len = GetLogicalDriveStringsW(static_cast<DWORD>(std::size(drives) - 1), drives);
+  GetLogicalDriveStringsW(static_cast<DWORD>(std::size(drives) - 1), drives);
   for (wchar_t const *p = drives; p && *p; p += wcslen(p) + 1) {
     // p is like "C:\"
     const std::wstring dosRoot = p;                  // "C:\"
@@ -142,7 +143,7 @@ std::string Utils::computeSHA256(const std::string &path) {
   auto hasher = Botan::HashFunction::create_or_throw("SHA-256");
   std::vector<uint8_t> buf(Constants::SHA256_BUFFER_SIZE);
   while (file) {
-    file.read(reinterpret_cast<char *>(buf.data()), buf.size());
+    file.read(reinterpret_cast<char *>(buf.data()), static_cast<std::streamsize>(buf.size()));
     std::streamsize bytesRead = file.gcount();
     if (bytesRead > 0) {
       hasher->update(buf.data(), static_cast<size_t>(bytesRead));
@@ -217,4 +218,42 @@ bool Utils::isWindowsSigned(const std::string &path) {
 
   // Return true only if the signature is valid and trusted
   return status == ERROR_SUCCESS;
+}
+
+bool Utils::quarantineFile(const std::string &path) {
+  try {
+    std::filesystem::path src(path);
+    if (!std::filesystem::exists(src)) {
+      return false;
+    }
+
+    std::filesystem::path quarantineDir =
+        std::filesystem::current_path() / "quarantine";
+    if (!std::filesystem::exists(quarantineDir)) {
+      std::filesystem::create_directories(quarantineDir);
+    }
+
+    std::filesystem::path dest = quarantineDir / src.filename();
+
+    // If destination exists, append a unique ID or timestamp
+    if (std::filesystem::exists(dest)) {
+      std::string stem = src.stem().string();
+      std::string ext = src.extension().string();
+      dest = quarantineDir /
+             (stem + "_" + std::to_string(GetTickCount()) + ext);
+    }
+
+    std::filesystem::rename(src, dest);
+    return true;
+  } catch (...) {
+    return false;
+  }
+}
+
+bool Utils::deleteFile(const std::string &path) {
+  try {
+    return std::filesystem::remove(path);
+  } catch (...) {
+    return false;
+  }
 }

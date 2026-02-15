@@ -19,8 +19,14 @@ const Register = () => {
   const [showDebug, setShowDebug] = useState(false);
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    const resolvedServerUrl = antivirus.settings.serverUrl || authService.getStoredServerUrl();
-    const result = await authService.register(name, email, password, resolvedServerUrl);
+    const resolvedServerUrl =
+      antivirus.settings.serverUrl || authService.getStoredServerUrl();
+    const result = await authService.register(
+      name,
+      email,
+      password,
+      resolvedServerUrl,
+    );
     if (result.ok) {
       navigate("/dashboard");
     }
@@ -40,14 +46,21 @@ const Register = () => {
       >
         <div className="glass-panel rounded-3xl p-10 shadow-glow">
           <div className="flex flex-col gap-4">
-            <img src={logoUrl} alt="Aydo Security" className="h-12 w-auto object-contain" />
+            <img
+              src={logoUrl}
+              alt="Aydo Security"
+              className="h-12 w-auto object-contain"
+            />
             <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-muted">Security Console</p>
+              <p className="text-xs uppercase tracking-[0.3em] text-muted">
+                Security Console
+              </p>
               <h1 className="font-display text-3xl font-semibold text-slate-900 dark:text-white">
                 Create Your Account
               </h1>
               <p className="mt-2 text-sm text-muted">
-                Provision operator access for telemetry, scans, and incident response workflows.
+                Provision operator access for telemetry, scans, and incident
+                response workflows.
               </p>
             </div>
           </div>
@@ -61,7 +74,7 @@ const Register = () => {
               onValueChange={setName}
               classNames={{
                 inputWrapper: "border-white/10 bg-white/5",
-                label: "text-muted"
+                label: "text-muted",
               }}
               isRequired
             />
@@ -73,7 +86,7 @@ const Register = () => {
               onValueChange={setEmail}
               classNames={{
                 inputWrapper: "border-white/10 bg-white/5",
-                label: "text-muted"
+                label: "text-muted",
               }}
               isRequired
             />
@@ -85,7 +98,7 @@ const Register = () => {
               onValueChange={setPassword}
               classNames={{
                 inputWrapper: "border-white/10 bg-white/5",
-                label: "text-muted"
+                label: "text-muted",
               }}
               isRequired
             />
@@ -126,7 +139,9 @@ const Register = () => {
 
           <div className="mt-6 flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-muted">
             <ShieldCheck size={14} className="text-accent" />
-            <span>Secure enrollment · Engine connection required · Operator access</span>
+            <span>
+              Secure enrollment · Engine connection required · Operator access
+            </span>
           </div>
 
           <button
@@ -142,4 +157,3 @@ const Register = () => {
 };
 
 export default Register;
-

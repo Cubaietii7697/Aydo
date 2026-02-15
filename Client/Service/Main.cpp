@@ -36,31 +36,92 @@ static std::string stripQuotes(const std::string &value) {
   return value;
 }
 
-static void commandLoop(ProcessMonitor *monitor) {
-  std::string line;
-  while (std::getline(std::cin, line)) {
-    const auto trimmed = trim(line);
-    if (trimmed.empty()) {
+static void pipeServerLoop(ProcessMonitor *monitor) {
+  std::string pipeName{Constants::AYDO_GUI_PIPE_NAME};
+  std::cout << "Starting Named Pipe Server at " << pipeName << std::endl;
+
+  while (!g_stopMonitoring.load(std::memory_order_relaxed)) {
+    HANDLE hPipe = CreateNamedPipeA(
+        pipeName.c_str(),
+        PIPE_ACCESS_DUPLEX,
+        PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT,
+        PIPE_UNLIMITED_INSTANCES,
+        512,
+        512,
+        0,
+        NULL);
+
+    if (hPipe == INVALID_HANDLE_VALUE) {
+      std::cerr << "CreateNamedPipe failed, GLE=" << GetLastError() << std::endl;
+      Sleep(1000);
       continue;
     }
 
-    if (trimmed == "ping") {
-      std::cout << "[PING] OK" << std::endl;
-      continue;
-    }
+    if (ConnectNamedPipe(hPipe, NULL) || GetLastError() == ERROR_PIPE_CONNECTED) {
+      std::cout << "Client connected to pipe." << std::endl;
 
-    if (trimmed.rfind("scan", 0) == 0) {
-      auto path = trim(trimmed.substr(4));
-      path = stripQuotes(path);
-      if (path.empty()) {
-        std::cerr << "[SCAN ERROR] Missing path" << std::endl;
-        continue;
+      // Redirect monitor output to this pipe
+      monitor->setLogger([hPipe](const std::string &msg) {
+        DWORD written;
+        // Important: clientEngine expects line-based, log() adds newline already if needed.
+        // ProcessMonitor::log appends \n.
+        WriteFile(hPipe, msg.c_str(), msg.size(), &written, NULL);
+      });
+
+      // Send full status dump on connection so GUI updates capabilities
+      monitor->printStatus();
+      std::string caps = "[CAPABILITIES] " + monitor->getCapabilitiesJson() + "\n";
+      DWORD written;
+      WriteFile(hPipe, caps.c_str(), caps.size(), &written, NULL);
+
+      char buffer[1024];
+      DWORD bytesRead;
+
+      while (!g_stopMonitoring.load(std::memory_order_relaxed)) {
+        if (!ReadFile(hPipe, buffer, sizeof(buffer) - 1, &bytesRead, NULL)) {
+          break;
+        }
+
+        buffer[bytesRead] = '\0';
+        std::string line(buffer);
+
+        // Process multiple commands if they come in one packet
+        size_t pos = 0;
+        while ((pos = line.find('\n')) != std::string::npos) {
+          std::string cmd = line.substr(0, pos);
+          line.erase(0, pos + 1);
+
+          std::string trimmed = trim(cmd);
+          if (trimmed.empty()) {
+            continue;
+          }
+
+          if (trimmed == "ping") {
+            std::string response = "[PING] OK\n";
+            DWORD written;
+            WriteFile(hPipe, response.c_str(), response.size(), &written, NULL);
+          } else if (trimmed == "status") {
+            monitor->printStatus();
+            std::string capsResponse = "[CAPABILITIES] " + monitor->getCapabilitiesJson() + "\n";
+            WriteFile(hPipe, capsResponse.c_str(), capsResponse.size(), &written, NULL);
+          } else if (trimmed.rfind("scan", 0) == 0) {
+            auto path = trim(trimmed.substr(4));
+            path = stripQuotes(path);
+            if (path.empty()) {
+              std::string err = "[SCAN ERROR] Missing path\n";
+              DWORD written;
+              WriteFile(hPipe, err.c_str(), err.size(), &written, NULL);
+            } else {
+              monitor->scanFile(path);
+            }
+          }
+        }
       }
-      monitor->scanFile(path);
-      continue;
+      monitor->setLogger(nullptr);
     }
 
-    std::cerr << "[CMD] Unknown command: " << trimmed << std::endl;
+    CloseHandle(hPipe);
+    std::cout << "Client disconnected." << std::endl;
   }
 }
 
@@ -146,7 +207,7 @@ int main() {
 
   // Handle authentication if tokens are missing
   if (config.refreshToken == "") {
-    handleUserAuth();
+    std::cout << "Warning: Refresh token missing. Authentication required via GUI." << std::endl;
   }
 
   // Set up Ctrl+C handler
@@ -160,8 +221,6 @@ int main() {
   if (!driver->connect(devicePath)) {
     std::cerr << "Failed to open driver device. Error: " << GetLastError() << std::endl;
     std::cerr << "Make sure the driver is loaded!" << std::endl;
-    std::cout << "\nPress Enter to exit...";
-    std::cin.get();
 
     return EXIT_FAILURE;
   }
@@ -189,7 +248,7 @@ int main() {
     std::cout << "Starting background monitoring thread..." << std::endl;
     monitor.start();
 
-    std::thread commandThread(commandLoop, &monitor);
+    std::thread commandThread(pipeServerLoop, &monitor);
     commandThread.detach();
 
     std::cout << "Monitoring active. Press Ctrl+C to stop." << std::endl
@@ -208,8 +267,6 @@ int main() {
   } catch (const std::exception &ex) {
     std::cerr << "\nFATAL ERROR: Failed to initialize scanning engines: " << ex.what() << std::endl;
     std::cerr << "Make sure the data directory exists with compiled_rules.yara and file_hashes.db" << std::endl;
-    std::cout << "\nPress Enter to exit...";
-    std::cin.get();
 
     return EXIT_FAILURE;
   }

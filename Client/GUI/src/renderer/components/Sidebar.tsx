@@ -1,10 +1,17 @@
-﻿import { Sliders, Activity, Newspaper } from "lucide-react";
+﻿import { Sliders, Activity, Newspaper, LogOut } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { authService } from "../services/authService";
-import logoUrl from "../assets/logo.png";
+import logoUrl from "../../../assets/brand/icon.png";
 import BrandMark from "./BrandMark";
 
-const linkBase = "flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition";
+const navItems = [
+  { to: "/dashboard", icon: Activity, label: "Dashboard" },
+  { to: "/news", icon: Newspaper, label: "News" },
+  { to: "/settings", icon: Sliders, label: "Settings" },
+] as const;
+
+const linkBase =
+  "group flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all duration-200";
 
 const Sidebar = () => {
   const navigate = useNavigate();
@@ -15,63 +22,45 @@ const Sidebar = () => {
   };
 
   return (
-    <aside className="flex w-64 flex-col gap-8 border-r border-slate-200/70 bg-slate-50/90 px-6 py-8 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/40">
-      <div className="flex items-center gap-3">
-        <BrandMark className="h-10 w-10" />
-        <div className="flex flex-col">
-          <img src={logoUrl} alt="Aydo Security" className="h-6 w-auto object-contain" />
-          <span className="text-[10px] uppercase tracking-[0.3em] text-muted">Security Console</span>
-        </div>
+    <aside className="relative flex flex-col h-full w-64 border-r border-slate-200/70 bg-slate-50/90 px-5 py-8 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/40 pt-20">
+      {/* Logo */}
+      <div className="flex flex-col items-center gap-3 px-1">
+        <BrandMark className="h-9 w-9" />
+        <span className="text-[9px] uppercase tracking-[0.35em] text-muted">
+          Security Console
+        </span>
       </div>
 
-      <nav className="flex flex-col gap-2">
-        <NavLink
-          to="/dashboard"
-          className={({ isActive }) =>
-            `${linkBase} ${
-              isActive
-                ? "bg-accent/15 text-accent shadow-glow"
-                : "text-slate-700 hover:bg-slate-200/40 dark:text-white/80 dark:hover:bg-white/5"
-            }`
-          }
-        >
-          <Activity size={18} />
-          Dashboard
-        </NavLink>
-        <NavLink
-          to="/news"
-          className={({ isActive }) =>
-            `${linkBase} ${
-              isActive
-                ? "bg-accent/15 text-accent shadow-glow"
-                : "text-slate-700 hover:bg-slate-200/40 dark:text-white/80 dark:hover:bg-white/5"
-            }`
-          }
-        >
-          <Newspaper size={18} />
-          News
-        </NavLink>
-        <NavLink
-          to="/settings"
-          className={({ isActive }) =>
-            `${linkBase} ${
-              isActive
-                ? "bg-accent/15 text-accent shadow-glow"
-                : "text-slate-700 hover:bg-slate-200/40 dark:text-white/80 dark:hover:bg-white/5"
-            }`
-          }
-        >
-          <Sliders size={18} />
-          Settings
-        </NavLink>
+      {/* Navigation */}
+      <nav className="flex flex-col gap-1.5">
+        {navItems.map(({ to, icon: Icon, label }) => (
+          <NavLink
+            key={to}
+            to={to}
+            className={({ isActive }) =>
+              `${linkBase} ${
+                isActive
+                  ? "bg-accent/15 text-accent shadow-[0_0_0_1px_rgba(90,130,255,0.25),0_4px_12px_rgba(0,0,0,0.15)]"
+                  : "text-slate-700 hover:bg-slate-200/40 dark:text-white/70 dark:hover:bg-white/5 dark:hover:text-white"
+              }`
+            }
+          >
+            <Icon size={18} className="shrink-0" />
+            {label}
+          </NavLink>
+        ))}
       </nav>
 
-      <div className="mt-auto rounded-2xl border border-slate-200/70 bg-white/80 p-4 dark:border-white/10 dark:bg-white/5">
-        <p className="text-xs uppercase tracking-[0.3em] text-muted">Quick Actions</p>
+      {/* Spacer to push content above bottom button */}
+      <div className="flex-1" />
+
+      {/* Bottom sign-out */}
+      <div className="absolute bottom-0 left-0 right-0 border-t border-slate-200/70 bg-slate-50/90 px-5 py-4 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/40">
         <button
           onClick={handleLogout}
-          className="mt-3 w-full rounded-xl border border-slate-200/70 py-2 text-sm text-slate-700 transition hover:border-slate-300 hover:text-slate-900 dark:border-white/10 dark:text-white/80 dark:hover:text-white"
+          className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-slate-600 transition-all duration-200 hover:bg-danger/10 hover:text-danger dark:text-white/60 dark:hover:bg-danger/10 dark:hover:text-danger"
         >
+          <LogOut size={18} className="shrink-0" />
           Sign out
         </button>
       </div>

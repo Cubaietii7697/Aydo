@@ -1,5 +1,5 @@
 ﻿import { EventEmitter } from "node:events";
-import { spawn } from "node:child_process";
+import { createConnection, Socket } from "node:net";
 import { randomUUID } from "node:crypto";
 import { createInterface } from "node:readline";
 import fs from "node:fs";
@@ -11,10 +11,13 @@ import type {
   HandshakeResponse,
   ScanRequest,
   ScanDepth,
-  Sensitivity
+  Sensitivity,
 } from "@shared/antivirus";
 import { AV_PROTOCOL_VERSION } from "@shared/antivirus";
 import type { AntivirusEngine } from "./engine";
+
+const PIPE_NAME = "\\\\.\\pipe\\AydoServicePipe";
+const RECONNECT_DELAY_MS = 3000;
 
 const defaultSettings: AvSettings = {
   sensitivity: "balanced",
@@ -27,7 +30,8 @@ const defaultSettings: AvSettings = {
   refreshToken: "",
   killThreshold: 150,
   entropyThreshold: 6.0,
-  runtime: 60
+  runtime: 60,
+  infectedFileAction: "none",
 };
 
 const HEARTBEAT_INTERVAL_MS = 5000;
@@ -39,22 +43,24 @@ export type ClientEngineOptions = {
 };
 
 export class ClientEngine extends EventEmitter implements AntivirusEngine {
-  private binaryPath: string | null;
-  private workingDir: string;
-  private env: NodeJS.ProcessEnv;
-  private child: ReturnType<typeof spawn> | null = null;
+  private socket: Socket | null = null;
   private connected = false;
   private heartbeatTimer: NodeJS.Timeout | null = null;
   private scanTimer: NodeJS.Timeout | null = null;
   private manualScanStartedAt: number | null = null;
   private manualScanTarget: string | null = null;
   private settings: AvSettings;
+  private reconnectTimer: NodeJS.Timeout | null = null;
+  private userRequestedDisconnect = false;
+  private workingDir: string;
 
   constructor(options: ClientEngineOptions = {}) {
     super();
-    this.binaryPath = resolveBinaryPath(options.binaryPath);
-    this.workingDir = resolveWorkingDir(this.binaryPath, options.workingDir);
-    this.env = { ...process.env, ...options.env };
+    // Working dir logic is kept for config loading, even if we don't spawn
+    this.workingDir = resolveWorkingDir(
+      resolveBinaryPath(options.binaryPath),
+      options.workingDir,
+    );
     const config = readConfig(this.workingDir);
     const killThreshold = config.killThreshold ?? defaultSettings.killThreshold;
     const runtime = config.runtime ?? defaultSettings.runtime;
@@ -62,12 +68,12 @@ export class ClientEngine extends EventEmitter implements AntivirusEngine {
       ...defaultSettings,
       ...config,
       sensitivity: deriveSensitivity(killThreshold),
-      scanDepth: deriveScanDepth(runtime)
+      scanDepth: deriveScanDepth(runtime),
     });
   }
 
   isAvailable(): boolean {
-    return !!this.binaryPath && fs.existsSync(this.binaryPath);
+    return true; // Always attempt to connect
   }
 
   async handshake(request: HandshakeRequest): Promise<HandshakeResponse> {
@@ -76,108 +82,111 @@ export class ClientEngine extends EventEmitter implements AntivirusEngine {
         ok: false,
         engineVersion: "client-unknown",
         serverTime: new Date().toISOString(),
-        message: "Protocol mismatch"
-      };
-    }
-
-    if (!this.binaryPath || !fs.existsSync(this.binaryPath)) {
-      return {
-        ok: false,
-        engineVersion: "client-unknown",
-        serverTime: new Date().toISOString(),
-        message: "Client engine binary not found"
+        message: "Protocol mismatch",
       };
     }
 
     return {
       ok: true,
       engineVersion: "client-1.0.0",
-      serverTime: new Date().toISOString()
+      serverTime: new Date().toISOString(),
     };
   }
 
   async connect(): Promise<void> {
-    if (this.connected || this.child) {
+    if (this.connected || this.socket) {
       return;
     }
 
-    if (!this.binaryPath || !fs.existsSync(this.binaryPath)) {
-      throw new Error("Client engine binary not found");
-    }
+    this.userRequestedDisconnect = false;
+    this.attemptConnection();
+  }
 
-    if (!this.settings.accessToken && !this.settings.refreshToken) {
-      this.emitEvent(
-        "status",
-        "medium",
-        "Server tokens missing. Offline scanning enabled; cloud sync disabled.",
-        { state: "connecting" }
-      );
-    }
+  private attemptConnection() {
+    if (this.socket) return;
 
-    ensureConfig(this.workingDir, this.settings);
-
-    this.child = spawn(this.binaryPath, [], {
-      cwd: this.workingDir,
-      env: this.env,
-      windowsHide: true
+    this.emitEvent("status", "low", "Connecting to service...", {
+      state: "connecting",
     });
 
-    this.connected = true;
-    this.emitEvent("status", "low", "Client engine starting", { state: "connecting" });
-
-    const stdout = createInterface({ input: this.child.stdout });
-    stdout.on("line", (line) => this.handleLine(line));
-
-    const stderr = createInterface({ input: this.child.stderr });
-    stderr.on("line", (line) => this.handleLine(line, true));
-
-    this.child.on("error", (error) => {
-      this.connected = false;
-      this.emitEvent("status", "high", `Client engine failed to start: ${error.message}`, {
-        state: "disconnected",
-        fatal: true
+    const socket = createConnection(PIPE_NAME, () => {
+      this.socket = socket;
+      this.connected = true;
+      this.emitEvent("status", "low", "Connected to local service", {
+        state: "connected",
       });
-      this.cleanup();
+      this.startHeartbeat();
+
+      // Setup line reader
+      const rl = createInterface({ input: socket });
+      rl.on("line", (line) => this.handleLine(line));
     });
 
-    this.child.on("exit", (code) => {
-      this.connected = false;
-      this.emitEvent(
-        "status",
-        "medium",
-        `Client engine stopped${typeof code === "number" ? ` (code ${code})` : ""}`,
-        { state: "disconnected" }
-      );
+    socket.on("error", (err) => {
+      // If we are already connected, this is a drop.
+      // If we are connecting, this is a failure.
+      const msg = err.message;
+      if (!this.connected) {
+        // Silent retry loop for "not found"
+      } else {
+        this.emitEvent("status", "medium", "Connection lost: " + msg, {
+          state: "disconnected",
+        });
+      }
       this.cleanup();
+      this.scheduleReconnect();
     });
 
-    this.startHeartbeat();
+    socket.on("close", () => {
+      if (this.connected) {
+        this.emitEvent("status", "medium", "Service disconnected", {
+          state: "disconnected",
+        });
+      }
+      this.cleanup();
+      this.scheduleReconnect();
+    });
+
+    // We store temporary socket reference to allow cleanup on immediate error
+    // But we don't assign to this.socket until 'connect' fires to avoid using half-open socket
+    // actually, socket.on('error') might fire before connect.
+  }
+
+  private scheduleReconnect() {
+    if (this.userRequestedDisconnect || this.reconnectTimer) return;
+
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      this.attemptConnection();
+    }, RECONNECT_DELAY_MS);
   }
 
   async disconnect(): Promise<void> {
-    if (!this.child) {
-      this.connected = false;
-      return;
+    this.userRequestedDisconnect = true;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
     }
 
-    this.child.kill();
+    if (this.socket) {
+      this.socket.destroy(); // Force close
+      this.socket = null;
+    }
     this.connected = false;
-    this.emitEvent("status", "medium", "Client engine disconnected", { state: "disconnected" });
+    this.emitEvent("status", "medium", "Client engine disconnected", {
+      state: "disconnected",
+    });
     this.cleanup();
   }
 
   async startScan(request: ScanRequest): Promise<void> {
-    if (!this.connected || !this.child) {
+    if (!this.connected || !this.socket) {
       throw new Error("Engine not connected");
     }
 
     const target = request.paths?.[0];
     if (!target) {
       throw new Error("Scan target required");
-    }
-
-    if (!this.child.stdin) {
-      throw new Error("Engine stdin unavailable");
     }
 
     if (this.manualScanStartedAt) {
@@ -189,29 +198,23 @@ export class ClientEngine extends EventEmitter implements AntivirusEngine {
 
     this.emitEvent("scan_progress", "low", "Manual scan started", {
       progress: 0,
-      target
+      target,
     });
 
-    const escaped = target.replace(/\"/g, "\\\"");
-    this.child.stdin.write(`scan \"${escaped}\"\n`);
+    const escaped = target.replace(/\"/g, '\\"');
+    this.socket.write(`scan \"${escaped}\"\n`);
   }
 
   setSettings(settings: AvSettings): void {
     const normalized = normalizeSettings(settings);
     this.settings = { ...normalized };
     ensureConfig(this.workingDir, this.settings);
-    this.emitEvent("info", "low", "Client engine settings updated", { settings: this.settings });
-
-    if (this.child) {
-      this.emitEvent("status", "medium", "Client engine restarting", { state: "reconnecting" });
-      this.child.kill();
-      this.connected = false;
-      this.cleanup();
-      this.connect().catch((error) => {
-        const message = error instanceof Error ? error.message : "Restart failed";
-        this.emitEvent("status", "high", message, { state: "disconnected", fatal: true });
-      });
-    }
+    this.emitEvent("info", "low", "Client engine settings updated", {
+      settings: this.settings,
+    });
+    // Note: Config is read by Service on startup.
+    // Restarting the service remotely isn't possible via pipe yet unless we implement a command.
+    // For now we just save the config.
   }
 
   getSettings(): AvSettings {
@@ -237,12 +240,15 @@ export class ClientEngine extends EventEmitter implements AntivirusEngine {
     }
 
     this.heartbeatTimer = setInterval(() => {
-      if (!this.connected) {
+      if (!this.connected || !this.socket) {
         return;
       }
+      // Optional: send ping to keepalive
+      // this.socket.write("ping\n");
+
       this.emitEvent("heartbeat", "low", "Client heartbeat", {
         engineVersion: "client-1.0.0",
-        pingMs: 10 + Math.round(Math.random() * 12)
+        pingMs: 10 + Math.round(Math.random() * 12),
       });
     }, HEARTBEAT_INTERVAL_MS);
   }
@@ -255,50 +261,85 @@ export class ClientEngine extends EventEmitter implements AntivirusEngine {
 
     const lower = trimmed.toLowerCase();
     const logSeverity: AvEvent["severity"] =
-      isError || lower.includes("fatal") ? "high" : lower.includes("error") || lower.includes("failed") ? "medium" : "low";
+      isError || lower.includes("fatal")
+        ? "high"
+        : lower.includes("error") || lower.includes("failed")
+          ? "medium"
+          : "low";
 
-    if (trimmed.includes("Process monitoring started") || trimmed.includes("Monitoring active")) {
-      this.emitEvent("status", "low", "Client engine online", { state: "connected" });
+    if (
+      trimmed.includes("Process monitoring started") ||
+      trimmed.includes("Monitoring active")
+    ) {
+      this.emitEvent("status", "low", "Client engine online", {
+        state: "connected",
+      });
       return;
     }
 
+    // ... rest of the parsing logic is identical ...
+    // Copying the parsing logic from previous version:
+
     if (trimmed.includes("Process monitoring stopped")) {
-      this.emitEvent("status", "medium", "Client engine stopped", { state: "disconnected" });
+      this.emitEvent("status", "medium", "Client engine stopped", {
+        state: "disconnected",
+      });
       return;
     }
 
     if (trimmed.includes("Failed to open driver device")) {
-      this.emitEvent("status", "high", "Driver unavailable", { state: "disconnected", fatal: true });
+      this.emitEvent("status", "high", "Driver unavailable", {
+        state: "disconnected",
+        fatal: true,
+      });
       return;
     }
 
     if (trimmed.includes("Successfully connected to driver")) {
-      this.emitEvent("status", "low", "Driver connected", { driver: "connected" });
+      this.emitEvent("status", "low", "Driver connected", {
+        driver: "connected",
+      });
       return;
     }
 
     if (trimmed.includes("FATAL ERROR")) {
-      this.emitEvent("status", "high", trimmed, { state: "disconnected", fatal: true });
+      this.emitEvent("status", "high", trimmed, {
+        state: "disconnected",
+        fatal: true,
+      });
       return;
     }
 
     if (trimmed.startsWith("[SCAN]")) {
-      const target = extractAfterColon(trimmed) ?? this.manualScanTarget ?? "Manual scan";
-      this.emitEvent("scan_progress", "low", trimmed, { progress: 10, target });
+      const target =
+        extractAfterColon(trimmed) ?? this.manualScanTarget ?? "Manual scan";
+
+      // Attempt to extract percentage (e.g. "[SCAN] 45% - Scanning: path")
+      let progress = 10;
+      const percentMatch = trimmed.match(/(\d+)%/);
+      if (percentMatch) {
+        progress = parseInt(percentMatch[1], 10);
+      }
+
+      this.emitEvent("scan_progress", "low", trimmed, { progress, target });
       return;
     }
 
     if (trimmed.startsWith("[SCAN RESULT]")) {
-      const target = extractAfterColon(trimmed) ?? this.manualScanTarget ?? "Manual scan";
+      const target =
+        extractAfterColon(trimmed) ?? this.manualScanTarget ?? "Manual scan";
       const isThreat = trimmed.includes("THREAT");
       const durationSec = this.manualScanStartedAt
-        ? Math.max(1, Math.round((Date.now() - this.manualScanStartedAt) / 1000))
+        ? Math.max(
+            1,
+            Math.round((Date.now() - this.manualScanStartedAt) / 1000),
+          )
         : null;
 
       this.emitEvent("scan_complete", isThreat ? "high" : "low", trimmed, {
         target,
         durationSec,
-        threatsFound: isThreat ? 1 : 0
+        threatsFound: isThreat ? 1 : 0,
       });
 
       if (isThreat) {
@@ -311,15 +352,19 @@ export class ClientEngine extends EventEmitter implements AntivirusEngine {
     }
 
     if (trimmed.startsWith("[SCAN ERROR]")) {
-      const target = extractAfterColon(trimmed) ?? this.manualScanTarget ?? "Manual scan";
+      const target =
+        extractAfterColon(trimmed) ?? this.manualScanTarget ?? "Manual scan";
       const durationSec = this.manualScanStartedAt
-        ? Math.max(1, Math.round((Date.now() - this.manualScanStartedAt) / 1000))
+        ? Math.max(
+            1,
+            Math.round((Date.now() - this.manualScanStartedAt) / 1000),
+          )
         : null;
       this.emitEvent("scan_complete", "medium", trimmed, {
         target,
         durationSec,
         threatsFound: 0,
-        failed: true
+        failed: true,
       });
       this.manualScanStartedAt = null;
       this.manualScanTarget = null;
@@ -332,7 +377,19 @@ export class ClientEngine extends EventEmitter implements AntivirusEngine {
     }
 
     if (trimmed.includes("[SUCCESS] Process terminated")) {
-      this.emitEvent("quarantine", "medium", trimmed);
+      this.emitEvent("info", "medium", trimmed);
+      return;
+    }
+
+    if (trimmed.startsWith("[QUARANTINE]")) {
+      this.emitEvent("quarantine", "medium", trimmed, {
+        target: extractAfterColon(trimmed),
+      });
+      return;
+    }
+
+    if (trimmed.startsWith("[DELETE]")) {
+      this.emitEvent("info", "medium", trimmed);
       return;
     }
 
@@ -360,6 +417,26 @@ export class ClientEngine extends EventEmitter implements AntivirusEngine {
       return;
     }
 
+    if (trimmed.startsWith("[CAPABILITIES]")) {
+      try {
+        const jsonStr = trimmed.substring("[CAPABILITIES]".length).trim();
+        const caps = JSON.parse(jsonStr);
+        this.emitEvent(
+          "capabilities_update",
+          "low",
+          "Engine capabilities received",
+          caps,
+        );
+      } catch (e) {
+        this.emitEvent(
+          "info",
+          "medium",
+          "Failed to parse capabilities: " + trimmed,
+        );
+      }
+      return;
+    }
+
     if (
       trimmed.includes("Connecting to server") ||
       trimmed.includes("Initializing scanning engines") ||
@@ -378,7 +455,7 @@ export class ClientEngine extends EventEmitter implements AntivirusEngine {
     type: AvEvent["type"],
     severity: AvEvent["severity"],
     message: string,
-    data?: Record<string, unknown>
+    data?: Record<string, unknown>,
   ): void {
     const event: AvEvent = {
       id: randomUUID(),
@@ -386,7 +463,7 @@ export class ClientEngine extends EventEmitter implements AntivirusEngine {
       type,
       severity,
       message,
-      data
+      data,
     };
 
     this.emit("event", event);
@@ -403,16 +480,18 @@ export class ClientEngine extends EventEmitter implements AntivirusEngine {
       this.scanTimer = null;
     }
 
+    // Do NOT clear socket here, it's cleared in disconnect/error logic carefully
+    if (this.socket && this.socket.destroyed) {
+      this.socket = null;
+    }
+
     this.manualScanStartedAt = null;
     this.manualScanTarget = null;
-
-    if (this.child) {
-      this.child.removeAllListeners();
-      this.child = null;
-    }
+    this.connected = false;
   }
 }
 
+// Helpers
 const resolveBinaryPath = (explicitPath?: string): string | null => {
   const envPath = explicitPath ?? process.env.AYDO_ENGINE_PATH;
   if (envPath && fs.existsSync(envPath)) {
@@ -422,9 +501,7 @@ const resolveBinaryPath = (explicitPath?: string): string | null => {
   const repoRoot = path.resolve(process.cwd(), "..", "..");
   const candidates = [
     path.join(repoRoot, "x64", "Release", "Service.exe"),
-    path.join(repoRoot, "x64", "Debug", "Service.exe"),
-    path.join(repoRoot, "x64", "Release", "ProcessMonitor.exe"),
-    path.join(repoRoot, "x64", "Debug", "ProcessMonitor.exe")
+    path.join(repoRoot, "x64", "Debug", "Service.exe")
   ];
 
   for (const candidate of candidates) {
@@ -436,7 +513,10 @@ const resolveBinaryPath = (explicitPath?: string): string | null => {
   return null;
 };
 
-const resolveWorkingDir = (binaryPath: string | null, explicitDir?: string): string => {
+const resolveWorkingDir = (
+  binaryPath: string | null,
+  explicitDir?: string,
+): string => {
   const envDir = explicitDir ?? process.env.AYDO_ENGINE_CWD;
   if (envDir) {
     return envDir;
@@ -458,11 +538,23 @@ const readConfig = (workingDir: string): Partial<AvSettings> => {
     const raw = JSON.parse(fs.readFileSync(configPath, "utf-8"));
     return {
       serverUrl: typeof raw.serverUrl === "string" ? raw.serverUrl : undefined,
-      accessToken: typeof raw.accessToken === "string" ? raw.accessToken : undefined,
-      refreshToken: typeof raw.refreshToken === "string" ? raw.refreshToken : undefined,
-      killThreshold: Number.isFinite(raw.killThreshold) ? raw.killThreshold : undefined,
-      entropyThreshold: Number.isFinite(raw.entropyThreshold) ? raw.entropyThreshold : undefined,
-      runtime: Number.isFinite(raw.runtime) ? raw.runtime : undefined
+      accessToken:
+        typeof raw.accessToken === "string" ? raw.accessToken : undefined,
+      refreshToken:
+        typeof raw.refreshToken === "string" ? raw.refreshToken : undefined,
+      killThreshold: Number.isFinite(raw.killThreshold)
+        ? raw.killThreshold
+        : undefined,
+      entropyThreshold: Number.isFinite(raw.entropyThreshold)
+        ? raw.entropyThreshold
+        : undefined,
+      runtime: Number.isFinite(raw.runtime) ? raw.runtime : undefined,
+      infectedFileAction:
+        raw.infectedFileAction === 1
+          ? "quarantine"
+          : raw.infectedFileAction === 2
+            ? "delete"
+            : "none",
     };
   } catch {
     return {};
@@ -496,7 +588,9 @@ const normalizeSettings = (settings: AvSettings): AvSettings => {
   const entropyThreshold = Number.isFinite(settings.entropyThreshold)
     ? settings.entropyThreshold
     : defaultSettings.entropyThreshold;
-  const runtime = Number.isFinite(settings.runtime) ? settings.runtime : defaultSettings.runtime;
+  const runtime = Number.isFinite(settings.runtime)
+    ? settings.runtime
+    : defaultSettings.runtime;
   return {
     ...defaultSettings,
     ...settings,
@@ -506,8 +600,9 @@ const normalizeSettings = (settings: AvSettings): AvSettings => {
     killThreshold,
     entropyThreshold,
     runtime,
+    infectedFileAction: settings.infectedFileAction || "none",
     sensitivity: deriveSensitivity(killThreshold),
-    scanDepth: deriveScanDepth(runtime)
+    scanDepth: deriveScanDepth(runtime),
   };
 };
 
@@ -527,7 +622,13 @@ const ensureConfig = (workingDir: string, settings: AvSettings): void => {
       refreshToken: normalized.refreshToken,
       killThreshold: normalized.killThreshold,
       entropyThreshold: normalized.entropyThreshold,
-      runtime: normalized.runtime
+      runtime: normalized.runtime,
+      infectedFileAction:
+        normalized.infectedFileAction === "quarantine"
+          ? 1
+          : normalized.infectedFileAction === "delete"
+            ? 2
+            : 0,
     };
 
     fs.writeFileSync(configPath, JSON.stringify(next, null, 2));

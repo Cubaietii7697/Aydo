@@ -18,7 +18,8 @@ const Login = () => {
   const [showDebug, setShowDebug] = useState(false);
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    const resolvedServerUrl = antivirus.settings.serverUrl || authService.getStoredServerUrl();
+    const resolvedServerUrl =
+      antivirus.settings.serverUrl || authService.getStoredServerUrl();
     const result = await authService.login(email, password, resolvedServerUrl);
     if (result.ok) {
       navigate("/dashboard");
@@ -39,14 +40,21 @@ const Login = () => {
       >
         <div className="glass-panel rounded-3xl p-10 shadow-glow">
           <div className="flex flex-col gap-4">
-            <img src={logoUrl} alt="Aydo Security" className="h-12 w-auto object-contain" />
+            <img
+              src={logoUrl}
+              alt="Aydo Security"
+              className="h-12 w-auto object-contain"
+            />
             <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-muted">Security Console</p>
+              <p className="text-xs uppercase tracking-[0.3em] text-muted">
+                Security Console
+              </p>
               <h1 className="font-display text-3xl font-semibold text-slate-900 dark:text-white">
                 Threat Operations Login
               </h1>
               <p className="mt-2 text-sm text-muted">
-                Authenticate to the AV command center to monitor telemetry and trigger scans.
+                Authenticate to the AV command center to monitor telemetry and
+                trigger scans.
               </p>
             </div>
           </div>
@@ -60,7 +68,7 @@ const Login = () => {
               onValueChange={setEmail}
               classNames={{
                 inputWrapper: "border-white/10 bg-white/5",
-                label: "text-muted"
+                label: "text-muted",
               }}
               isRequired
             />
@@ -72,7 +80,7 @@ const Login = () => {
               onValueChange={setPassword}
               classNames={{
                 inputWrapper: "border-white/10 bg-white/5",
-                label: "text-muted"
+                label: "text-muted",
               }}
               isRequired
             />
@@ -109,19 +117,35 @@ const Login = () => {
             >
               {loading ? "Signing in" : "Access Console"}
             </Button>
+
+            <Button
+              variant="light"
+              className="mt-1 text-muted hover:text-white"
+              onClick={async () => {
+                const result = await authService.continueAsGuest();
+                if (result.ok) navigate("/dashboard");
+              }}
+              isDisabled={loading}
+            >
+              Continue as Guest
+            </Button>
           </form>
 
           <div className="mt-6 flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-muted">
             <Lock size={14} className="text-accent" />
-            <span>Secure access · Engine connection required · Audit-ready session</span>
+            <span>
+              Secure access · Engine connection required · Audit-ready session
+            </span>
           </div>
 
-          <button
-            onClick={() => navigate("/register")}
-            className="mt-6 text-xs font-semibold uppercase tracking-[0.25em] text-accent"
-          >
-            New here? Register
-          </button>
+          <div className="mt-6 flex justify-between items-center">
+            <button
+              onClick={() => navigate("/register")}
+              className="text-xs font-semibold uppercase tracking-[0.25em] text-accent"
+            >
+              New here? Register
+            </button>
+          </div>
         </div>
       </motion.div>
     </div>
@@ -129,4 +153,3 @@ const Login = () => {
 };
 
 export default Login;
-

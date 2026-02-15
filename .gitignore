@@ -441,7 +441,7 @@ FodyWeavers.xsd
 /vcpkg
 vcpkg
 x64/
-*.json
+config.json
 *.env
 *.sqlite
 *.vcxproj

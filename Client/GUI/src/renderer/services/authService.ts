@@ -21,7 +21,7 @@ class AuthService {
   private state: AuthState = {
     user: null,
     loading: false,
-    error: null
+    error: null,
   };
   private listeners = new Set<() => void>();
 
@@ -47,17 +47,26 @@ class AuthService {
     }
   }
 
-  async login(email: string, password: string, serverUrl: string): Promise<{ ok: boolean; message: string }> {
+  async login(
+    email: string,
+    password: string,
+    serverUrl: string,
+  ): Promise<{ ok: boolean; message: string }> {
     this.update({ loading: true, error: null });
 
     if (!email.includes("@") || password.length < 6) {
-      this.update({ loading: false, error: "Invalid credentials. Try a valid email and a stronger password." });
+      this.update({
+        loading: false,
+        error:
+          "Invalid credentials. Try a valid email and a stronger password.",
+      });
       return { ok: false, message: "Invalid credentials" };
     }
 
     const bridge = typeof window !== "undefined" ? window.avBridge : undefined;
     if (!bridge) {
-      const message = "Desktop bridge unavailable. Run the Electron app (bun run dev) instead of the browser URL.";
+      const message =
+        "Desktop bridge unavailable. Run the Electron app (bun run dev) instead of the browser URL.";
       this.update({ loading: false, error: message });
       return { ok: false, message };
     }
@@ -65,7 +74,7 @@ class AuthService {
     const authResult = await bridge.authLogin({
       email,
       password,
-      serverUrl
+      serverUrl,
     });
 
     if (!authResult.ok) {
@@ -75,7 +84,12 @@ class AuthService {
 
     const stored = this.readStored();
     const avatarUrl = stored?.email === email ? stored.avatarUrl : null;
-    const name = authResult.nickname ?? email.split("@")[0].replace(/\./g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    const name =
+      authResult.nickname ??
+      email
+        .split("@")[0]
+        .replace(/\./g, " ")
+        .replace(/\b\w/g, (c) => c.toUpperCase());
     const roleSuffix = authResult.offline ? " (Offline)" : "";
 
     this.update({
@@ -84,9 +98,9 @@ class AuthService {
       user: {
         name,
         email,
-        role: `Security Analyst${roleSuffix}`,
-        avatarUrl
-      }
+        role: `Sigma Rizzler${roleSuffix}`,
+        avatarUrl,
+      },
     });
 
     this.persist();
@@ -98,7 +112,7 @@ class AuthService {
       ...currentSettings,
       serverUrl,
       accessToken: authResult.accessToken ?? currentSettings.accessToken,
-      refreshToken: authResult.refreshToken ?? currentSettings.refreshToken
+      refreshToken: authResult.refreshToken ?? currentSettings.refreshToken,
     });
     await antivirusService.connect();
 
@@ -109,7 +123,7 @@ class AuthService {
     name: string,
     email: string,
     password: string,
-    serverUrl: string
+    serverUrl: string,
   ): Promise<{ ok: boolean; message: string }> {
     this.update({ loading: true, error: null });
 
@@ -119,13 +133,17 @@ class AuthService {
     }
 
     if (!email.includes("@") || password.length < 6) {
-      this.update({ loading: false, error: "Invalid details. Use a valid email and at least 6 characters." });
+      this.update({
+        loading: false,
+        error: "Invalid details. Use a valid email and at least 6 characters.",
+      });
       return { ok: false, message: "Invalid details" };
     }
 
     const bridge = typeof window !== "undefined" ? window.avBridge : undefined;
     if (!bridge) {
-      const message = "Desktop bridge unavailable. Run the Electron app (bun run dev) instead of the browser URL.";
+      const message =
+        "Desktop bridge unavailable. Run the Electron app (bun run dev) instead of the browser URL.";
       this.update({ loading: false, error: message });
       return { ok: false, message };
     }
@@ -134,7 +152,7 @@ class AuthService {
       email,
       password,
       nickname: name,
-      serverUrl
+      serverUrl,
     });
 
     if (!authResult.ok) {
@@ -149,9 +167,9 @@ class AuthService {
       user: {
         name: authResult.nickname ?? name,
         email,
-        role: `Security Analyst${roleSuffix}`,
-        avatarUrl: null
-      }
+        role: `Sigma Rizzler ${roleSuffix}`,
+        avatarUrl: null,
+      },
     });
 
     this.persist();
@@ -163,7 +181,7 @@ class AuthService {
       ...currentSettings,
       serverUrl,
       accessToken: authResult.accessToken ?? currentSettings.accessToken,
-      refreshToken: authResult.refreshToken ?? currentSettings.refreshToken
+      refreshToken: authResult.refreshToken ?? currentSettings.refreshToken,
     });
     await antivirusService.connect();
 
@@ -178,11 +196,36 @@ class AuthService {
     this.update({
       user: {
         ...this.state.user,
-        avatarUrl
-      }
+        avatarUrl,
+      },
     });
 
     this.persist();
+  }
+
+  async continueAsGuest(): Promise<{ ok: boolean }> {
+    this.update({ loading: true, error: null });
+
+    // Simulate a short delay for premium feel
+    await new Promise((resolve) => setTimeout(resolve, 600));
+
+    this.update({
+      loading: false,
+      error: null,
+      user: {
+        name: "Smooth Operator",
+        email: "guest@aydo.ontop",
+        role: "SKIBIDI!!!",
+        avatarUrl: null,
+      },
+    });
+
+    this.persist();
+
+    await antivirusService.init();
+    await antivirusService.connect();
+
+    return { ok: true };
   }
 
   logout(): void {
@@ -192,7 +235,7 @@ class AuthService {
     antivirusService.updateSettings({
       ...antivirusService.getState().settings,
       accessToken: "",
-      refreshToken: ""
+      refreshToken: "",
     });
   }
 
@@ -247,5 +290,5 @@ export const useAuth = (): AuthState =>
   useSyncExternalStore(
     (listener) => authService.subscribe(listener),
     () => authService.getState(),
-    () => authService.getState()
+    () => authService.getState(),
   );

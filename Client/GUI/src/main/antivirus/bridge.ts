@@ -9,7 +9,9 @@ import type {
   AvSnapshot,
   AvStats,
   ScanRequest,
-  AvEngineType
+  AvEngineType,
+  AvCapabilities,
+  HandshakeResponse,
 } from "@shared/antivirus";
 import { AV_PROTOCOL_VERSION } from "@shared/antivirus";
 import type { AntivirusEngine } from "./engine";
@@ -31,21 +33,22 @@ const defaultSettings: AvSettings = {
   refreshToken: "",
   killThreshold: 150,
   entropyThreshold: 6.0,
-  runtime: 60
+  runtime: 60,
+  infectedFileAction: "none",
 };
 
 const defaultStats: AvStats = {
-  dailyActivity: 1240,
-  detections: 3,
-  quarantined: 2,
+  dailyActivity: 0,
+  detections: 0,
+  quarantined: 0,
   lastScanAt: null,
-  lastScanDurationSec: null
+  lastScanDurationSec: null,
 };
 
 const defaultBreakdown: AvBreakdownItem[] = [
-  { label: "Clean", value: 78 },
-  { label: "Blocked", value: 14 },
-  { label: "Quarantined", value: 8 }
+  { label: "Clean", value: 0 },
+  { label: "Blocked", value: 0 },
+  { label: "Quarantined", value: 0 },
 ];
 
 type Sender = (channel: string, payload: AvEventEnvelope) => void;
@@ -61,7 +64,18 @@ export class AntivirusBridge {
   private activity: AvActivityPoint[] = seedActivity();
   private breakdown: AvBreakdownItem[] = [...defaultBreakdown];
   private recentEvents: AvEvent[] = [];
-  private scan = { inProgress: false, progress: 0, target: null as string | null };
+  private scan = {
+    inProgress: false,
+    progress: 0,
+    target: null as string | null,
+  };
+  private capabilities: AvCapabilities = {
+    driver: false,
+    hashdb: false,
+    yara: false,
+    entropy: false,
+    cloud: false,
+  };
   private lastHeartbeatAt: number | null = null;
   private reconnectTimer: NodeJS.Timeout | null = null;
   private watchdogTimer: NodeJS.Timeout | null = null;
@@ -69,7 +83,10 @@ export class AntivirusBridge {
   private userRequestedDisconnect = false;
   private unsubscribe: (() => void) | null = null;
 
-  constructor(sender: Sender, engine: AntivirusEngine = new AntivirusSimulator()) {
+  constructor(
+    sender: Sender,
+    engine: AntivirusEngine = new AntivirusSimulator(),
+  ) {
     this.sender = sender;
     this.engine = engine;
     this.engineType = engine.getType();
@@ -86,37 +103,51 @@ export class AntivirusBridge {
     this.watchdogTimer = setInterval(() => this.monitorHeartbeat(), 6000);
   }
 
-  async connect(): Promise<{ ok: boolean; message: string }>
-  {
-    if (this.connectionState === "connected" || this.connectionState === "connecting") {
+  async connect(): Promise<{ ok: boolean; message: string }> {
+    if (
+      this.connectionState === "connected" ||
+      this.connectionState === "connecting"
+    ) {
       return { ok: true, message: "Already connected" };
     }
 
     this.userRequestedDisconnect = false;
     this.setStatus("connecting", "Negotiating secure channel");
-    this.pushEvent("status", "low", "Negotiating secure channel", { state: "connecting" });
+    this.pushEvent("status", "low", "Negotiating secure channel", {
+      state: "connecting",
+    });
 
     const handshake = await withTimeout(
       this.engine.handshake({
         protocolVersion: AV_PROTOCOL_VERSION,
         clientId: this.clientId,
-        token: "local-sim-token"
+        token: "local-sim-token",
       }),
-      CONNECT_TIMEOUT_MS
+      CONNECT_TIMEOUT_MS,
     ).catch((error) => {
-      const message = error instanceof Error ? error.message : "Handshake failed";
+      const message =
+        error instanceof Error ? error.message : "Handshake failed";
       this.setStatus("disconnected", message);
-      return { ok: false, message };
+      return { ok: false, message } as HandshakeResponse;
     });
 
     if (!handshake || !handshake.ok) {
-      this.setStatus("disconnected", handshake?.message ?? "Handshake rejected");
+      this.setStatus(
+        "disconnected",
+        handshake?.message ?? "Handshake rejected",
+      );
       return { ok: false, message: handshake?.message ?? "Handshake rejected" };
     }
 
-    const connectError = await withTimeout(this.engine.connect(), CONNECT_TIMEOUT_MS).catch((error) => error);
+    const connectError = await withTimeout(
+      this.engine.connect(),
+      CONNECT_TIMEOUT_MS,
+    ).catch((error) => error);
     if (connectError) {
-      const message = connectError instanceof Error ? connectError.message : "Connection failed";
+      const message =
+        connectError instanceof Error
+          ? connectError.message
+          : "Connection failed";
       this.setStatus("disconnected", message);
       return { ok: false, message };
     }
@@ -127,21 +158,25 @@ export class AntivirusBridge {
     }
 
     this.setStatus("connected", "Live protection active");
-    this.pushEvent("status", "low", "Engine connected", { engineVersion: handshake.engineVersion });
+    this.pushEvent("status", "low", "Engine connected", {
+      engineVersion: handshake.engineVersion,
+    });
     return { ok: true, message: "Connected" };
   }
 
-  async disconnect(): Promise<{ ok: boolean; message: string }>
-  {
+  async disconnect(): Promise<{ ok: boolean; message: string }> {
     this.userRequestedDisconnect = true;
     await this.engine.disconnect();
     this.setStatus("disconnected", "Engine offline");
-    this.pushEvent("status", "medium", "Engine disconnected", { reason: "user" });
+    this.pushEvent("status", "medium", "Engine disconnected", {
+      reason: "user",
+    });
     return { ok: true, message: "Disconnected" };
   }
 
-  async startScan(request: ScanRequest): Promise<{ ok: boolean; message: string }>
-  {
+  async startScan(
+    request: ScanRequest,
+  ): Promise<{ ok: boolean; message: string }> {
     if (this.connectionState !== "connected") {
       return { ok: false, message: "Engine not connected" };
     }
@@ -156,7 +191,9 @@ export class AntivirusBridge {
   setSettings(settings: AvSettings): void {
     this.engine.setSettings(settings);
     this.settings = this.engine.getSettings();
-    this.pushEvent("info", "low", "Settings updated", { settings: this.settings });
+    this.pushEvent("info", "low", "Settings updated", {
+      settings: this.settings,
+    });
   }
 
   getSnapshot(): AvSnapshot {
@@ -169,31 +206,39 @@ export class AntivirusBridge {
       breakdown: [...this.breakdown],
       recentEvents: [...this.recentEvents],
       settings: { ...this.settings },
-      scan: { ...this.scan }
+      scan: { ...this.scan },
+      capabilities: { ...this.capabilities },
     };
   }
 
   private handleEvent(event: AvEvent): void {
     if (event.type === "heartbeat") {
       this.lastHeartbeatAt = Date.now();
-      this.bumpActivity(1 + Math.round(Math.random() * 2));
-      this.stats.dailyActivity += 2 + Math.round(Math.random() * 3);
+      const activityValue = 1 + Math.round(Math.random() * 1);
+      this.bumpActivity(activityValue);
+      this.stats.dailyActivity += 1; // Increment on each heartbeat check
       this.setStatus("connected", "Live protection active");
     }
 
     if (event.type === "scan_progress") {
-      const progress = typeof event.data?.progress === "number" ? event.data?.progress : 0;
+      const progress =
+        typeof event.data?.progress === "number" ? event.data?.progress : 0;
       this.scan.inProgress = true;
       this.scan.progress = Math.min(100, progress);
-      this.scan.target = typeof event.data?.target === "string" ? event.data?.target : this.scan.target;
+      this.scan.target =
+        typeof event.data?.target === "string"
+          ? event.data?.target
+          : this.scan.target;
       this.bumpActivity(2 + Math.round(Math.random() * 3));
     }
 
-    if (event.type === "threat_detected") {
+    if (event.type === "threat_detected" || event.type === "quarantine") {
       this.stats.detections += 1;
-      const action = event.data?.action === "quarantined" ? "Quarantined" : "Blocked";
+      const isQuarantine =
+        event.type === "quarantine" || event.data?.action === "quarantined";
+      const action = isQuarantine ? "Quarantined" : "Blocked";
       this.incrementBreakdown(action);
-      if (action === "Quarantined") {
+      if (isQuarantine) {
         this.stats.quarantined += 1;
       }
     }
@@ -202,15 +247,20 @@ export class AntivirusBridge {
       this.scan.inProgress = false;
       this.scan.progress = 100;
       this.stats.lastScanAt = event.timestamp;
-      this.stats.lastScanDurationSec = typeof event.data?.durationSec === "number" ? event.data?.durationSec : null;
-      this.bumpActivity(6 + Math.round(Math.random() * 4));
-      this.stats.dailyActivity += 14 + Math.round(Math.random() * 8);
+      this.stats.lastScanDurationSec =
+        typeof event.data?.durationSec === "number"
+          ? event.data?.durationSec
+          : null;
+      this.bumpActivity(5);
+      this.incrementBreakdown("Clean"); // Most scanned files are clean in summary
     }
 
     if (event.type === "status") {
-      const state = event.data?.state === "connected" || event.data?.state === "disconnected"
-        ? event.data?.state
-        : undefined;
+      const state =
+        event.data?.state === "connected" ||
+        event.data?.state === "disconnected"
+          ? event.data?.state
+          : undefined;
       const fatal = event.data?.fatal === true;
       if (state === "disconnected" && !this.userRequestedDisconnect && !fatal) {
         this.setStatus("reconnecting", "Connection lost, retrying");
@@ -218,6 +268,10 @@ export class AntivirusBridge {
       } else if (state === "disconnected" && fatal) {
         this.setStatus("disconnected", event.message);
       }
+    }
+
+    if (event.type === "capabilities_update") {
+      this.capabilities = { ...this.capabilities, ...(event.data as any) };
     }
 
     this.statusMessage = event.message;
@@ -228,7 +282,7 @@ export class AntivirusBridge {
     type: AvEvent["type"],
     severity: AvEvent["severity"],
     message: string,
-    data?: Record<string, unknown>
+    data?: Record<string, unknown>,
   ): void {
     const event: AvEvent = {
       id: randomUUID(),
@@ -236,7 +290,7 @@ export class AntivirusBridge {
       type,
       severity,
       message,
-      data
+      data,
     };
 
     this.recentEvents = [event, ...this.recentEvents].slice(0, MAX_EVENTS);
@@ -250,15 +304,28 @@ export class AntivirusBridge {
 
   private bumpActivity(value: number): void {
     const now = new Date();
-    const label = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    const next = this.activity.slice(1);
-    next.push({ time: label, value: Math.max(4, value + Math.round(Math.random() * 6)) });
+    const label = now.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+    // Keep 360 points (1 hour total at 10s interval, but heartbeat is 5s,
+    // so 720 points for 1 hour at 5s interval)
+    const MAX_POINTS = 720;
+    const next =
+      this.activity.length >= MAX_POINTS
+        ? this.activity.slice(1)
+        : [...this.activity];
+    next.push({
+      time: label,
+      value: value,
+    });
     this.activity = next;
   }
 
   private incrementBreakdown(label: string): void {
     this.breakdown = this.breakdown.map((item) =>
-      item.label === label ? { ...item, value: item.value + 1 } : item
+      item.label === label ? { ...item, value: item.value + 1 } : item,
     );
   }
 
@@ -267,9 +334,14 @@ export class AntivirusBridge {
       return;
     }
 
-    if (this.lastHeartbeatAt && Date.now() - this.lastHeartbeatAt > HEARTBEAT_TIMEOUT_MS) {
+    if (
+      this.lastHeartbeatAt &&
+      Date.now() - this.lastHeartbeatAt > HEARTBEAT_TIMEOUT_MS
+    ) {
       this.setStatus("reconnecting", "Heartbeat lost, reconnecting");
-      this.pushEvent("status", "medium", "Heartbeat lost, reconnecting", { state: "reconnecting" });
+      this.pushEvent("status", "medium", "Heartbeat lost, reconnecting", {
+        state: "reconnecting",
+      });
       this.scheduleReconnect();
     }
   }
@@ -287,13 +359,20 @@ export class AntivirusBridge {
 }
 
 function seedActivity(): AvActivityPoint[] {
-  const now = new Date();
+  const now = Date.now();
   const points: AvActivityPoint[] = [];
-  for (let i = 11; i >= 0; i -= 1) {
-    const time = new Date(now.getTime() - i * 60 * 60 * 1000);
+  const MAX_POINTS = 720;
+  const INTERVAL_MS = 5000; // 5s heartbeat
+
+  for (let i = MAX_POINTS - 1; i >= 0; i -= 1) {
+    const time = new Date(now - i * INTERVAL_MS);
     points.push({
-      time: time.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      value: 12 + Math.round(Math.random() * 28)
+      time: time.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      }),
+      value: 0, // Real data starts at 0
     });
   }
   return points;
@@ -301,7 +380,10 @@ function seedActivity(): AvActivityPoint[] {
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error("Operation timed out")), ms);
+    const timer = setTimeout(
+      () => reject(new Error("Operation timed out")),
+      ms,
+    );
     promise
       .then((result) => {
         clearTimeout(timer);

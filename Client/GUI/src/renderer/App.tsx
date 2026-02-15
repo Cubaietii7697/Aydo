@@ -1,5 +1,5 @@
 ﻿import { AnimatePresence } from "framer-motion";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { Toaster } from "sonner";
 import { useTheme } from "next-themes";
@@ -8,7 +8,8 @@ import Login from "./routes/Login";
 import Register from "./routes/Register";
 import Settings from "./routes/Settings";
 import News from "./routes/News";
-import { antivirusService } from "./services/antivirusService";
+import SplashScreen from "./components/SplashScreen";
+import { antivirusService, useAntivirus } from "./services/antivirusService";
 import { useAuth } from "./services/authService";
 
 const RequireAuth = ({ children }: { children: JSX.Element }) => {
@@ -22,14 +23,38 @@ const RequireAuth = ({ children }: { children: JSX.Element }) => {
 const App = () => {
   const location = useLocation();
   const { resolvedTheme } = useTheme();
+  const antivirus = useAntivirus();
+  const [showSplash, setShowSplash] = useState(true);
 
   useEffect(() => {
     antivirusService.init();
   }, []);
 
+  useEffect(() => {
+    // Hide splash screen when connected or if we hit an error
+    if (antivirus.connectionState === "connected" || antivirus.error) {
+      // Increase delay to allow the "Architected By" credits to be seen
+      const timer = setTimeout(() => setShowSplash(false), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [antivirus.connectionState, antivirus.error]);
+
   return (
     <div className="min-h-screen" dir="ltr">
-      <Toaster theme={resolvedTheme === "light" ? "light" : "dark"} richColors closeButton />
+      <SplashScreen
+        isVisible={showSplash}
+        status={
+          antivirus.connectionState === "connecting"
+            ? "Establishing secure link..."
+            : antivirus.statusMessage
+        }
+      />
+
+      <Toaster
+        theme={resolvedTheme === "light" ? "light" : "dark"}
+        richColors
+        closeButton
+      />
       <AnimatePresence mode="wait">
         <Routes location={location} key={location.pathname}>
           <Route path="/login" element={<Login />} />

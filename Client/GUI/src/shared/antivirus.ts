@@ -1,6 +1,11 @@
 ﻿export const AV_PROTOCOL_VERSION = 1;
+export const APP_VERSION = "4.6.7";
 
-export type AvConnectionState = "disconnected" | "connecting" | "connected" | "reconnecting";
+export type AvConnectionState =
+  | "disconnected"
+  | "connecting"
+  | "connected"
+  | "reconnecting";
 export type AvSeverity = "low" | "medium" | "high";
 export type AvEventType =
   | "heartbeat"
@@ -9,7 +14,8 @@ export type AvEventType =
   | "threat_detected"
   | "quarantine"
   | "status"
-  | "info";
+  | "info"
+  | "capabilities_update";
 
 export type AvEngineType = "client" | "simulator";
 export type Sensitivity = "low" | "balanced" | "aggressive";
@@ -27,6 +33,7 @@ export interface AvSettings {
   killThreshold: number;
   entropyThreshold: number;
   runtime: number;
+  infectedFileAction: "none" | "quarantine" | "delete";
 }
 
 export interface AvStats {
@@ -62,6 +69,14 @@ export interface AvScanState {
   target?: string | null;
 }
 
+export interface AvCapabilities {
+  driver: boolean;
+  hashdb: boolean;
+  yara: boolean;
+  entropy: boolean;
+  cloud: boolean;
+}
+
 export interface AvSnapshot {
   engineType: AvEngineType;
   connectionState: AvConnectionState;
@@ -72,6 +87,7 @@ export interface AvSnapshot {
   recentEvents: AvEvent[];
   settings: AvSettings;
   scan: AvScanState;
+  capabilities: AvCapabilities;
 }
 
 export interface AvEventEnvelope {
@@ -95,4 +111,5 @@ export interface HandshakeResponse {
 export interface ScanRequest {
   depth: ScanDepth;
   paths?: string[];
+  recursive?: boolean;
 }

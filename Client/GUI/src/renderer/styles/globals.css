@@ -30,6 +30,10 @@
   box-sizing: border-box;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
@@ -47,19 +51,41 @@ body::before {
   content: "";
   position: fixed;
   inset: 0;
-  background-image: radial-gradient(1200px 600px at 20% -10%, rgba(56, 104, 255, 0.22), transparent),
-    radial-gradient(900px 600px at 110% 20%, rgba(110, 148, 255, 0.2), transparent),
+  background-image:
+    radial-gradient(
+      1200px 600px at 20% -10%,
+      rgba(56, 104, 255, 0.22),
+      transparent
+    ),
+    radial-gradient(
+      900px 600px at 110% 20%,
+      rgba(110, 148, 255, 0.2),
+      transparent
+    ),
     linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
-  background-size: auto, auto, 42px 42px, 42px 42px;
+  background-size:
+    auto,
+    auto,
+    42px 42px,
+    42px 42px;
   opacity: 0.55;
   pointer-events: none;
   z-index: 0;
 }
 
 .light body::before {
-  background-image: radial-gradient(1100px 560px at 15% -10%, rgba(72, 118, 255, 0.16), transparent),
-    radial-gradient(900px 520px at 100% 10%, rgba(120, 156, 255, 0.1), transparent),
+  background-image:
+    radial-gradient(
+      1100px 560px at 15% -10%,
+      rgba(72, 118, 255, 0.16),
+      transparent
+    ),
+    radial-gradient(
+      900px 520px at 100% 10%,
+      rgba(120, 156, 255, 0.1),
+      transparent
+    ),
     linear-gradient(to right, rgba(15, 23, 42, 0.025) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(15, 23, 42, 0.025) 1px, transparent 1px);
   opacity: 0.3;
@@ -70,20 +96,76 @@ body::before {
   z-index: 1;
 }
 
+/* ── Glass panels ── */
 .glass-panel {
-  background: linear-gradient(135deg, rgba(14, 21, 31, 0.92), rgba(10, 15, 23, 0.85));
+  background: linear-gradient(
+    135deg,
+    rgba(14, 21, 31, 0.92),
+    rgba(10, 15, 23, 0.85)
+  );
   border: 1px solid rgba(92, 118, 160, 0.2);
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
+  transition:
+    border-color 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+.glass-panel:hover {
+  border-color: rgba(90, 130, 255, 0.25);
 }
 
 .light .glass-panel {
-  background: linear-gradient(135deg, rgba(248, 251, 255, 0.95), rgba(232, 238, 248, 0.92));
+  background: linear-gradient(
+    135deg,
+    rgba(248, 251, 255, 0.95),
+    rgba(232, 238, 248, 0.92)
+  );
   border: 1px solid rgba(148, 163, 184, 0.2);
   box-shadow: 0 18px 46px rgba(15, 23, 42, 0.08);
 }
 
+.light .glass-panel:hover {
+  border-color: rgba(56, 104, 255, 0.3);
+}
+
+/* ── Animated status dot ── */
+@keyframes statusPulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.6);
+  }
+}
+
+.status-dot-animate {
+  animation: statusPulse 2s ease-in-out infinite;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(90, 130, 255, 0.2);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(90, 130, 255, 0.4);
+}
+
+/* ── Brand mark ── */
 .brand-mark {
   display: none;
   background-color: rgb(var(--color-accent));
@@ -101,4 +183,13 @@ body::before {
   .brand-mark-fallback {
     display: none;
   }
+}
+
+/* ── Section header pattern ── */
+.section-header {
+  @apply text-xs uppercase tracking-[0.3em] text-muted;
+}
+
+.section-title {
+  @apply font-display text-xl font-semibold text-slate-900 dark:text-white;
 }
