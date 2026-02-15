@@ -1,14 +1,38 @@
 #include "UserBlock.hpp"
-#include <algorithm>
-#include <cwctype>
-#include <ranges>
-#include <string_view>
+
+#include <array>
+#include <new>
+
 #include "Utils.hpp"
+
+namespace UserBlockConstants {
+inline constexpr size_t g_apiCalls = 18;
+static constexpr std::array<const wchar_t *, g_apiCalls> s_apiCallProviderNames = {
+    L"Microsoft-Windows-DNS-Client",
+    L"Microsoft-Windows-WinHTTP",
+    L"Microsoft-Windows-WMI-Activity",
+    L"Microsoft-Windows-PowerShell",
+    L"Microsoft-Windows-DotNETRuntime",
+    L"Microsoft-Windows-Kernel-Audit-API-Calls",
+    L"Microsoft-Windows-TaskScheduler",
+    L"Microsoft-Windows-Windows Defender",
+    L"Microsoft-Windows-CodeIntegrity",
+    L"Microsoft-Windows-AppLocker",
+    L"Microsoft-Windows-SMBClient",
+    L"Microsoft-Windows-SMBServer",
+    L"Microsoft-Windows-WinRM",
+    L"Microsoft-Windows-TerminalServices-LocalSessionManager",
+    L"Microsoft-Windows-RemoteDesktopServices-RdpCoreTS",
+    L"Microsoft-Windows-CAPI2",
+    L"Microsoft-Windows-Bits-Client",
+    L"Microsoft-Windows-Installer",
+};
+} // namespace UserBlockConstants
 
 UserBlock::UserBlock(const std::wstring &userSessionName)
     : m_sessionName(userSessionName) {}
 
-bool UserBlock::tryParseGuidString(const wchar_t *s, GUID &out) {
+bool UserBlock::s_tryParseGuidString(const wchar_t *s, GUID &out) {
   if (!s || !*s) {
     return false;
   }
@@ -23,7 +47,7 @@ bool UserBlock::tryParseGuidString(const wchar_t *s, GUID &out) {
   return SUCCEEDED(CLSIDFromString(t.c_str(), &out));
 }
 
-bool UserBlock::tryResolveProviderGuidByName(const wchar_t *name, GUID &out) {
+bool UserBlock::s_tryResolveProviderGuidByName(const wchar_t *name, GUID &out) {
   if (!name || !*name) {
     return false;
   }
@@ -63,7 +87,7 @@ void UserBlock::addProvider(const wchar_t *name,
                             ULONGLONG any,
                             ULONGLONG all) {
   GUID gid{};
-  if (tryParseGuidString(name, gid) || tryResolveProviderGuidByName(name, gid)) {
+  if (s_tryParseGuidString(name, gid) || s_tryResolveProviderGuidByName(name, gid)) {
     addProvider(gid, level, any, all);
 
     return;
@@ -88,24 +112,9 @@ void UserBlock::addProvider(const GUID &id,
 void UserBlock::addApiCallsProvider(UCHAR level,
                                     ULONGLONG any,
                                     ULONGLONG all) {
-  addProvider(L"Microsoft-Windows-DNS-Client", level, any, all);
-  addProvider(L"Microsoft-Windows-WinHTTP", level, any, all);
-  addProvider(L"Microsoft-Windows-WMI-Activity", level, any, all);
-  addProvider(L"Microsoft-Windows-PowerShell", level, any, all);
-  addProvider(L"Microsoft-Windows-DotNETRuntime", level, any, all);
-  addProvider(L"Microsoft-Windows-Kernel-Audit-API-Calls", level, any, all);
-  addProvider(L"Microsoft-Windows-TaskScheduler", level, any, all);
-  addProvider(L"Microsoft-Windows-Windows Defender", level, any, all);
-  addProvider(L"Microsoft-Windows-CodeIntegrity", level, any, all);
-  addProvider(L"Microsoft-Windows-AppLocker", level, any, all);
-  addProvider(L"Microsoft-Windows-SMBClient", level, any, all);
-  addProvider(L"Microsoft-Windows-SMBServer", level, any, all);
-  addProvider(L"Microsoft-Windows-WinRM", level, any, all);
-  addProvider(L"Microsoft-Windows-TerminalServices-LocalSessionManager", level, any, all);
-  addProvider(L"Microsoft-Windows-RemoteDesktopServices-RdpCoreTS", level, any, all);
-  addProvider(L"Microsoft-Windows-CAPI2", level, any, all);
-  addProvider(L"Microsoft-Windows-Bits-Client", level, any, all);
-  addProvider(L"Microsoft-Windows-Installer", level, any, all);
+  for (const auto *providerName : UserBlockConstants::s_apiCallProviderNames) {
+    addProvider(providerName, level, any, all);
+  }
 }
 
 void UserBlock::start(Callback on_event) {

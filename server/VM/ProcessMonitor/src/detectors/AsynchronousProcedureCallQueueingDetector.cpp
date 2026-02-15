@@ -10,11 +10,11 @@ std::vector<Finding> AsynchronousProcedureCallQueueingDetector::evaluate(const N
   }
 
   const auto now = ThreadHelpers::eventTsOrNow(ne);
-  const DWORD srcPid = static_cast<DWORD>(ThreadHelpers::actorPidOrFallback(ne));
+  const auto srcPid = static_cast<DWORD>(ThreadHelpers::actorPidOrFallback(ne));
 
   DWORD tgtPid = 0;
   DWORD tgtTid = 0;
-  if (!tryGetTarget(ne, tgtPid, tgtTid)) {
+  if (!_tryGetTarget(ne, tgtPid, tgtTid)) {
     return {};
   }
 
@@ -22,31 +22,30 @@ std::vector<Finding> AsynchronousProcedureCallQueueingDetector::evaluate(const N
     return {};
   }
 
-  if (!caches.hasRecentProcessAccess(srcPid, tgtPid, now, CORRELATION_WINDOW)) {
+  if (!caches.hasRecentProcessAccess(srcPid, tgtPid, now, s_correlationWindow)) {
     return {};
   }
 
-  if (isDuplicate(srcPid, tgtPid, tgtTid, now)) {
+  if (_isDuplicate(srcPid, tgtPid, tgtTid, now)) {
     return {};
   }
 
-  return {buildFinding(ne, srcPid, tgtPid, tgtTid, 8, 75)};
+  return {_buildFinding(ne, srcPid, tgtPid, tgtTid, s_defaultSeverity, s_defaultConfidence)};
 }
 
-bool AsynchronousProcedureCallQueueingDetector::isDuplicate(
+bool AsynchronousProcedureCallQueueingDetector::_isDuplicate(
     DWORD srcPid,
     DWORD tgtPid,
     DWORD tgtTid,
     std::chrono::time_point<std::chrono::system_clock> now) {
   const auto key = std::make_tuple(srcPid, tgtPid, tgtTid);
-  const auto it = m_recentFindings.find(key);
-  if (it != m_recentFindings.end() && (now - it->second) <= DEDUP_WINDOW) {
+  if (const auto it = m_recentFindings.find(key); it != m_recentFindings.end() && (now - it->second) <= s_dedupWindow) {
     return true;
   }
 
   m_recentFindings[key] = now;
-  std::erase_if(m_recentFindings, [&](const auto &kv) {
-    return (now - kv.second) > std::chrono::minutes(1);
+  std::erase_if(m_recentFindings, [&now](const auto &kv) {
+    return (now - kv.second) > IThreadDetector::s_dedupRetentionWindow;
   });
   return false;
 }
@@ -55,7 +54,7 @@ bool AsynchronousProcedureCallQueueingDetector::isMatch(const NormalizedEvent &n
   return ThreadHelpers::isApcQueue(ne);
 }
 
-bool AsynchronousProcedureCallQueueingDetector::tryGetTarget(const NormalizedEvent &ne, DWORD &targetPid, DWORD &targetTid) const {
+bool AsynchronousProcedureCallQueueingDetector::_tryGetTarget(const NormalizedEvent &ne, DWORD &targetPid, DWORD &targetTid) const {
   if (auto p = ThreadHelpers::getTargetPid(ne)) {
     targetPid = static_cast<DWORD>(*p);
   } else {
@@ -70,19 +69,21 @@ bool AsynchronousProcedureCallQueueingDetector::tryGetTarget(const NormalizedEve
   return (targetPid != 0);
 }
 
-Finding AsynchronousProcedureCallQueueingDetector::buildFinding(const NormalizedEvent &ne,
-                                                                DWORD srcPid,
-                                                                DWORD tgtPid,
-                                                                DWORD tgtTid,
-                                                                int severity,
-                                                                int confidence) const {
+Finding AsynchronousProcedureCallQueueingDetector::_buildFinding(const NormalizedEvent &ne,
+                                                                 DWORD srcPid,
+                                                                 DWORD tgtPid,
+                                                                 DWORD tgtTid,
+                                                                 int severity,
+                                                                 int confidence) const {
   nlohmann::json ev;
   ev["provider"] = ne.provider;
   ev["eventId"] = ne.eventId;
-  if (auto s = ThreadHelpers::getStr(ne, "event"))
+  if (auto s = ThreadHelpers::getStr(ne, "event")) {
     ev["event"] = *s;
-  if (auto s = ThreadHelpers::getStr(ne, "task_name"))
+  }
+  if (auto s = ThreadHelpers::getStr(ne, "task_name")) {
     ev["task_name"] = *s;
+  }
   ev["srcPid"] = srcPid;
   ev["tgtPid"] = tgtPid;
   ev["tgtTid"] = tgtTid;

@@ -26,7 +26,7 @@ void KernelBlock::start(const Callback &cb) {
   m_trace = std::make_unique<krabs::kernel_trace>(m_sessionName);
 
   for (auto const &up : m_provs) {
-    up->attach(*m_trace, m_cb);
+    up->_attach(*m_trace, m_cb);
   }
 
   m_thread = std::thread([this] {

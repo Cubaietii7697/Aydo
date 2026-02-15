@@ -17,8 +17,6 @@
 #include "ThreadAnalysisEngine.hpp"
 #include "ThreadCaches.hpp"
 
-namespace {
-
 using ScenarioFeeder = std::function<void(
     ThreadAnalysisEngine &,
     std::chrono::time_point<std::chrono::system_clock>)>;
@@ -29,7 +27,7 @@ struct Scenario {
   std::map<std::string, int> expectedCounts;
 };
 
-NormalizedEvent makeEvent(
+static NormalizedEvent s_makeEvent(
     std::chrono::time_point<std::chrono::system_clock> ts,
     DWORD pid,
     DWORD tid,
@@ -51,7 +49,7 @@ NormalizedEvent makeEvent(
   return ne;
 }
 
-bool loadFindingCounts(
+static bool s_loadFindingCounts(
     const std::filesystem::path &dbPath,
     std::map<std::string, int> &counts,
     std::string &error) {
@@ -93,7 +91,7 @@ bool loadFindingCounts(
   return true;
 }
 
-bool runScenario(const Scenario &scenario) {
+static bool s_runScenario(const Scenario &scenario) {
   const auto dbPath =
       std::filesystem::temp_directory_path() /
       std::filesystem::path("pm_selftest_" + scenario.name + ".sqlite");
@@ -113,7 +111,7 @@ bool runScenario(const Scenario &scenario) {
 
   std::map<std::string, int> actual;
   std::string error;
-  const bool loaded = loadFindingCounts(dbPath, actual, error);
+  const bool loaded = s_loadFindingCounts(dbPath, actual, error);
   std::filesystem::remove(dbPath, ec);
   if (!loaded) {
     std::wcerr << L"[self-test] " << std::wstring(scenario.name.begin(), scenario.name.end())
@@ -157,12 +155,12 @@ bool runScenario(const Scenario &scenario) {
   return ok;
 }
 
-std::vector<Scenario> buildScenarios() {
+static std::vector<Scenario> s_buildScenarios() {
   return {
       {
           "remote_thread_positive",
           [](ThreadAnalysisEngine &engine, const auto base) {
-            auto access = makeEvent(
+            auto access = s_makeEvent(
                 base + std::chrono::seconds(0),
                 1001,
                 5001,
@@ -174,7 +172,7 @@ std::vector<Scenario> buildScenarios() {
             access.fields["ReturnCode"] = uint32_t(0);
             engine.onEvent(access);
 
-            auto start = makeEvent(
+            auto start = s_makeEvent(
                 base + std::chrono::seconds(1),
                 2001,
                 5002,
@@ -194,7 +192,7 @@ std::vector<Scenario> buildScenarios() {
       {
           "apc_positive",
           [](ThreadAnalysisEngine &engine, const auto base) {
-            auto access = makeEvent(
+            auto access = s_makeEvent(
                 base + std::chrono::seconds(0),
                 1101,
                 5101,
@@ -206,7 +204,7 @@ std::vector<Scenario> buildScenarios() {
             access.fields["ReturnCode"] = uint32_t(0);
             engine.onEvent(access);
 
-            auto apc = makeEvent(
+            auto apc = s_makeEvent(
                 base + std::chrono::seconds(1),
                 1101,
                 5102,
@@ -223,7 +221,7 @@ std::vector<Scenario> buildScenarios() {
       {
           "hijack_positive",
           [](ThreadAnalysisEngine &engine, const auto base) {
-            auto start = makeEvent(
+            auto start = s_makeEvent(
                 base + std::chrono::seconds(0),
                 2201,
                 5201,
@@ -238,7 +236,7 @@ std::vector<Scenario> buildScenarios() {
             start.fields["TThreadId"] = uint32_t(3201);
             engine.onEvent(start);
 
-            auto suspend = makeEvent(
+            auto suspend = s_makeEvent(
                 base + std::chrono::seconds(1),
                 1201,
                 5202,
@@ -250,7 +248,7 @@ std::vector<Scenario> buildScenarios() {
             suspend.fields["TargetTid"] = uint32_t(3201);
             engine.onEvent(suspend);
 
-            auto context = makeEvent(
+            auto context = s_makeEvent(
                 base + std::chrono::seconds(2),
                 1201,
                 5203,
@@ -262,7 +260,7 @@ std::vector<Scenario> buildScenarios() {
             context.fields["TargetTid"] = uint32_t(3201);
             engine.onEvent(context);
 
-            auto resume = makeEvent(
+            auto resume = s_makeEvent(
                 base + std::chrono::seconds(3),
                 1201,
                 5204,
@@ -279,7 +277,7 @@ std::vector<Scenario> buildScenarios() {
       {
           "negative_local_actions",
           [](ThreadAnalysisEngine &engine, const auto base) {
-            auto access = makeEvent(
+            auto access = s_makeEvent(
                 base + std::chrono::seconds(0),
                 1301,
                 5301,
@@ -291,7 +289,7 @@ std::vector<Scenario> buildScenarios() {
             access.fields["ReturnCode"] = uint32_t(0);
             engine.onEvent(access);
 
-            auto apc = makeEvent(
+            auto apc = s_makeEvent(
                 base + std::chrono::seconds(1),
                 1301,
                 5302,
@@ -303,7 +301,7 @@ std::vector<Scenario> buildScenarios() {
             apc.fields["TargetTid"] = uint32_t(3301);
             engine.onEvent(apc);
 
-            auto start = makeEvent(
+            auto start = s_makeEvent(
                 base + std::chrono::seconds(2),
                 1301,
                 5303,
@@ -318,7 +316,7 @@ std::vector<Scenario> buildScenarios() {
             start.fields["TThreadId"] = uint32_t(3301);
             engine.onEvent(start);
 
-            auto suspend = makeEvent(
+            auto suspend = s_makeEvent(
                 base + std::chrono::seconds(3),
                 1301,
                 5304,
@@ -330,7 +328,7 @@ std::vector<Scenario> buildScenarios() {
             suspend.fields["TargetTid"] = uint32_t(3301);
             engine.onEvent(suspend);
 
-            auto context = makeEvent(
+            auto context = s_makeEvent(
                 base + std::chrono::seconds(4),
                 1301,
                 5305,
@@ -342,7 +340,7 @@ std::vector<Scenario> buildScenarios() {
             context.fields["TargetTid"] = uint32_t(3301);
             engine.onEvent(context);
 
-            auto resume = makeEvent(
+            auto resume = s_makeEvent(
                 base + std::chrono::seconds(5),
                 1301,
                 5306,
@@ -359,7 +357,7 @@ std::vector<Scenario> buildScenarios() {
       {
           "negative_incomplete_sequence",
           [](ThreadAnalysisEngine &engine, const auto base) {
-            auto start = makeEvent(
+            auto start = s_makeEvent(
                 base + std::chrono::seconds(0),
                 2401,
                 5401,
@@ -374,7 +372,7 @@ std::vector<Scenario> buildScenarios() {
             start.fields["TThreadId"] = uint32_t(3401);
             engine.onEvent(start);
 
-            auto suspend = makeEvent(
+            auto suspend = s_makeEvent(
                 base + std::chrono::seconds(1),
                 1401,
                 5402,
@@ -386,7 +384,7 @@ std::vector<Scenario> buildScenarios() {
             suspend.fields["TargetTid"] = uint32_t(3401);
             engine.onEvent(suspend);
 
-            auto resume = makeEvent(
+            auto resume = s_makeEvent(
                 base + std::chrono::seconds(2),
                 1401,
                 5403,
@@ -403,7 +401,7 @@ std::vector<Scenario> buildScenarios() {
       {
           "negative_stale",
           [](ThreadAnalysisEngine &engine, const auto base) {
-            auto access = makeEvent(
+            auto access = s_makeEvent(
                 base + std::chrono::seconds(0),
                 1501,
                 5501,
@@ -415,7 +413,7 @@ std::vector<Scenario> buildScenarios() {
             access.fields["ReturnCode"] = uint32_t(0);
             engine.onEvent(access);
 
-            auto staleStart = makeEvent(
+            auto staleStart = s_makeEvent(
                 base + std::chrono::seconds(12),
                 2501,
                 5502,
@@ -430,7 +428,7 @@ std::vector<Scenario> buildScenarios() {
             staleStart.fields["TThreadId"] = uint32_t(3501);
             engine.onEvent(staleStart);
 
-            auto owner = makeEvent(
+            auto owner = s_makeEvent(
                 base + std::chrono::seconds(0),
                 2601,
                 5503,
@@ -445,7 +443,7 @@ std::vector<Scenario> buildScenarios() {
             owner.fields["TThreadId"] = uint32_t(3601);
             engine.onEvent(owner);
 
-            auto suspend = makeEvent(
+            auto suspend = s_makeEvent(
                 base + std::chrono::seconds(1),
                 1601,
                 5504,
@@ -457,7 +455,7 @@ std::vector<Scenario> buildScenarios() {
             suspend.fields["TargetTid"] = uint32_t(3601);
             engine.onEvent(suspend);
 
-            auto context = makeEvent(
+            auto context = s_makeEvent(
                 base + std::chrono::seconds(14),
                 1601,
                 5505,
@@ -469,7 +467,7 @@ std::vector<Scenario> buildScenarios() {
             context.fields["TargetTid"] = uint32_t(3601);
             engine.onEvent(context);
 
-            auto resume = makeEvent(
+            auto resume = s_makeEvent(
                 base + std::chrono::seconds(15),
                 1601,
                 5506,
@@ -486,7 +484,7 @@ std::vector<Scenario> buildScenarios() {
       {
           "duplicate_suppression",
           [](ThreadAnalysisEngine &engine, const auto base) {
-            auto access = makeEvent(
+            auto access = s_makeEvent(
                 base + std::chrono::seconds(0),
                 1701,
                 5701,
@@ -498,7 +496,7 @@ std::vector<Scenario> buildScenarios() {
             access.fields["ReturnCode"] = uint32_t(0);
             engine.onEvent(access);
 
-            auto apc1 = makeEvent(
+            auto apc1 = s_makeEvent(
                 base + std::chrono::seconds(1),
                 1701,
                 5702,
@@ -510,7 +508,7 @@ std::vector<Scenario> buildScenarios() {
             apc1.fields["TargetTid"] = uint32_t(3701);
             engine.onEvent(apc1);
 
-            auto apc2 = makeEvent(
+            auto apc2 = s_makeEvent(
                 base + std::chrono::seconds(2),
                 1701,
                 5703,
@@ -527,14 +525,12 @@ std::vector<Scenario> buildScenarios() {
   };
 }
 
-} // namespace
-
 int RunProcessMonitorSelfTest() {
-  const auto scenarios = buildScenarios();
+  const auto scenarios = s_buildScenarios();
   int failed = 0;
 
   for (const auto &scenario : scenarios) {
-    if (runScenario(scenario)) {
+    if (s_runScenario(scenario)) {
       std::wcout << L"[self-test] PASS "
                  << std::wstring(scenario.name.begin(), scenario.name.end())
                  << std::endl;
@@ -554,3 +550,6 @@ int RunProcessMonitorSelfTest() {
   std::wcerr << L"[self-test] failures: " << failed << std::endl;
   return EXIT_FAILURE;
 }
+
+
+

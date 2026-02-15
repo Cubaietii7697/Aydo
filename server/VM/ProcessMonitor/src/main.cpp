@@ -1,41 +1,55 @@
 #include "pch.h"
 
-#include <atomic>
-#include <format>
-#include <fstream>
 #include <iostream>
-#include <mutex>
-#include <set>
+#include <memory>
 #include <string>
+#include <string_view>
 #include <thread>
 
 #include "Constants.hpp"
 #include "ProcessMonitor.hpp"
 #include "SelfTest.hpp"
 
+namespace MainConstants {
+static constexpr int s_selfTestArgCount = 2;
+static constexpr int s_executableArgIndex = 1;
+static constexpr int s_outputPathArgIndex = 2;
+static constexpr int s_traceDurationArgIndex = 3;
+static constexpr int s_minRunArgCount = 3;
+static constexpr int s_maxRunArgCount = 4;
+
+static constexpr std::wstring_view s_selfTestFlag = L"--self-test";
+static constexpr std::wstring_view s_kernelSessionName = L"NTKernelLogger";
+static constexpr std::wstring_view s_userSessionName = L"NTUserLogger";
+} // namespace MainConstants
+
 int wmain(int argc, wchar_t *argv[]) {
-  if (argc == 2 && _wcsicmp(argv[1], L"--self-test") == 0) {
+  if (argc == MainConstants::s_selfTestArgCount && _wcsicmp(argv[MainConstants::s_executableArgIndex], MainConstants::s_selfTestFlag.data()) == 0) {
     return RunProcessMonitorSelfTest();
   }
 
-  if (argc < 3 || argc > 4) {
+  if (argc < MainConstants::s_minRunArgCount || argc > MainConstants::s_maxRunArgCount) {
     std::wcerr << L"Usage: " << argv[0] << L" <exefile> <logFile> [TraceTime]" << std::endl;
     std::wcerr << L"       " << argv[0] << L" --self-test" << std::endl;
 
     return EXIT_FAILURE;
   }
 
-  const std::wstring targetExe = argv[1];
+  const std::wstring targetExe = argv[MainConstants::s_executableArgIndex];
 
-  const int TRACE_DURATION_S = (argc == 4) ? _wtoi(argv[3]) : Constants::DEFAULT_TIME_S;
-  const std::wstring sessionNameKernel = L"NTKernelLogger";
-  const std::wstring sessionNameUser = L"NTUserLogger";
+  const int traceDurationSeconds =
+      (argc == MainConstants::s_maxRunArgCount) ? _wtoi(argv[MainConstants::s_traceDurationArgIndex]) : Constants::g_defaultTraceDurationSeconds;
+
   try {
-    auto pm = std::make_unique<ProcessMonitor>(targetExe, sessionNameKernel, sessionNameUser, argv[2]);
+    auto pm = std::make_unique<ProcessMonitor>(
+        targetExe,
+        std::wstring(MainConstants::s_kernelSessionName),
+        std::wstring(MainConstants::s_userSessionName),
+        argv[MainConstants::s_outputPathArgIndex]);
     // Start monitor
     pm->start();
 
-    std::this_thread::sleep_for(std::chrono::seconds(TRACE_DURATION_S));
+    std::this_thread::sleep_for(std::chrono::seconds(traceDurationSeconds));
 
     pm->stop();
   } catch (...) {

@@ -54,6 +54,9 @@
     <ClCompile Include="src\ThreadCaches.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\ThreadHelpers.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="src\SelfTest.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -96,6 +99,9 @@
       <Filter>Header Files\etw</Filter>
     </ClInclude>
     <ClInclude Include="include\storage\EventWriter.hpp">
+      <Filter>Header Files\storage</Filter>
+    </ClInclude>
+    <ClInclude Include="include\storage\EventWriterConstants.hpp">
       <Filter>Header Files\storage</Filter>
     </ClInclude>
     <ClInclude Include="include\storage\SqlRequests.hpp">

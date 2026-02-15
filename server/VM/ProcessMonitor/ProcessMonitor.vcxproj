@@ -218,6 +218,7 @@ $(ProjectDir)include;$(ProjectDir)include\core;$(ProjectDir)include\etw;$(Projec
     <ClCompile Include="src\Utils.cpp" />
     <ClCompile Include="src\ThreadAnalysisEngine.cpp" />
     <ClCompile Include="src\ThreadCaches.cpp" />
+    <ClCompile Include="src\ThreadHelpers.cpp" />
     <ClCompile Include="src\SelfTest.cpp" />
     <ClCompile Include="src\detectors\RemoteThreadCreationDetector.cpp" />
     <ClCompile Include="src\detectors\AsynchronousProcedureCallQueueingDetector.cpp" />
@@ -237,6 +238,7 @@ $(ProjectDir)include;$(ProjectDir)include\core;$(ProjectDir)include\etw;$(Projec
     <ClInclude Include="include\etw\KernelBlock.hpp" />
     <ClInclude Include="include\etw\UserBlock.hpp" />
     <ClInclude Include="include\storage\EventWriter.hpp" />
+    <ClInclude Include="include\storage\EventWriterConstants.hpp" />
     <ClInclude Include="include\storage\SqlRequests.hpp" />
     <ClInclude Include="include\analysis\CrossProcWindow.hpp" />
     <ClInclude Include="include\analysis\Finding.hpp" />

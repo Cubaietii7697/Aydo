@@ -14,15 +14,15 @@ public:
   std::string name() const override { return "AsynchronousProcedureCallQueueingDetector"; }
 
 private:
-  static constexpr auto CORRELATION_WINDOW = std::chrono::seconds(10);
-  static constexpr auto DEDUP_WINDOW = std::chrono::seconds(5);
+  static constexpr auto s_correlationWindow = std::chrono::seconds(10);
+  static constexpr auto s_dedupWindow = std::chrono::seconds(5);
 
-  bool isDuplicate(DWORD srcPid,
-                   DWORD tgtPid,
-                   DWORD tgtTid,
-                   std::chrono::time_point<std::chrono::system_clock> now);
-  bool tryGetTarget(const NormalizedEvent &ne, DWORD &targetPid, DWORD &targetTid) const;
-  Finding buildFinding(const NormalizedEvent &ne, DWORD srcPid, DWORD tgtPid, DWORD tgtTid,
-                       int severity, int confidence) const;
+  bool _isDuplicate(DWORD srcPid,
+                    DWORD tgtPid,
+                    DWORD tgtTid,
+                    std::chrono::time_point<std::chrono::system_clock> now);
+  bool _tryGetTarget(const NormalizedEvent &ne, DWORD &targetPid, DWORD &targetTid) const;
+  Finding _buildFinding(const NormalizedEvent &ne, DWORD srcPid, DWORD tgtPid, DWORD tgtTid,
+                        int severity, int confidence) const;
   std::map<std::tuple<DWORD, DWORD, DWORD>, std::chrono::time_point<std::chrono::system_clock>> m_recentFindings;
 };

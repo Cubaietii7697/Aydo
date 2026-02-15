@@ -26,8 +26,8 @@ public:
                    ULONGLONG all);
 
 private:
-  static bool tryParseGuidString(const wchar_t *s, GUID &out);
-  static bool tryResolveProviderGuidByName(const wchar_t *name, GUID &out);
+  static bool s_tryParseGuidString(const wchar_t *s, GUID &out);
+  static bool s_tryResolveProviderGuidByName(const wchar_t *name, GUID &out);
 
 private:
   std::unique_ptr<krabs::user_trace> m_trace;

@@ -10,14 +10,15 @@ std::vector<Finding> ThreadHijackDetector::evaluate(const NormalizedEvent &ne, T
   }
 
   const auto targetTidOpt = ThreadHelpers::getTargetTid(ne);
-  const DWORD targetTid = targetTidOpt ? static_cast<DWORD>(*targetTidOpt) : ne.tid;
+  const auto targetTid = targetTidOpt ? static_cast<DWORD>(*targetTidOpt) : ne.tid;
   if (targetTid == 0) {
     return {};
   }
 
   const auto it = caches.byTid.find(targetTid);
-  if (it == caches.byTid.end())
+  if (it == caches.byTid.end()) {
     return {};
+  }
 
   const ThreadState &st = it->second;
   const auto now = ThreadHelpers::eventTsOrNow(ne);
@@ -36,7 +37,7 @@ std::vector<Finding> ThreadHijackDetector::evaluate(const NormalizedEvent &ne, T
     return {};
   }
 
-  if ((now - st.lastSuspend) > SEQUENCE_WINDOW) {
+  if ((now - st.lastSuspend) > s_sequenceWindow) {
     return {};
   }
 
@@ -49,27 +50,27 @@ std::vector<Finding> ThreadHijackDetector::evaluate(const NormalizedEvent &ne, T
     return {};
   }
 
-  if (isDuplicate(actorPid, st.ownerPid, targetTid, now)) {
+  if (_isDuplicate(actorPid, st.ownerPid, targetTid, now)) {
     return {};
   }
 
-  return {buildFinding(ne, st.ownerPid, targetTid, 8, 75, "resume_after_context_change")};
+  return {buildFinding(ne, st.ownerPid, targetTid, s_defaultSeverity + 1, s_defaultConfidence, "resume_after_context_change")};
 }
 
-bool ThreadHijackDetector::isDuplicate(
+bool ThreadHijackDetector::_isDuplicate(
     DWORD actorPid,
     DWORD ownerPid,
     DWORD tid,
     std::chrono::time_point<std::chrono::system_clock> now) {
   const auto key = std::make_tuple(actorPid, ownerPid, tid);
-  const auto it = m_recentFindings.find(key);
-  if (it != m_recentFindings.end() && (now - it->second) <= DEDUP_WINDOW) {
+
+  if (const auto it = m_recentFindings.find(key); it != m_recentFindings.end() && (now - it->second) <= s_dedupWindow) {
     return true;
   }
 
   m_recentFindings[key] = now;
   std::erase_if(m_recentFindings, [&](const auto &kv) {
-    return (now - kv.second) > std::chrono::minutes(1);
+    return (now - kv.second) > IThreadDetector::s_dedupRetentionWindow;
   });
   return false;
 }
@@ -83,10 +84,12 @@ Finding ThreadHijackDetector::buildFinding(const NormalizedEvent &ne,
   nlohmann::json ev;
   ev["provider"] = ne.provider;
   ev["eventId"] = ne.eventId;
-  if (auto s = ThreadHelpers::getStr(ne, "event"))
+  if (auto s = ThreadHelpers::getStr(ne, "event")) {
     ev["event"] = *s;
-  if (auto s = ThreadHelpers::getStr(ne, "task_name"))
+  }
+  if (auto s = ThreadHelpers::getStr(ne, "task_name")) {
     ev["task_name"] = *s;
+  }
   ev["ownerPid"] = ownerPid;
   ev["tid"] = tid;
   ev["phase"] = phase;

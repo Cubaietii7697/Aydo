@@ -1,5 +1,11 @@
-#include "Utils.hpp"
+#include "../Utils.hpp"
 #include "Constants.hpp"
+
+namespace UtilsConstants {
+static constexpr int s_iso8601YearWidth = 4;
+static constexpr int s_iso8601DateTimeFieldWidth = 2;
+static constexpr int s_iso8601MillisecondsWidth = 3;
+} // namespace UtilsConstants
 
 std::wstring Utils::trimWs(std::wstring s) {
   auto is_space = [](wchar_t c) { return c == L' ' || c == L'\t' || c == L'\n' || c == L'\r'; };
@@ -39,8 +45,9 @@ std::wstring Utils::composeEvent(const krabs::schema &s) {
   } catch (...) {
   }
   ev = trimWs(ev);
-  if (!ev.empty())
+  if (!ev.empty()) {
     return ev;
+  }
 
   std::wstring task;
   std::wstring op;
@@ -167,11 +174,11 @@ nlohmann::json Utils::normalizeProto(const nlohmann::json &props) {
   if (it != props.end()) {
     if (it->is_number_integer()) {
       int v = *it;
-      if (v == IPPROTO_TCP) {
+      if (v == Constants::g_ipProtocolTcp) {
         return "TCP";
       }
 
-      if (v == IPPROTO_UDP) {
+      if (v == Constants::g_ipProtocolUdp) {
         return "UDP";
       }
 
@@ -235,8 +242,9 @@ nlohmann::json Utils::extractFile(const nlohmann::json &props, const std::wstrin
     std::wstring tk = trimWs(task);
     std::wstring combo = tk;
     if (!op.empty()) {
-      if (!combo.empty())
+      if (!combo.empty()) {
         combo += L"/";
+      }
       combo += op;
     }
     if (!combo.empty()) {
@@ -266,11 +274,11 @@ int Utils::resolveBitness(HANDLE h) {
                          nativeMachine == IMAGE_FILE_MACHINE_ARM64);
       bool isWow = (processMachine != IMAGE_FILE_MACHINE_UNKNOWN);
       if (isNative64 && !isWow) {
-        return 64;
+        return Constants::g_bitness64;
       }
 
       if (isNative64 && isWow) {
-        return 32;
+        return Constants::g_bitness32;
       }
     }
   } else {
@@ -281,11 +289,11 @@ int Utils::resolveBitness(HANDLE h) {
       bool os64 = (si.wProcessorArchitecture == PROCESSOR_ARCHITECTURE_AMD64 ||
                    si.wProcessorArchitecture == PROCESSOR_ARCHITECTURE_ARM64);
       if (os64) {
-        return wow ? 32 : 64;
+        return wow ? Constants::g_bitness32 : Constants::g_bitness64;
       }
     }
   }
-  return 64; // assumption
+  return Constants::g_bitness64; // assumption
 }
 
 std::string Utils::narrow_utf8(const std::wstring &w) {
@@ -312,7 +320,7 @@ std::wstring Utils::widenUtf8(const std::string &s) {
 
 nlohmann::json Utils::bestEffortProcFromPid(DWORD pid) {
   nlohmann::json p;
-  if (pid == 0 || pid == 0xFFFFFFFFu) {
+  if (pid == 0 || pid == Constants::g_invalidPid) {
     return p;
   }
 
@@ -331,7 +339,7 @@ nlohmann::json Utils::bestEffortProcFromPid(DWORD pid) {
 }
 
 nlohmann::json Utils::normUintOrNull(ULONG v) {
-  return (v == 0xFFFFFFFFuL) ? nlohmann::json(nullptr) : nlohmann::json(v);
+  return (v == Constants::g_invalidPid) ? nlohmann::json(nullptr) : nlohmann::json(v);
 }
 
 unsigned long long Utils::ts100nsFromLargeInteger(const LARGE_INTEGER &ts) {
@@ -342,7 +350,7 @@ unsigned long long Utils::ts100nsFromLargeInteger(const LARGE_INTEGER &ts) {
 }
 
 std::string Utils::getHostName() {
-  wchar_t buf[Constants::HOST_MAX_NAME]{};
+  wchar_t buf[Constants::g_hostNameBufferChars]{};
   DWORD len = (DWORD)std::size(buf);
   if (GetComputerNameExW(ComputerNamePhysicalDnsHostname, buf, &len)) {
     return Utils::narrow_utf8(std::wstring(buf, len));
@@ -367,13 +375,13 @@ std::string Utils::iso8601FromLargeIntegerTimestamp(const LARGE_INTEGER &ts) {
   }
   std::ostringstream oss;
   oss << std::setfill('0')
-      << std::setw(4) << st_utc.wYear << "-"
-      << std::setw(2) << st_utc.wMonth << "-"
-      << std::setw(2) << st_utc.wDay << "T"
-      << std::setw(2) << st_utc.wHour << ":"
-      << std::setw(2) << st_utc.wMinute << ":"
-      << std::setw(2) << st_utc.wSecond << "."
-      << std::setw(3) << st_utc.wMilliseconds << "Z";
+      << std::setw(UtilsConstants::s_iso8601YearWidth) << st_utc.wYear << "-"
+      << std::setw(UtilsConstants::s_iso8601DateTimeFieldWidth) << st_utc.wMonth << "-"
+      << std::setw(UtilsConstants::s_iso8601DateTimeFieldWidth) << st_utc.wDay << "T"
+      << std::setw(UtilsConstants::s_iso8601DateTimeFieldWidth) << st_utc.wHour << ":"
+      << std::setw(UtilsConstants::s_iso8601DateTimeFieldWidth) << st_utc.wMinute << ":"
+      << std::setw(UtilsConstants::s_iso8601DateTimeFieldWidth) << st_utc.wSecond << "."
+      << std::setw(UtilsConstants::s_iso8601MillisecondsWidth) << st_utc.wMilliseconds << "Z";
 
   return oss.str();
 }
@@ -384,18 +392,18 @@ std::string Utils::iso8601FromTimePoint(std::chrono::system_clock::time_point tp
   std::tm tm{};
   gmtime_s(&tm, &t);
 
-  const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(tp.time_since_epoch()) % 1000;
+  const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(tp.time_since_epoch()) % Constants::g_millisecondsPerSecond;
 
   std::ostringstream oss;
   oss << std::put_time(&tm, "%Y-%m-%dT%H:%M:%S")
-      << '.' << std::setw(3) << std::setfill('0') << ms.count()
+      << '.' << std::setw(UtilsConstants::s_iso8601MillisecondsWidth) << std::setfill('0') << ms.count()
       << 'Z';
   return oss.str();
 }
 
 std::string Utils::guidToString(const GUID &g) {
-  wchar_t buf[Constants::GUID_SIZE];
-  if (int n = ::StringFromGUID2(g, buf, Constants::GUID_SIZE); n <= 0) {
+  wchar_t buf[Constants::g_guidStringBufferChars];
+  if (int n = ::StringFromGUID2(g, buf, Constants::g_guidStringBufferChars); n <= 0) {
     return {};
   }
 

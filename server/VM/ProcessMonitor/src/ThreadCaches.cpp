@@ -53,12 +53,15 @@ void ThreadCaches::update(const NormalizedEvent &e) {
       *srcPid != 0 && *tgtPid != 0 &&
       *srcPid != *tgtPid) {
     auto &w = crossProcWindows[{static_cast<DWORD>(*srcPid), static_cast<DWORD>(*tgtPid)}];
-    if (ThreadHelpers::isProcessAccess(e))
+    if (ThreadHelpers::isProcessAccess(e)) {
       w.lastProcessAccess = now;
-    if (ThreadHelpers::isRemoteThread(e))
+    }
+    if (ThreadHelpers::isRemoteThread(e)) {
       w.lastRemoteThread = now;
-    if (ThreadHelpers::isApcQueue(e))
+    }
+    if (ThreadHelpers::isApcQueue(e)) {
       w.lastApcQueue = now;
+    }
   }
 }
 
@@ -68,12 +71,14 @@ bool ThreadCaches::hasRecentProcessAccess(
     std::chrono::time_point<std::chrono::system_clock> now,
     std::chrono::seconds window) const {
   const auto it = crossProcWindows.find({sourcePid, targetPid});
-  if (it == crossProcWindows.end())
+  if (it == crossProcWindows.end()) {
     return false;
+  }
 
   const auto ts = it->second.lastProcessAccess;
-  if (ts.time_since_epoch().count() == 0)
+  if (ts.time_since_epoch().count() == 0) {
     return false;
+  }
 
   return ts <= now && (now - ts) <= window;
 }
@@ -87,14 +92,17 @@ std::optional<DWORD> ThreadCaches::findRecentSourceForTarget(
 
   for (const auto &[key, val] : crossProcWindows) {
     const auto &[srcPid, tgtPid] = key;
-    if (tgtPid != targetPid)
+    if (tgtPid != targetPid) {
       continue;
+    }
 
     const auto ts = val.lastProcessAccess;
-    if (ts.time_since_epoch().count() == 0)
+    if (ts.time_since_epoch().count() == 0) {
       continue;
-    if (ts > now || (now - ts) > window)
+    }
+    if (ts > now || (now - ts) > window) {
       continue;
+    }
 
     if (!bestSource || ts > bestTs) {
       bestSource = srcPid;

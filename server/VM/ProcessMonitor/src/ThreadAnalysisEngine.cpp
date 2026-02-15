@@ -16,8 +16,9 @@ ThreadAnalysisEngine::ThreadAnalysisEngine(ThreadCaches *c, EventWriter *w)
 }
 
 void ThreadAnalysisEngine::onEvent(const NormalizedEvent &ne) {
-  if (!caches || !writer)
+  if (!caches || !writer) {
     return;
+  }
 
   // update state for sequences/correlation
   caches->update(ne);

@@ -1,18 +1,18 @@
 #include "EventWriter.hpp"
+
 #include <tdh.h>
-#include <botan/hex.h>
+#include <format>
 #include <iomanip>
 #include <objbase.h>
 #include <sstream>
+#include <stdexcept>
+
 #include "Constants.hpp"
+#include "EventWriterConstants.hpp"
 #include "SqlRequests.hpp"
 #include "Utils.hpp"
 
-struct Mapping;
-
-namespace {
-
-void execSql(sqlite3 *db, const char *sql, const char *tag) {
+static void s_execSql(sqlite3 *db, const char *sql, const char *tag) {
   if (!db || !sql) {
     return;
   }
@@ -31,8 +31,8 @@ void execSql(sqlite3 *db, const char *sql, const char *tag) {
   }
 }
 
-void ensureFindingsSchema(sqlite3 *db) {
-  static constexpr const char *FINDINGS_DDL = R"SQL(
+static void s_ensureFindingsSchema(sqlite3 *db) {
+  static constexpr const char *s_findingsDdl = R"SQL(
 CREATE TABLE IF NOT EXISTS Findings (
     EventTime      DATETIME NOT NULL,
     Type           TEXT,
@@ -49,10 +49,8 @@ CREATE INDEX IF NOT EXISTS idx_findings_time ON Findings(EventTime);
 CREATE INDEX IF NOT EXISTS idx_findings_type ON Findings(Type);
 )SQL";
 
-  execSql(db, FINDINGS_DDL, "sqlite3_exec(FINDINGS_DDL)");
+  s_execSql(db, s_findingsDdl, "sqlite3_exec(FINDINGS_DDL)");
 }
-
-} // namespace
 
 EventWriter::EventWriter(std::wstring path,
                          WireFormat fmt,
@@ -60,12 +58,12 @@ EventWriter::EventWriter(std::wstring path,
                          bool length_prefixed)
     : m_path(std::move(path))
     , m_pretty(pretty)
-    , m_wireFornat(fmt)
+    , m_wireFormat(fmt)
     , m_db(nullptr)
     , m_lengthPrefixed(length_prefixed) {
 
   std::scoped_lock<std::mutex> lk(m_mtx);
-  ensureSinkOpenLocked();
+  _ensureSinkOpenLocked();
 }
 
 EventWriter::~EventWriter() {
@@ -85,39 +83,39 @@ EventWriter::~EventWriter() {
   }
 }
 
-void EventWriter::writeToSqlite(const nlohmann::json &j) {
+void EventWriter::_writeToSqlite(const nlohmann::json &j) {
   if (!m_db || !j.is_object()) {
-    OutputDebugStringA("writeToSqlite: no DB handle or JSON is not an object\n");
+    OutputDebugStringA("_writeToSqlite: no DB handle or JSON is not an object\n");
     return;
   }
 
   std::vector<std::string> columns;
   std::vector<nlohmann::json> values;
 
-  collectColumnsAndValues(j, columns, values);
+  _collectColumnsAndValues(j, columns, values);
 
   if (columns.empty()) {
-    OutputDebugStringA("writeToSqlite: no columns collected for INSERT\n");
+    OutputDebugStringA("_writeToSqlite: no columns collected for INSERT\n");
     return;
   }
 
-  const std::string sql = buildInsertSql(columns);
+  const std::string sql = _buildInsertSql(columns);
 
   sqlite3_stmt *stmt = nullptr;
-  if (!prepareInsertStatement(sql, &stmt)) {
-    OutputDebugStringA("writeToSqlite: prepareInsertStatement failed\n");
+  if (!_prepareInsertStatement(sql, &stmt)) {
+    OutputDebugStringA("_writeToSqlite: _prepareInsertStatement failed\n");
     return;
   }
 
-  if (!bindJsonValues(stmt, values)) {
-    OutputDebugStringA("writeToSqlite: bindJsonValues failed\n");
+  if (!_bindJsonValues(stmt, values)) {
+    OutputDebugStringA("_writeToSqlite: _bindJsonValues failed\n");
     sqlite3_finalize(stmt);
     return;
   }
 
   if (const int rc = sqlite3_step(stmt); rc != SQLITE_DONE) {
 
-    std::string msg = std::format("writeToSqlite: sqlite3_step failed, rc={}",
+    std::string msg = std::format("_writeToSqlite: sqlite3_step failed, rc={}",
                                   std::to_string(rc));
     if (m_db) {
       msg += ", err=";
@@ -126,33 +124,33 @@ void EventWriter::writeToSqlite(const nlohmann::json &j) {
     msg += "\n";
     OutputDebugStringA(msg.c_str());
   } else {
-    OutputDebugStringA("writeToSqlite: inserted one event\n");
+    OutputDebugStringA("_writeToSqlite: inserted one event\n");
 
-    writeAuxEventTables(j);
+    _writeAuxEventTables(j);
   }
 
   sqlite3_finalize(stmt);
 }
 
-void EventWriter::initSqliteSchema() {
+void EventWriter::_initSqliteSchema() {
   if (!m_db) {
     return;
   }
 
-  execSql(m_db, SqlRequests::TABLES_CREATE, "sqlite3_exec(TABLES_CREATE)");
+  s_execSql(m_db, SqlRequests::TABLES_CREATE, "sqlite3_exec(TABLES_CREATE)");
   // Always attempt Findings DDL independently in case legacy Events schema migration fails.
-  ensureFindingsSchema(m_db);
+  s_ensureFindingsSchema(m_db);
 }
 
-bool EventWriter::bindJsonValues(sqlite3_stmt *stmt,
-                                 const std::vector<nlohmann::json> &values) const {
+bool EventWriter::_bindJsonValues(sqlite3_stmt *stmt,
+                                  const std::vector<nlohmann::json> &values) const {
   if (!stmt) {
     return false;
   }
 
   for (size_t i = 0; i < values.size(); ++i) {
     const auto &val = values[i];
-    const auto idx = static_cast<int>(i + 1);
+    const auto idx = static_cast<int>(i + EventWriterConstants::g_sqliteIndexBase);
 
     int rc = SQLITE_OK;
 
@@ -168,11 +166,11 @@ bool EventWriter::bindJsonValues(sqlite3_stmt *stmt,
       rc = sqlite3_bind_int(stmt, idx, val.get<bool>() ? 1 : 0);
     } else if (val.is_string()) {
       const std::string &s = val.get_ref<const std::string &>();
-      rc = sqlite3_bind_text(stmt, idx, s.c_str(), -1, SQLITE_TRANSIENT);
+      rc = sqlite3_bind_text(stmt, idx, s.c_str(), EventWriterConstants::g_sqliteAutoLength, SQLITE_TRANSIENT);
     } else {
       // Fallback: store as JSON text.
       const std::string s = val.dump();
-      rc = sqlite3_bind_text(stmt, idx, s.c_str(), -1, SQLITE_TRANSIENT);
+      rc = sqlite3_bind_text(stmt, idx, s.c_str(), EventWriterConstants::g_sqliteAutoLength, SQLITE_TRANSIENT);
     }
 
     if (rc != SQLITE_OK) {
@@ -183,14 +181,14 @@ bool EventWriter::bindJsonValues(sqlite3_stmt *stmt,
   return true;
 }
 
-bool EventWriter::prepareInsertStatement(const std::string &sql, sqlite3_stmt **stmtOut) {
+bool EventWriter::_prepareInsertStatement(const std::string &sql, sqlite3_stmt **stmtOut) {
   if (!m_db || !stmtOut) {
     return false;
   }
 
   *stmtOut = nullptr;
 
-  if (const int rc = sqlite3_prepare_v2(m_db, sql.c_str(), -1, stmtOut, nullptr); rc != SQLITE_OK || !*stmtOut) {
+  if (const int rc = sqlite3_prepare_v2(m_db, sql.c_str(), EventWriterConstants::g_sqliteAutoLength, stmtOut, nullptr); rc != SQLITE_OK || !*stmtOut) {
     if (*stmtOut) {
       sqlite3_finalize(*stmtOut);
       *stmtOut = nullptr;
@@ -202,7 +200,7 @@ bool EventWriter::prepareInsertStatement(const std::string &sql, sqlite3_stmt **
   return true;
 }
 
-std::string EventWriter::buildInsertSql(const std::vector<std::string> &columns) const {
+std::string EventWriter::_buildInsertSql(const std::vector<std::string> &columns) const {
   std::ostringstream sql;
 
   sql << "INSERT INTO Events(";
@@ -226,9 +224,9 @@ std::string EventWriter::buildInsertSql(const std::vector<std::string> &columns)
   return sql.str();
 }
 
-void EventWriter::collectColumnsAndValues(const nlohmann::json &j,
-                                          std::vector<std::string> &columns,
-                                          std::vector<nlohmann::json> &values) const {
+void EventWriter::_collectColumnsAndValues(const nlohmann::json &j,
+                                           std::vector<std::string> &columns,
+                                           std::vector<nlohmann::json> &values) const {
   columns.clear();
   values.clear();
 
@@ -256,7 +254,7 @@ void EventWriter::collectColumnsAndValues(const nlohmann::json &j,
 
     sqlite3_stmt *stmt = nullptr;
     const char *sql = "PRAGMA table_info(Events);";
-    if (sqlite3_prepare_v2(m_db, sql, -1, &stmt, nullptr) != SQLITE_OK || !stmt) {
+    if (sqlite3_prepare_v2(m_db, sql, EventWriterConstants::g_sqliteAutoLength, &stmt, nullptr) != SQLITE_OK || !stmt) {
       if (stmt) {
         sqlite3_finalize(stmt);
       }
@@ -265,7 +263,7 @@ void EventWriter::collectColumnsAndValues(const nlohmann::json &j,
 
     while (sqlite3_step(stmt) == SQLITE_ROW) {
       // PRAGMA table_info columns: (cid, name, type, notnull, dflt_value, pk)
-      const unsigned char *txt = sqlite3_column_text(stmt, 1);
+      const unsigned char *txt = sqlite3_column_text(stmt, EventWriterConstants::g_pragmaTableInfoNameColumnIndex);
       if (!txt) {
         continue;
       }
@@ -287,14 +285,15 @@ void EventWriter::collectColumnsAndValues(const nlohmann::json &j,
   const auto &colsToWalk = schemaCols; // fallback
 
   auto findInObjects = [&](const std::string &key) -> const nlohmann::json * {
-    if (auto it = j.find(key); it != j.end() && !it->is_null())
+    if (auto it = j.find(key); it != j.end() && !it->is_null()) {
       return &it.value();
+    }
 
-    static const std::array categories = {"props", "proc", "net", "dns", "file"};
-    for (const auto &cat : categories) {
+    for (const auto *cat : EventWriterConstants::g_eventBucketNames) {
       if (auto catIt = j.find(cat); catIt != j.end() && catIt->is_object()) {
-        if (auto it = catIt->find(key); it != catIt->end() && !it->is_null())
+        if (auto it = catIt->find(key); it != catIt->end() && !it->is_null()) {
           return &it.value();
+        }
       }
     }
     return nullptr;
@@ -303,13 +302,14 @@ void EventWriter::collectColumnsAndValues(const nlohmann::json &j,
   // Helpful for bridging PascalCase columns (UserSid) to snake_case payload keys (user_sid)
   auto findSnakeCase = [&](const std::string &key) -> const nlohmann::json * {
     std::string snake;
-    snake.reserve(key.size() + Constants::SNAKE_CASE_EXTRA_CAPACITY);
+    snake.reserve(key.size() + Constants::g_snakeCaseExtraCapacity);
 
     for (size_t i = 0; i < key.size(); ++i) {
       const auto c = static_cast<unsigned char>(key[i]);
       if (c >= 'A' && c <= 'Z') {
-        if (i != 0)
+        if (i != 0) {
           snake.push_back('_');
+        }
         snake.push_back(static_cast<char>(c - 'A' + 'a'));
       } else {
         snake.push_back(static_cast<char>(c));
@@ -329,25 +329,29 @@ void EventWriter::collectColumnsAndValues(const nlohmann::json &j,
     // from the SQL column name.
     //
     if (colName == "EventId") {
-      if (j.contains("event_id"))
+      if (j.contains("event_id")) {
         src = &j["event_id"];
-      else if (j.contains("EventId"))
+      } else if (j.contains("EventId")) {
         src = &j["EventId"];
+      }
     } else if (colName == "EventRecordId") {
-      if (j.contains("EventRecordId"))
+      if (j.contains("EventRecordId")) {
         src = &j["EventRecordId"];
-      else if (j.contains("event_record_id"))
+      } else if (j.contains("event_record_id")) {
         src = &j["event_record_id"];
+      }
     } else if (colName == "EventTime") {
-      if (j.contains("ts"))
+      if (j.contains("ts")) {
         src = &j["ts"];
-      else if (j.contains("EventTime"))
+      } else if (j.contains("EventTime")) {
         src = &j["EventTime"];
+      }
     } else if (colName == "Computer") {
-      if (j.contains("host"))
+      if (j.contains("host")) {
         src = &j["host"];
-      else if (j.contains("Computer"))
+      } else if (j.contains("Computer")) {
         src = &j["Computer"];
+      }
     } else if (colName == "Provider" && j.contains("provider")) {
       src = &j["provider"];
     } else if (colName == "Category" && j.contains("category")) {
@@ -374,36 +378,27 @@ void EventWriter::collectColumnsAndValues(const nlohmann::json &j,
 void EventWriter::flush() {
   std::scoped_lock<std::mutex> lk(m_mtx);
 
-  if (m_wireFornat != WireFormat::Sqlite && m_out.is_open()) {
+  if (m_wireFormat != WireFormat::Sqlite && m_out.is_open()) {
     m_out.flush();
   }
 }
 
-static inline const wchar_t *info_wstr(const BYTE *base,
-                                       size_t baseSizeBytes,
-                                       ULONG offsetBytes) {
-  if (!base || offsetBytes >= baseSizeBytes) {
-    return L"";
-  }
-
-  const void *p = base + offsetBytes;
-  return static_cast<const wchar_t *>(p);
-}
-
-void EventWriter::fillPropsViaTdh(nlohmann::json &props,
-                                  const EVENT_RECORD &rec,
-                                  const krabs::trace_context &ctx) const {
+void EventWriter::_fillPropsViaTdh(nlohmann::json &props,
+                                   const EVENT_RECORD &rec,
+                                   const krabs::trace_context &ctx) const {
   try {
     // 1. Get Event Information
     ULONG size = 0;
     ::TdhGetEventInformation(const_cast<EVENT_RECORD *>(&rec), 0, nullptr, nullptr, &size);
-    if (size == 0)
+    if (size == 0) {
       return;
+    }
 
     std::vector<BYTE> buf(size);
     auto *info = reinterpret_cast<TRACE_EVENT_INFO *>(buf.data());
-    if (TdhGetEventInformation(const_cast<EVENT_RECORD *>(&rec), 0, nullptr, info, &size) != ERROR_SUCCESS)
+    if (TdhGetEventInformation(const_cast<EVENT_RECORD *>(&rec), 0, nullptr, info, &size) != ERROR_SUCCESS) {
       return;
+    }
 
     krabs::schema schema(rec, ctx.schema_locator);
     krabs::parser parser(schema);
@@ -459,7 +454,7 @@ void EventWriter::fillPropsViaTdh(nlohmann::json &props,
         case TDH_INTYPE_POINTER:
         case TDH_INTYPE_HEXINT32:
         case TDH_INTYPE_HEXINT64: {
-          uint64_t val = (epi.length == 4) ? parser.parse<uint32_t>(wname) : parser.parse<uint64_t>(wname);
+          uint64_t val = (epi.length == EventWriterConstants::g_uint32ByteWidth) ? parser.parse<uint32_t>(wname) : parser.parse<uint64_t>(wname);
           props[name] = (std::ostringstream() << "0x" << std::hex << std::nouppercase << val).str();
           break;
         }
@@ -467,8 +462,8 @@ void EventWriter::fillPropsViaTdh(nlohmann::json &props,
         // GUIDs
         case TDH_INTYPE_GUID: {
           GUID g = parser.parse<GUID>(wname);
-          wchar_t bufGuid[Constants::GUID_SIZE];
-          props[name] = StringFromGUID2(g, bufGuid, Constants::GUID_SIZE) ? Utils::narrow_utf8(bufGuid) : "<unsupported>";
+          wchar_t bufGuid[Constants::g_guidStringBufferChars];
+          props[name] = StringFromGUID2(g, bufGuid, Constants::g_guidStringBufferChars) ? Utils::narrow_utf8(bufGuid) : "<unsupported>";
           break;
         }
 
@@ -485,9 +480,9 @@ void EventWriter::fillPropsViaTdh(nlohmann::json &props,
   }
 }
 
-void EventWriter::flattenJsonOneLevel(const nlohmann::json &obj,
-                                      const std::string &prefix,
-                                      std::vector<std::pair<std::string, nlohmann::json>> &out) {
+void EventWriter::_flattenJsonOneLevel(const nlohmann::json &obj,
+                                       const std::string &prefix,
+                                       std::vector<std::pair<std::string, nlohmann::json>> &out) {
   if (!obj.is_object()) {
     return;
   }
@@ -503,7 +498,7 @@ void EventWriter::flattenJsonOneLevel(const nlohmann::json &obj,
   }
 }
 
-void EventWriter::writeAuxEventTables(const nlohmann::json &j) {
+void EventWriter::_writeAuxEventTables(const nlohmann::json &j) {
   if (!m_db || !j.is_object()) {
     return;
   }
@@ -519,15 +514,16 @@ void EventWriter::writeAuxEventTables(const nlohmann::json &j) {
         "INSERT OR REPLACE INTO EventPayloads (EventRecordId, JsonText) VALUES (?, ?);";
 
     sqlite3_stmt *stmt = nullptr;
-    if (sqlite3_prepare_v2(m_db, sql, -1, &stmt, nullptr) == SQLITE_OK && stmt) {
-      sqlite3_bind_int64(stmt, 1, eventRecordId);
+    if (sqlite3_prepare_v2(m_db, sql, EventWriterConstants::g_sqliteAutoLength, &stmt, nullptr) == SQLITE_OK && stmt) {
+      sqlite3_bind_int64(stmt, EventWriterConstants::g_payloadBindEventRecordId, eventRecordId);
       const std::string payload = j.dump(); // compact JSON
-      sqlite3_bind_text(stmt, 2, payload.c_str(), static_cast<int>(payload.size()), SQLITE_TRANSIENT);
+      sqlite3_bind_text(stmt, EventWriterConstants::g_payloadBindJsonText, payload.c_str(), static_cast<int>(payload.size()), SQLITE_TRANSIENT);
 
       (void)sqlite3_step(stmt);
     }
-    if (stmt)
+    if (stmt) {
       sqlite3_finalize(stmt);
+    }
   }
 
   {
@@ -535,24 +531,24 @@ void EventWriter::writeAuxEventTables(const nlohmann::json &j) {
         "INSERT OR REPLACE INTO EventFields (EventRecordId, Key, Value, ValueType) VALUES (?, ?, ?, ?);";
 
     sqlite3_stmt *stmt = nullptr;
-    if (sqlite3_prepare_v2(m_db, sql, -1, &stmt, nullptr) != SQLITE_OK || !stmt) {
-      if (stmt)
+    if (sqlite3_prepare_v2(m_db, sql, EventWriterConstants::g_sqliteAutoLength, &stmt, nullptr) != SQLITE_OK || !stmt) {
+      if (stmt) {
         sqlite3_finalize(stmt);
+      }
       return;
     }
 
     std::vector<std::pair<std::string, nlohmann::json>> flat;
-    flat.reserve(256);
+    flat.reserve(EventWriterConstants::g_flattenedFieldReserveSize);
 
     // top-level keys
-    flattenJsonOneLevel(j, "", flat);
+    _flattenJsonOneLevel(j, "", flat);
 
     // common nested buckets
-    static const std::array<const char *, 5> buckets = {"props", "proc", "net", "dns", "file"};
-    for (const char *b : buckets) {
+    for (const char *b : EventWriterConstants::g_eventBucketNames) {
       auto it = j.find(b);
       if (it != j.end() && it->is_object()) {
-        flattenJsonOneLevel(*it, b, flat);
+        _flattenJsonOneLevel(*it, b, flat);
       }
     }
 
@@ -578,10 +574,10 @@ void EventWriter::writeAuxEventTables(const nlohmann::json &j) {
       sqlite3_reset(stmt);
       sqlite3_clear_bindings(stmt);
 
-      sqlite3_bind_int64(stmt, 1, eventRecordId);
-      sqlite3_bind_text(stmt, 2, k.c_str(), static_cast<int>(k.size()), SQLITE_TRANSIENT);
-      sqlite3_bind_text(stmt, 3, valueText.c_str(), static_cast<int>(valueText.size()), SQLITE_TRANSIENT);
-      sqlite3_bind_text(stmt, 4, type.c_str(), static_cast<int>(type.size()), SQLITE_TRANSIENT);
+      sqlite3_bind_int64(stmt, EventWriterConstants::g_fieldBindEventRecordId, eventRecordId);
+      sqlite3_bind_text(stmt, EventWriterConstants::g_fieldBindKey, k.c_str(), static_cast<int>(k.size()), SQLITE_TRANSIENT);
+      sqlite3_bind_text(stmt, EventWriterConstants::g_fieldBindValue, valueText.c_str(), static_cast<int>(valueText.size()), SQLITE_TRANSIENT);
+      sqlite3_bind_text(stmt, EventWriterConstants::g_fieldBindValueType, type.c_str(), static_cast<int>(type.size()), SQLITE_TRANSIENT);
 
       (void)sqlite3_step(stmt);
     }
@@ -591,7 +587,7 @@ void EventWriter::writeAuxEventTables(const nlohmann::json &j) {
 }
 
 void EventWriter::writeFinding(const Finding &f) {
-  if (m_wireFornat != WireFormat::Sqlite) {
+  if (m_wireFormat != WireFormat::Sqlite) {
     nlohmann::json j;
     j["RecordType"] = "Finding";
     j["EventTime"] = Utils::iso8601FromTimePoint(f.ts);
@@ -602,13 +598,13 @@ void EventWriter::writeFinding(const Finding &f) {
     j["TargetPid"] = f.target_pid;
     j["Tid"] = f.tid;
     j["EvidenceJson"] = f.evidence_json;
-    writeOut(j);
+    _writeOut(j);
     return;
   }
 
   // insert into Findings table
   std::scoped_lock<std::mutex> lk(m_mtx);
-  ensureSinkOpenLocked();
+  _ensureSinkOpenLocked();
 
   if (!m_db) {
     if (sqlite3_open16(m_path.c_str(), &m_db) != SQLITE_OK) {
@@ -616,22 +612,22 @@ void EventWriter::writeFinding(const Finding &f) {
       m_db = nullptr;
       return;
     }
-    initSqliteSchema();
+    _initSqliteSchema();
   }
 
-  static const char *SQL =
+  static const char *s_sql =
       "INSERT INTO Findings(EventTime, Type, Severity, Confidence, SourcePid, TargetPid, Tid, EvidenceJson) "
       "VALUES(?,?,?,?,?,?,?,?);";
 
   sqlite3_stmt *stmt = nullptr;
-  if (sqlite3_prepare_v2(m_db, SQL, -1, &stmt, nullptr) != SQLITE_OK || !stmt) {
+  if (sqlite3_prepare_v2(m_db, s_sql, EventWriterConstants::g_sqliteAutoLength, &stmt, nullptr) != SQLITE_OK || !stmt) {
     if (stmt) {
       sqlite3_finalize(stmt);
       stmt = nullptr;
     }
 
-    ensureFindingsSchema(m_db);
-    if (sqlite3_prepare_v2(m_db, SQL, -1, &stmt, nullptr) != SQLITE_OK || !stmt) {
+    s_ensureFindingsSchema(m_db);
+    if (sqlite3_prepare_v2(m_db, s_sql, EventWriterConstants::g_sqliteAutoLength, &stmt, nullptr) != SQLITE_OK || !stmt) {
       if (stmt) {
         sqlite3_finalize(stmt);
       }
@@ -641,21 +637,21 @@ void EventWriter::writeFinding(const Finding &f) {
 
   const auto ts = Utils::iso8601FromTimePoint(f.ts);
 
-  sqlite3_bind_text(stmt, 1, ts.c_str(), -1, SQLITE_TRANSIENT);
-  sqlite3_bind_text(stmt, 2, f.type.c_str(), -1, SQLITE_TRANSIENT);
-  sqlite3_bind_int(stmt, 3, f.severity);
-  sqlite3_bind_int(stmt, 4, f.confidence);
-  sqlite3_bind_int(stmt, 5, static_cast<int>(f.source_pid));
-  sqlite3_bind_int(stmt, 6, static_cast<int>(f.target_pid));
-  sqlite3_bind_int(stmt, 7, static_cast<int>(f.tid));
-  sqlite3_bind_text(stmt, 8, f.evidence_json.c_str(), -1, SQLITE_TRANSIENT);
+  sqlite3_bind_text(stmt, EventWriterConstants::g_findingBindEventTime, ts.c_str(), EventWriterConstants::g_sqliteAutoLength, SQLITE_TRANSIENT);
+  sqlite3_bind_text(stmt, EventWriterConstants::g_findingBindType, f.type.c_str(), EventWriterConstants::g_sqliteAutoLength, SQLITE_TRANSIENT);
+  sqlite3_bind_int(stmt, EventWriterConstants::g_findingBindSeverity, f.severity);
+  sqlite3_bind_int(stmt, EventWriterConstants::g_findingBindConfidence, f.confidence);
+  sqlite3_bind_int(stmt, EventWriterConstants::g_findingBindSourcePid, static_cast<int>(f.source_pid));
+  sqlite3_bind_int(stmt, EventWriterConstants::g_findingBindTargetPid, static_cast<int>(f.target_pid));
+  sqlite3_bind_int(stmt, EventWriterConstants::g_findingBindTid, static_cast<int>(f.tid));
+  sqlite3_bind_text(stmt, EventWriterConstants::g_findingBindEvidenceJson, f.evidence_json.c_str(), EventWriterConstants::g_sqliteAutoLength, SQLITE_TRANSIENT);
 
   sqlite3_step(stmt);
   sqlite3_finalize(stmt);
 }
 
-void EventWriter::writeEventJson(const EVENT_RECORD &rec,
-                                 const krabs::trace_context &ctx) {
+void EventWriter::_writeEventJson(const EVENT_RECORD &rec,
+                                  const krabs::trace_context &ctx) {
   nlohmann::json j;
 
   try {
@@ -718,7 +714,7 @@ void EventWriter::writeEventJson(const EVENT_RECORD &rec,
         std::wstring p;
         try {
           p = schema.provider_name();
-        } catch (const std::exception &e) {
+        } catch (const std::exception &) {
         }
         return p;
       }();
@@ -727,7 +723,7 @@ void EventWriter::writeEventJson(const EVENT_RECORD &rec,
         std::wstring t;
         try {
           t = schema.task_name();
-        } catch (const std::exception &e) {
+        } catch (const std::exception &) {
         }
         return t;
       }();
@@ -736,24 +732,24 @@ void EventWriter::writeEventJson(const EVENT_RECORD &rec,
         std::wstring o;
         try {
           o = schema.opcode_name();
-        } catch (const std::exception &e) {
+        } catch (const std::exception &) {
         }
         return o;
       }();
 
       eventW = Utils::composeEvent(schema);
       j["event"] = Utils::narrow_utf8(eventW);
-      // Prefer schema�s event_id if available
+      // Prefer schema event_id if available.
       j["event_id"] = schema.event_id();
 
       j["category"] = Utils::inferCategory(providerW, taskW);
     } catch (const krabs::could_not_find_schema &) {
-      OutputDebugStringA("krabs: could_not_find_schema in writeEventJson (names only)\n");
+      OutputDebugStringA("krabs: could_not_find_schema in _writeEventJson (names only)\n");
       // keep header-based event_id/category defaults
     } catch (const krabs::type_mismatch_assert &) {
-      OutputDebugStringA("krabs: type_mismatch_assert in writeEventJson (names only)\n");
-    } catch (const std::exception &e) {
-      OutputDebugStringA("krabs: unknown exception in writeEventJson (names only)\n");
+      OutputDebugStringA("krabs: type_mismatch_assert in _writeEventJson (names only)\n");
+    } catch (const std::exception &) {
+      OutputDebugStringA("krabs: unknown exception in _writeEventJson (names only)\n");
     }
 
     j["provider"] = Utils::narrow_utf8(providerW);
@@ -763,7 +759,7 @@ void EventWriter::writeEventJson(const EVENT_RECORD &rec,
     // 3. Properties via TDH + krabs parser (already has its own try/catch)
     //
     nlohmann::json props = nlohmann::json::object();
-    fillPropsViaTdh(props, rec, ctx);
+    _fillPropsViaTdh(props, rec, ctx);
     j["props"] = props;
 
     //
@@ -811,35 +807,35 @@ void EventWriter::writeEventJson(const EVENT_RECORD &rec,
         !fil.empty()) {
       j["file"] = std::move(fil);
     }
-    enrichSigmaFields(j);
-  } catch (const std::exception &e) {
-    OutputDebugStringA("krabs: fatal exception in writeEventJson envelope\n");
+    _enrichSigmaFields(j);
+  } catch (const std::exception &) {
+    OutputDebugStringA("krabs: fatal exception in _writeEventJson envelope\n");
   }
 
   try {
-    writeOut(j);
-  } catch (const std::exception &e) {
-    OutputDebugStringA("writeEventJson: exception in writeOut\n");
+    _writeOut(j);
+  } catch (const std::exception &) {
+    OutputDebugStringA("_writeEventJson: exception in _writeOut\n");
   }
 }
 
-void EventWriter::writeOut(const nlohmann::json &j) {
+void EventWriter::_writeOut(const nlohmann::json &j) {
   std::scoped_lock<std::mutex> lk(m_mtx);
 
-  ensureSinkOpenLocked();
+  _ensureSinkOpenLocked();
 
-  if (m_wireFornat == WireFormat::Sqlite) {
+  if (m_wireFormat == WireFormat::Sqlite) {
     if (!m_db) {
       if (sqlite3_open16(m_path.c_str(), &m_db) != SQLITE_OK) {
-        OutputDebugStringA("writeOut: sqlite3_open16 failed in Sqlite mode\n");
+        OutputDebugStringA("_writeOut: sqlite3_open16 failed in Sqlite mode\n");
         sqlite3_close(m_db);
         m_db = nullptr;
         return;
       }
-      initSqliteSchema();
+      _initSqliteSchema();
     }
 
-    writeToSqlite(j);
+    _writeToSqlite(j);
     return;
   }
 
@@ -849,11 +845,11 @@ void EventWriter::writeOut(const nlohmann::json &j) {
   }
 
   if (!m_out) {
-    OutputDebugStringA("writeOut: failed to open output file stream\n");
+    OutputDebugStringA("_writeOut: failed to open output file stream\n");
     return;
   }
 
-  if (m_wireFornat == WireFormat::Msgpack) {
+  if (m_wireFormat == WireFormat::Msgpack) {
     std::vector<std::uint8_t> buf = nlohmann::json::to_msgpack(j);
     if (m_lengthPrefixed) {
       const auto n = static_cast<std::uint32_t>(buf.size());
@@ -863,29 +859,30 @@ void EventWriter::writeOut(const nlohmann::json &j) {
                 static_cast<std::streamsize>(buf.size()));
   } else { // JsonLines
     const std::string line =
-        m_pretty ? (j.dump(Constants::JSON_INDENT_WIDTH) + "\n")
+        m_pretty ? (j.dump(Constants::g_jsonIndentWidth) + "\n")
                  : (j.dump() + "\n");
     m_out.write(line.data(), static_cast<std::streamsize>(line.size()));
   }
 }
 
-void EventWriter::enrichSigmaFields(nlohmann::json &j) const {
+void EventWriter::_enrichSigmaFields(nlohmann::json &j) const {
   // Use a fixed-size array to avoid heap allocation for every event
-  const nlohmann::json *searchScope[6];
+  const nlohmann::json *searchScope[EventWriterConstants::g_searchScopeCapacity];
   size_t scopeSize = 0;
   searchScope[scopeSize++] = &j;
 
-  static const std::array categories = {"props", "proc", "net", "dns", "file"};
-  for (const auto &cat : categories) {
-    if (auto it = j.find(cat); it != j.end() && it->is_object())
+  for (const auto *cat : EventWriterConstants::g_eventBucketNames) {
+    if (auto it = j.find(cat); it != j.end() && it->is_object()) {
       searchScope[scopeSize++] = &(*it);
+    }
   }
 
   auto lookup = [&](const std::vector<std::string> &sources) -> const nlohmann::json * {
     for (const auto &key : sources) {
       for (size_t i = 0; i < scopeSize; ++i) {
-        if (auto it = searchScope[i]->find(key); it != searchScope[i]->end() && !it->is_null())
+        if (auto it = searchScope[i]->find(key); it != searchScope[i]->end() && !it->is_null()) {
           return &it.value();
+        }
       }
     }
     return nullptr;
@@ -989,7 +986,7 @@ void EventWriter::enrichSigmaFields(nlohmann::json &j) const {
       (!j.contains("ParentProcessName") || j["ParentProcessName"].is_null())) {
     if (const nlohmann::json *pp = lookup({"ParentProcessId", "ParentPid", "PPID", "ppid"})) {
       DWORD ppid = 0;
-      if (tryToDword(*pp, ppid) && ppid != 0 && ppid != Constants::INVALID_PID) {
+      if (tryToDword(*pp, ppid) && ppid != 0 && ppid != Constants::g_invalidPid) {
         nlohmann::json p = Utils::bestEffortProcFromPid(ppid);
         if ((!j.contains("ParentImage") || j["ParentImage"].is_null()) &&
             p.contains("path") && p["path"].is_string()) {
@@ -1048,7 +1045,9 @@ void EventWriter::enrichSigmaFields(nlohmann::json &j) const {
   //
   ensureCopy("State", {"State", "STATE"});
   ensureCopy("STATE", {"STATE", "State"});
+  // Keep ObjectClas for legacy payload compatibility.
   ensureCopy("ObjectClass", {"ObjectClass", "ObjectClas"});
+  // Keep ObjectClas for legacy payload compatibility.
   ensureCopy("ObjectClas", {"ObjectClas", "ObjectClass"});
 
   ensureLowered("domain_in_lowercase_xxx",
@@ -1066,11 +1065,11 @@ void EventWriter::enrichSigmaFields(nlohmann::json &j) const {
 }
 
 void EventWriter::operator()(const EVENT_RECORD &rec, const krabs::trace_context &ctx) {
-  writeEventJson(rec, ctx);
+  _writeEventJson(rec, ctx);
 }
 
-void EventWriter::ensureSinkOpenLocked() {
-  if (m_wireFornat == WireFormat::Sqlite) {
+void EventWriter::_ensureSinkOpenLocked() {
+  if (m_wireFormat == WireFormat::Sqlite) {
     // 1. Close file stream if switching from file to DB
     if (m_out.is_open()) {
       m_out.close();
@@ -1084,10 +1083,10 @@ void EventWriter::ensureSinkOpenLocked() {
         throw std::runtime_error("Failed to open sqlite database");
       }
 
-      sqlite3_busy_timeout(m_db, Constants::WAIT_TIME_S);
+      sqlite3_busy_timeout(m_db, Constants::g_sqliteBusyTimeoutMs);
       sqlite3_exec(m_db, "PRAGMA journal_mode=WAL;", nullptr, nullptr, nullptr);
       sqlite3_exec(m_db, "PRAGMA synchronous=NORMAL;", nullptr, nullptr, nullptr);
-      initSqliteSchema();
+      _initSqliteSchema();
     }
   } else {
     // 1. Close DB if switching from DB to file
@@ -1100,8 +1099,10 @@ void EventWriter::ensureSinkOpenLocked() {
     if (!m_out.is_open()) {
       m_out.open(m_path, std::ios::out | std::ios::app | std::ios::binary);
       if (!m_out) {
-        OutputDebugStringA("ensureSinkOpenLocked: failed to open output file\n");
+        OutputDebugStringA("_ensureSinkOpenLocked: failed to open output file\n");
       }
     }
   }
 }
+
+

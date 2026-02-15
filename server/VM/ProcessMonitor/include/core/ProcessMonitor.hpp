@@ -9,6 +9,7 @@
 #include <TlHelp32.h>
 #include <evntcons.h>
 
+#include <memory>
 #include <set>
 #include <string>
 
@@ -22,17 +23,13 @@
 #include "Threads.hpp"
 #include "UserBlock.hpp"
 
-extern std::set<DWORD> g_targetPids;
-extern TRACEHANDLE g_hTrace;
-extern TRACEHANDLE g_hSession;
-
 class ProcessMonitor {
 public:
   explicit ProcessMonitor(const std::wstring &exeName, const std::wstring &sessionNameKernel, const std::wstring &sessionNameUser, const std::wstring &outPath) noexcept;
   explicit ProcessMonitor(const std::set<DWORD> &initialPids, const std::wstring &sessionNameKernel, const std::wstring &sessionNameUser, std::wstring outPath) noexcept;
 
-  std::set<DWORD> FindPidByName(const std::wstring &exeName) const;
-  void LogEvent(const EVENT_RECORD &record, const krabs::trace_context &ctx);
+  std::set<DWORD> findPidsByName(const std::wstring &exeName) const;
+  void logEvent(const EVENT_RECORD &record, const krabs::trace_context &ctx);
 
   void start();
   void stop();
@@ -45,14 +42,14 @@ private:
   Caches m_caches;
   std::mutex m_analysisMtx;
   std::unique_ptr<EventWriter> m_writer = nullptr;
+  std::set<DWORD> m_targetPids;
 
 private:
-  void analysisRecord(const EVENT_RECORD &record,
+  void _analyzeRecord(const EVENT_RECORD &record,
                       const krabs::trace_context &ctx);
-  void enableKernelProviders();
-  void enableUserProviders();
-  void onThreadEvent(const EVENT_RECORD &record, const krabs::trace_context &traceContext);
-  void onKernelEvent(const EVENT_RECORD &record, const krabs::trace_context &ctx);
-  void onUserEvent(const EVENT_RECORD &record, const krabs::trace_context &ctx);
-  bool pidAllowed(const EVENT_RECORD &record, const krabs::trace_context &ctx) const;
+  void _enableKernelProviders();
+  void _enableUserProviders();
+  void _onKernelEvent(const EVENT_RECORD &record, const krabs::trace_context &ctx);
+  void _onUserEvent(const EVENT_RECORD &record, const krabs::trace_context &ctx);
+  bool _pidAllowed(const EVENT_RECORD &record, const krabs::trace_context &ctx) const;
 };

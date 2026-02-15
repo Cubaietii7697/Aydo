@@ -32,7 +32,7 @@ private:
 
   struct IKernelProv {
     virtual ~IKernelProv() = default;
-    virtual void attach(krabs::kernel_trace &tr, const Callback &cb) = 0;
+    virtual void _attach(krabs::kernel_trace &tr, const Callback &cb) = 0;
   };
 
   template <class Prov>
@@ -41,7 +41,7 @@ private:
     template <class... Args>
     explicit KProv(Args &&...args)
         : p(std::forward<Args>(args)...) {}
-    void attach(krabs::kernel_trace &tr, const Callback &cb) override {
+    void _attach(krabs::kernel_trace &tr, const Callback &cb) override {
       p.add_on_event_callback(cb);
       tr.enable(p);
     }

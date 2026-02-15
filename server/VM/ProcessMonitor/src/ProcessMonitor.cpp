@@ -1,19 +1,9 @@
 #include "ProcessMonitor.hpp"
-#include <algorithm>
-#include <cstring>
-#include <format>
 #include <initializer_list>
-#include <iostream>
-#include <mutex>
 #include <optional>
-#include <sstream>
 #include <string_view>
-#include <vector>
-#include "Utils.hpp"
 
-std::set<DWORD> g_targetPids;
-TRACEHANDLE g_hTrace = 0;
-TRACEHANDLE g_hSession = 0;
+#include "Utils.hpp"
 
 ProcessMonitor::ProcessMonitor(const std::wstring &exeName, const std::wstring &sessionNameKernel, const std::wstring &sessionNameUser, const std::wstring &outPath) noexcept
     : m_user{sessionNameUser}
@@ -22,30 +12,26 @@ ProcessMonitor::ProcessMonitor(const std::wstring &exeName, const std::wstring &
     , m_caches{}
     , m_writer(std::make_unique<EventWriter>(outPath, EventWriter::WireFormat::Sqlite, false, true))
     , m_threadAnalysis(&m_caches.thread, m_writer.get()) {
-  g_hTrace = 0;
-  g_hSession = 0;
-  g_targetPids = FindPidByName(exeName);
+  m_targetPids = findPidsByName(exeName);
 }
 ProcessMonitor::ProcessMonitor(const std::set<DWORD> &initialPids, const std::wstring &sessionNameKernel, const std::wstring &sessionNameUser, std::wstring outPath) noexcept
     : m_user{sessionNameUser}
     , m_kernel{sessionNameKernel}
     , m_threads{}
     , m_caches{}
-    , m_writer(std::make_unique<EventWriter>(outPath, EventWriter::WireFormat::Sqlite, false, true)) 
+    , m_writer(std::make_unique<EventWriter>(outPath, EventWriter::WireFormat::Sqlite, false, true))
     , m_threadAnalysis(&m_caches.thread, m_writer.get()) {
-  g_hTrace = 0;
-  g_hSession = 0;
-  g_targetPids = initialPids;
+  m_targetPids = initialPids;
 }
 
-bool ProcessMonitor::pidAllowed(const EVENT_RECORD &record,
-                                const krabs::trace_context &ctx) const {
-  if (g_targetPids.empty()) {
+bool ProcessMonitor::_pidAllowed(const EVENT_RECORD &record,
+                                 const krabs::trace_context &ctx) const {
+  if (m_targetPids.empty()) {
     return true;
   }
 
-  auto inTargets = [](DWORD pid) {
-    return pid != 0 && g_targetPids.contains(pid);
+  auto inTargets = [this](DWORD pid) {
+    return pid != 0 && m_targetPids.contains(pid);
   };
 
   if (inTargets(record.EventHeader.ProcessId)) {
@@ -75,7 +61,7 @@ bool ProcessMonitor::pidAllowed(const EVENT_RECORD &record,
   return false;
 }
 
-void ProcessMonitor::analysisRecord(const EVENT_RECORD &record,
+void ProcessMonitor::_analyzeRecord(const EVENT_RECORD &record,
                                     const krabs::trace_context &ctx) {
   std::scoped_lock lk(m_analysisMtx);
 
@@ -137,6 +123,7 @@ void ProcessMonitor::analysisRecord(const EVENT_RECORD &record,
     const bool hasSourcePid = setFirstU32("SourcePid", {L"SourcePid", L"SourceProcessId"});
     (void)hasSourcePid;
     setFirstU32("TargetPid", {L"TargetPid", L"TargetProcessId", L"ProcessId"});
+    // Keep TargetThreatId for compatibility with malformed legacy event payloads.
     setFirstU32("TargetTid", {L"TargetTid", L"TargetThreadId", L"TargetThreatId", L"TThreadId"});
     setFirstU32("ProcessId", {L"ProcessId"});
     setFirstU32("TThreadId", {L"TThreadId"});
@@ -160,25 +147,25 @@ void ProcessMonitor::analysisRecord(const EVENT_RECORD &record,
   m_threadAnalysis.onEvent(ne);
 }
 
-void ProcessMonitor::onKernelEvent(const EVENT_RECORD &record,
-                                   const krabs::trace_context &ctx) {
-  if (!pidAllowed(record, ctx)) {
+void ProcessMonitor::_onKernelEvent(const EVENT_RECORD &record,
+                                    const krabs::trace_context &ctx) {
+  if (!_pidAllowed(record, ctx)) {
     return;
   }
 
-  LogEvent(record, ctx);
+  logEvent(record, ctx);
 }
 
-void ProcessMonitor::onUserEvent(const EVENT_RECORD &record,
-                                 const krabs::trace_context &ctx) {
-  if (!pidAllowed(record, ctx)) {
+void ProcessMonitor::_onUserEvent(const EVENT_RECORD &record,
+                                  const krabs::trace_context &ctx) {
+  if (!_pidAllowed(record, ctx)) {
     return;
   }
 
-  LogEvent(record, ctx);
+  logEvent(record, ctx);
 }
 
-std::set<DWORD> ProcessMonitor::FindPidByName(const std::wstring &exeName) const {
+std::set<DWORD> ProcessMonitor::findPidsByName(const std::wstring &exeName) const {
   std::set<DWORD> pids;
   HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
   if (snap == INVALID_HANDLE_VALUE) {
@@ -200,8 +187,8 @@ std::set<DWORD> ProcessMonitor::FindPidByName(const std::wstring &exeName) const
 }
 
 void ProcessMonitor::start() {
-  m_threads.kernel = std::jthread([this] { enableKernelProviders(); });
-  m_threads.user = std::jthread([this] { enableUserProviders(); });
+  m_threads.kernel = std::jthread([this] { _enableKernelProviders(); });
+  m_threads.user = std::jthread([this] { _enableUserProviders(); });
 }
 
 void ProcessMonitor::stop() {
@@ -216,26 +203,22 @@ void ProcessMonitor::stop() {
   }
 }
 
-void ProcessMonitor::enableKernelProviders() {
+void ProcessMonitor::_enableKernelProviders() {
   m_kernel.addDefaultKernelProviders();
   m_kernel.start([this](const EVENT_RECORD &rec, const krabs::trace_context &ctx) {
-    onKernelEvent(rec, ctx);
+    _onKernelEvent(rec, ctx);
   });
 }
 
-void ProcessMonitor::enableUserProviders() {
+void ProcessMonitor::_enableUserProviders() {
   m_user.addApiCallsProvider(TRACE_LEVEL_INFORMATION, 0, 0);
   m_user.start([this](const EVENT_RECORD &rec, const krabs::trace_context &ctx) {
-    onUserEvent(rec, ctx);
+    _onUserEvent(rec, ctx);
   });
 }
 
-void ProcessMonitor::onThreadEvent(const EVENT_RECORD &record, const krabs::trace_context &ctx) {
-  LogEvent(record, ctx);
-}
-
-void ProcessMonitor::LogEvent(const EVENT_RECORD &record,
+void ProcessMonitor::logEvent(const EVENT_RECORD &record,
                               const krabs::trace_context &ctx) {
   (*m_writer)(record, ctx);
-  analysisRecord(record, ctx);
+  _analyzeRecord(record, ctx);
 }
