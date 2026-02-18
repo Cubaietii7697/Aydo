@@ -201,8 +201,7 @@ export class ClientEngine extends EventEmitter implements AntivirusEngine {
       target,
     });
 
-    const escaped = target.replace(/\"/g, '\\"');
-    this.socket.write(`scan \"${escaped}\"\n`);
+    this.socket.write(JSON.stringify({ command: "scan", path: target }) + "\n");
   }
 
   setSettings(settings: AvSettings): void {
@@ -212,9 +211,6 @@ export class ClientEngine extends EventEmitter implements AntivirusEngine {
     this.emitEvent("info", "low", "Client engine settings updated", {
       settings: this.settings,
     });
-    // Note: Config is read by Service on startup.
-    // Restarting the service remotely isn't possible via pipe yet unless we implement a command.
-    // For now we just save the config.
   }
 
   getSettings(): AvSettings {
@@ -243,8 +239,7 @@ export class ClientEngine extends EventEmitter implements AntivirusEngine {
       if (!this.connected || !this.socket) {
         return;
       }
-      // Optional: send ping to keepalive
-      // this.socket.write("ping\n");
+      this.socket.write(JSON.stringify({ command: "ping" }) + "\n");
 
       this.emitEvent("heartbeat", "low", "Client heartbeat", {
         engineVersion: "client-1.0.0",
@@ -253,202 +248,56 @@ export class ClientEngine extends EventEmitter implements AntivirusEngine {
     }, HEARTBEAT_INTERVAL_MS);
   }
 
-  private handleLine(line: string, isError = false): void {
+  private handleLine(line: string): void {
     const trimmed = line.trim();
     if (!trimmed) {
       return;
     }
 
-    const lower = trimmed.toLowerCase();
-    const logSeverity: AvEvent["severity"] =
-      isError || lower.includes("fatal")
-        ? "high"
-        : lower.includes("error") || lower.includes("failed")
-          ? "medium"
-          : "low";
+    try {
+      const eventJson = JSON.parse(trimmed);
 
-    if (
-      trimmed.includes("Process monitoring started") ||
-      trimmed.includes("Monitoring active")
-    ) {
-      this.emitEvent("status", "low", "Client engine online", {
-        state: "connected",
-      });
-      return;
-    }
+      // If it's a structured Protocol::Event
+      if (eventJson.type && eventJson.severity) {
+        const type = eventJson.type as AvEvent["type"];
+        const severity = eventJson.severity as AvEvent["severity"];
+        const message = eventJson.message || "";
+        const data = eventJson.data || {};
 
-    // ... rest of the parsing logic is identical ...
-    // Copying the parsing logic from previous version:
+        if (type === "capabilities_update") {
+          this.emitEvent(type, severity, "Engine capabilities updated", data);
+          return;
+        }
 
-    if (trimmed.includes("Process monitoring stopped")) {
-      this.emitEvent("status", "medium", "Client engine stopped", {
-        state: "disconnected",
-      });
-      return;
-    }
+        // Special handling for scan progress to ensure internal state is updated
+        if (type === "scan_progress" && data.target) {
+          this.manualScanTarget = data.target as string;
+          if (!this.manualScanStartedAt) this.manualScanStartedAt = Date.now();
+        }
 
-    if (trimmed.includes("Failed to open driver device")) {
-      this.emitEvent("status", "high", "Driver unavailable", {
-        state: "disconnected",
-        fatal: true,
-      });
-      return;
-    }
+        // Map complete/error to reset state
+        if (type === "scan_complete") {
+          this.manualScanStartedAt = null;
+          this.manualScanTarget = null;
+        }
 
-    if (trimmed.includes("Successfully connected to driver")) {
-      this.emitEvent("status", "low", "Driver connected", {
-        driver: "connected",
-      });
-      return;
-    }
-
-    if (trimmed.includes("FATAL ERROR")) {
-      this.emitEvent("status", "high", trimmed, {
-        state: "disconnected",
-        fatal: true,
-      });
-      return;
-    }
-
-    if (trimmed.startsWith("[SCAN]")) {
-      const target =
-        extractAfterColon(trimmed) ?? this.manualScanTarget ?? "Manual scan";
-
-      // Attempt to extract percentage (e.g. "[SCAN] 45% - Scanning: path")
-      let progress = 10;
-      const percentMatch = trimmed.match(/(\d+)%/);
-      if (percentMatch) {
-        progress = parseInt(percentMatch[1], 10);
+        this.emitEvent(type, severity, message, data);
+        return;
       }
+    } catch (e) {
+      // Fallback for legacy or raw logs
+      const lower = trimmed.toLowerCase();
+      const logSeverity: AvEvent["severity"] =
+        lower.includes("fatal") ||
+        lower.includes("error") ||
+        lower.includes("failed")
+          ? "high"
+          : lower.includes("warning")
+            ? "medium"
+            : "low";
 
-      this.emitEvent("scan_progress", "low", trimmed, { progress, target });
-      return;
-    }
-
-    if (trimmed.startsWith("[SCAN RESULT]")) {
-      const target =
-        extractAfterColon(trimmed) ?? this.manualScanTarget ?? "Manual scan";
-      const isThreat = trimmed.includes("THREAT");
-      const durationSec = this.manualScanStartedAt
-        ? Math.max(
-            1,
-            Math.round((Date.now() - this.manualScanStartedAt) / 1000),
-          )
-        : null;
-
-      this.emitEvent("scan_complete", isThreat ? "high" : "low", trimmed, {
-        target,
-        durationSec,
-        threatsFound: isThreat ? 1 : 0,
-      });
-
-      if (isThreat) {
-        this.emitEvent("threat_detected", "high", trimmed, { target });
-      }
-
-      this.manualScanStartedAt = null;
-      this.manualScanTarget = null;
-      return;
-    }
-
-    if (trimmed.startsWith("[SCAN ERROR]")) {
-      const target =
-        extractAfterColon(trimmed) ?? this.manualScanTarget ?? "Manual scan";
-      const durationSec = this.manualScanStartedAt
-        ? Math.max(
-            1,
-            Math.round((Date.now() - this.manualScanStartedAt) / 1000),
-          )
-        : null;
-      this.emitEvent("scan_complete", "medium", trimmed, {
-        target,
-        durationSec,
-        threatsFound: 0,
-        failed: true,
-      });
-      this.manualScanStartedAt = null;
-      this.manualScanTarget = null;
-      return;
-    }
-
-    if (trimmed.includes("[ALERT]") || trimmed.includes("Threat detected")) {
-      this.emitEvent("threat_detected", "high", trimmed);
-      return;
-    }
-
-    if (trimmed.includes("[SUCCESS] Process terminated")) {
-      this.emitEvent("info", "medium", trimmed);
-      return;
-    }
-
-    if (trimmed.startsWith("[QUARANTINE]")) {
-      this.emitEvent("quarantine", "medium", trimmed, {
-        target: extractAfterColon(trimmed),
-      });
-      return;
-    }
-
-    if (trimmed.startsWith("[DELETE]")) {
-      this.emitEvent("info", "medium", trimmed);
-      return;
-    }
-
-    if (trimmed.includes("[SERVER]")) {
-      this.emitEvent("info", logSeverity, trimmed.replace(/^->\s*/, ""));
-      return;
-    }
-
-    if (
-      trimmed.includes("[NEW PROCESS]") ||
-      trimmed.includes("Scanning:") ||
-      trimmed.includes("[CACHED]") ||
-      trimmed.includes("[SIGNED]") ||
-      trimmed.includes("[HASH]") ||
-      trimmed.includes("[YARA]") ||
-      trimmed.includes("[ENTROPY]") ||
-      trimmed.includes("[CLEAN]")
-    ) {
-      this.emitEvent("info", logSeverity, trimmed.replace(/^->\s*/, ""));
-      return;
-    }
-
-    if (trimmed.includes("[ERROR]") || isError) {
       this.emitEvent("info", logSeverity, trimmed);
-      return;
     }
-
-    if (trimmed.startsWith("[CAPABILITIES]")) {
-      try {
-        const jsonStr = trimmed.substring("[CAPABILITIES]".length).trim();
-        const caps = JSON.parse(jsonStr);
-        this.emitEvent(
-          "capabilities_update",
-          "low",
-          "Engine capabilities received",
-          caps,
-        );
-      } catch (e) {
-        this.emitEvent(
-          "info",
-          "medium",
-          "Failed to parse capabilities: " + trimmed,
-        );
-      }
-      return;
-    }
-
-    if (
-      trimmed.includes("Connecting to server") ||
-      trimmed.includes("Initializing scanning engines") ||
-      trimmed.includes("Initialized YARA scanning engine") ||
-      trimmed.includes("Loaded hashes database") ||
-      trimmed.includes("All scanning engines initialized")
-    ) {
-      this.emitEvent("info", "low", trimmed);
-      return;
-    }
-
-    this.emitEvent("info", logSeverity, trimmed);
   }
 
   private emitEvent(
@@ -501,7 +350,7 @@ const resolveBinaryPath = (explicitPath?: string): string | null => {
   const repoRoot = path.resolve(process.cwd(), "..", "..");
   const candidates = [
     path.join(repoRoot, "x64", "Release", "Service.exe"),
-    path.join(repoRoot, "x64", "Debug", "Service.exe")
+    path.join(repoRoot, "x64", "Debug", "Service.exe"),
   ];
 
   for (const candidate of candidates) {

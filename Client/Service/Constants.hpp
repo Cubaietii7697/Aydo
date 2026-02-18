@@ -1,5 +1,5 @@
-#pragma once
-
+#define NOMINMAX
+#include <windows.h>
 #include <string>
 #include <vector>
 
@@ -18,4 +18,11 @@ constexpr std::string_view HASHES_DB_PATH = "file_hashes.db";
 constexpr std::string_view SERVER_URL = "http://127.0.0.1";
 constexpr int DYNAMIC_SCAN_POLL_INTERVAL = 5;
 constexpr std::string_view AYDO_GUI_PIPE_NAME = R"(\\.\pipe\AydoServicePipe)";
+constexpr int YARA_INFO_MATCH_THRESHOLD = 20;
+constexpr size_t PIPE_BUFFER_SIZE = 4096;
+constexpr DWORD PIPE_TIMEOUT_MS = 1000;
+constexpr DWORD MAX_UNICODE_PATH_CHARS = 32767;
+constexpr size_t PSAPI_PATH_RESERVE_MULTIPLIER = 8;
+constexpr DWORD DOS_DEVICE_TARGET_BUF_CHARS = 1024;
+constexpr DWORD DRIVE_STRINGS_BUF_CHARS = 512;
 }; // namespace Constants

@@ -14,8 +14,6 @@
 #include "Constants.hpp"
 #include "Errors.hpp"
 
-using namespace Utils::Const;
-
 std::vector<uint8_t> Utils::readFile(const std::string &path) {
   std::ifstream file(path, std::ios::binary);
 
@@ -47,13 +45,13 @@ std::wstring Utils::device_to_dos_path(const std::wstring &devicePath) {
   }
 
   // Map \Device\HarddiskVolumeX to a DOS drive letter
-  wchar_t drives[kDriveStringsBufChars] = {0};
+  wchar_t drives[Constants::DRIVE_STRINGS_BUF_CHARS] = {0};
   GetLogicalDriveStringsW(static_cast<DWORD>(std::size(drives) - 1), drives);
   for (wchar_t const *p = drives; p && *p; p += wcslen(p) + 1) {
     // p is like "C:\"
     const std::wstring dosRoot = p;                  // "C:\"
     const std::wstring drive = dosRoot.substr(0, 2); // "C:"
-    wchar_t target[kDosDeviceTargetBufChars] = {0};
+    wchar_t target[Constants::DOS_DEVICE_TARGET_BUF_CHARS] = {0};
     if (QueryDosDeviceW(drive.c_str(), target, static_cast<DWORD>(std::size(target) - 1))) {
       // target may contain multiple null-terminated strings; we only need the first mapping
       std::wstring dev = target; // e.g. \Device\HarddiskVolume3
@@ -85,7 +83,7 @@ std::optional<std::wstring> Utils::full_image_path_from_pid(DWORD pid) {
   // Prefer QueryFullProcessImageNameW (requires PROCESS_QUERY_LIMITED_INFORMATION)
   HANDLE h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
   if (h) {
-    DWORD sz = kMaxUnicodePathChars; // max per docs
+    DWORD sz = Constants::MAX_UNICODE_PATH_CHARS; // max per docs
     if (std::wstring buf(sz, L'\0'); QueryFullProcessImageNameW(h, 0, buf.data(), &sz)) {
       buf.resize(sz);
       CloseHandle(h);
@@ -97,7 +95,7 @@ std::optional<std::wstring> Utils::full_image_path_from_pid(DWORD pid) {
   // Fallback: PSAPI device-style path
   h = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid);
   if (h) {
-    if (wchar_t wbuf[MAX_PATH *kPsapiPathReserveMultiplier] = {0}; GetProcessImageFileNameW(h, wbuf, static_cast<DWORD>(std::size(wbuf)))) {
+    if (wchar_t wbuf[MAX_PATH *Constants::PSAPI_PATH_RESERVE_MULTIPLIER] = {0}; GetProcessImageFileNameW(h, wbuf, static_cast<DWORD>(std::size(wbuf)))) {
       CloseHandle(h);
       return device_to_dos_path(wbuf);
     }

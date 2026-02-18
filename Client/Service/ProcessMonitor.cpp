@@ -19,20 +19,26 @@ ProcessMonitor::ProcessMonitor(std::shared_ptr<KernelCommunications> driver,
     , m_yara(yara)
     , m_hashDb(hashDb) {}
 
-void ProcessMonitor::setLogger(LoggerCallback logger) {
+void ProcessMonitor::setEventHandler(EventCallback handler) {
   std::lock_guard<std::mutex> lock(m_loggerMutex);
-  m_logger = std::move(logger);
+  m_eventHandler = std::move(handler);
+}
+
+void ProcessMonitor::notifyEvent(Protocol::EventType type, std::string severity, std::string message, nlohmann::json data) {
+  if (severity == "high") {
+    std::cerr << "[" << Protocol::eventTypeToString(type) << "] " << message << std::endl;
+  } else {
+    std::cout << "[" << Protocol::eventTypeToString(type) << "] " << message << std::endl;
+  }
+
+  std::lock_guard<std::mutex> lock(m_loggerMutex);
+  if (m_eventHandler) {
+    m_eventHandler(Protocol::Event(type, std::move(severity), std::move(message), std::move(data)));
+  }
 }
 
 void ProcessMonitor::log(const std::string &message) {
-  // Always print to stdout/stderr for local debugging service
-  std::cout << message << std::endl;
-
-  // Also send to pipe if connected
-  std::lock_guard<std::mutex> lock(m_loggerMutex);
-  if (m_logger) {
-    m_logger(message + "\n");
-  }
+  notifyEvent(Protocol::EventType::Info, "low", message);
 }
 
 ProcessMonitor::~ProcessMonitor() {
@@ -81,7 +87,7 @@ void ProcessMonitor::printStatus() {
   }
 }
 
-std::string ProcessMonitor::getCapabilitiesJson() {
+nlohmann::json ProcessMonitor::getCapabilities() {
   nlohmann::json caps;
   caps["driver"] = (m_driver != nullptr);
   caps["hashdb"] = true;  // Initialized in main
@@ -91,7 +97,7 @@ std::string ProcessMonitor::getCapabilitiesJson() {
   auto &config = UserConfig::getInstance();
   caps["cloud"] = !config.serverUrl.empty();
 
-  return caps.dump();
+  return caps;
 }
 
 bool ProcessMonitor::isMonitoring() const {
@@ -113,38 +119,38 @@ bool ProcessMonitor::scanFile(const std::string &path) {
     return scanDirectory(path);
   }
 
-  log("[SCAN] Requested: " + std::filesystem::path(path).filename().string());
+  notifyEvent(Protocol::EventType::ScanProgress, "low", "Requested: " + std::filesystem::path(path).filename().string(), {{"target", path}});
 
   try {
     const bool threat = isThreat(path);
     if (threat) {
-      log("[SCAN RESULT] THREAT: " + path);
+      notifyEvent(Protocol::EventType::ThreatDetected, "high", "THREAT: " + path, {{"target", path}});
       auto &config = UserConfig::getInstance();
       if (config.infectedFileAction == 1) { // Quarantine
         if (Utils::quarantineFile(path)) {
-          log("[QUARANTINE] Isolated: " + path);
+          notifyEvent(Protocol::EventType::Quarantine, "medium", "Isolated: " + path, {{"target", path}});
         } else {
-          log("[ERROR] Failed to quarantine: " + path);
+          notifyEvent(Protocol::EventType::Info, "medium", "Failed to quarantine: " + path, {{"target", path}});
         }
       } else if (config.infectedFileAction == 2) { // Delete
         if (Utils::deleteFile(path)) {
-          log("[DELETE] Removed: " + path);
+          notifyEvent(Protocol::EventType::Delete, "medium", "Removed: " + path, {{"target", path}});
         } else {
-          log("[ERROR] Failed to delete: " + path);
+          notifyEvent(Protocol::EventType::Info, "medium", "Failed to delete: " + path, {{"target", path}});
         }
       }
     } else {
-      log("[SCAN RESULT] CLEAN: " + path);
+      notifyEvent(Protocol::EventType::ScanComplete, "low", "CLEAN: " + path, {{"target", path}, {"threats", 0}});
     }
     return threat;
   } catch (const std::exception &ex) {
-    log("[SCAN ERROR] " + std::string(ex.what()));
+    notifyEvent(Protocol::EventType::Info, "medium", "SCAN ERROR: " + std::string(ex.what()), {{"target", path}});
     return false;
   }
 }
 
 bool ProcessMonitor::scanDirectory(const std::string &path) {
-  log("[SCAN] Starting directory scan: " + path);
+  notifyEvent(Protocol::EventType::ScanProgress, "low", "Starting directory scan: " + path, {{"target", path}, {"progress", 0}});
 
   std::vector<std::filesystem::path> files;
   try {
@@ -154,12 +160,12 @@ bool ProcessMonitor::scanDirectory(const std::string &path) {
       }
     }
   } catch (const std::exception &e) {
-    log("[SCAN ERROR] Failed to iterate directory: " + std::string(e.what()));
+    notifyEvent(Protocol::EventType::Info, "medium", "Failed to iterate directory: " + std::string(e.what()), {{"target", path}});
     return false;
   }
 
   if (files.empty()) {
-    log("[SCAN RESULT] CLEAN: " + path + " (Empty)");
+    notifyEvent(Protocol::EventType::ScanComplete, "low", "CLEAN: " + path + " (Empty)", {{"target", path}, {"threats", 0}});
     return false;
   }
 
@@ -171,7 +177,7 @@ bool ProcessMonitor::scanDirectory(const std::string &path) {
     std::string filePath = file.string();
     scanned++;
 
-    // Shorten path for display to prevent overflow in GUI
+    // Shorten path for display
     std::string displayPath;
     try {
       displayPath = std::filesystem::relative(file, path).string();
@@ -180,25 +186,24 @@ bool ProcessMonitor::scanDirectory(const std::string &path) {
     }
 
     int progress = static_cast<int>((scanned * 100) / total);
-    // Format specifically for ClientEngine.ts to pick up
-    log("[SCAN] " + std::to_string(progress) + "% - Scanning: " + displayPath);
+    notifyEvent(Protocol::EventType::ScanProgress, "low", "Scanning: " + displayPath, {{"target", path}, {"progress", progress}});
 
     try {
       if (isThreat(filePath)) {
         threats++;
-        log("[ALERT] THREAT DETECTED in " + filePath);
+        notifyEvent(Protocol::EventType::ThreatDetected, "high", "THREAT DETECTED: " + filePath, {{"target", filePath}});
         auto &config = UserConfig::getInstance();
         if (config.infectedFileAction == 1) { // Quarantine
           if (Utils::quarantineFile(filePath)) {
-            log("[QUARANTINE] Isolated: " + filePath);
+            notifyEvent(Protocol::EventType::Quarantine, "medium", "Isolated: " + filePath, {{"target", filePath}});
           } else {
-            log("[ERROR] Failed to quarantine: " + filePath);
+            notifyEvent(Protocol::EventType::Info, "medium", "Failed to quarantine: " + filePath, {{"target", filePath}});
           }
         } else if (config.infectedFileAction == 2) { // Delete
           if (Utils::deleteFile(filePath)) {
-            log("[DELETE] Removed: " + filePath);
+            notifyEvent(Protocol::EventType::Delete, "medium", "Removed: " + filePath, {{"target", filePath}});
           } else {
-            log("[ERROR] Failed to delete: " + filePath);
+            notifyEvent(Protocol::EventType::Info, "medium", "Failed to delete: " + filePath, {{"target", filePath}});
           }
         }
       }
@@ -207,13 +212,10 @@ bool ProcessMonitor::scanDirectory(const std::string &path) {
     }
   }
 
-  std::string result = "[SCAN RESULT] Directory scan complete. Scanned: " + std::to_string(scanned) +
-                       ", Threats found: " + std::to_string(threats);
-
   if (threats > 0) {
-    log("[SCAN RESULT] THREAT: " + path);
+    notifyEvent(Protocol::EventType::ScanComplete, "high", "Directory scan complete. Threats found: " + std::to_string(threats), {{"target", path}, {"threats", threats}});
   } else {
-    log("[SCAN RESULT] CLEAN: " + path);
+    notifyEvent(Protocol::EventType::ScanComplete, "low", "Directory scan complete. Clean.", {{"target", path}, {"threats", 0}});
   }
 
   return threats > 0;
@@ -279,8 +281,7 @@ bool ProcessMonitor::isThreat(const std::string &path) {
         " (threshold: " + std::to_string(m_yara.getScoringSystem().getKillThreshold()) + ")");
     log("  -> [YARA] Matched rules: " + std::to_string(yaraResult.matchedRules.size()));
 
-    // If only low-value info rules matched, don't kill even if score is high
-    if (yaraResult.scoring.highestLevel <= ThreatLevel::Info && yaraResult.matchedRules.size() < 20) {
+    if (yaraResult.scoring.highestLevel <= ThreatLevel::Info && yaraResult.matchedRules.size() < Constants::YARA_INFO_MATCH_THRESHOLD) {
       std::cout << "  -> [YARA] Only info-level rules matched, insufficient for threat classification" << std::endl;
       {
         std::lock_guard<std::mutex> lock(m_cacheMutex);

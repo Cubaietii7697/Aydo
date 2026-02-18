@@ -14,7 +14,9 @@
 #include "KernelCommunications/KernelCommunications.hpp"
 #include "Yara/YScanningEngine.hpp"
 
-using LoggerCallback = std::function<void(const std::string &)>;
+#include "Protocol.hpp"
+
+using EventCallback = std::function<void(const Protocol::Event &)>;
 
 class ProcessMonitor {
 private:
@@ -26,7 +28,7 @@ private:
   std::unordered_map<std::string, bool> m_scannedHashes;
   std::mutex m_cacheMutex;
   std::thread m_monitorThread;
-  LoggerCallback m_logger;
+  EventCallback m_eventHandler;
   std::mutex m_loggerMutex;
 
 public:
@@ -38,13 +40,14 @@ public:
   ProcessMonitor(const ProcessMonitor &) = delete;
   ProcessMonitor &operator=(const ProcessMonitor &) = delete;
 
-  void setLogger(LoggerCallback logger);
+  void setEventHandler(EventCallback handler);
+  void notifyEvent(Protocol::EventType type, std::string severity, std::string message, nlohmann::json data = nlohmann::json::object());
   void log(const std::string &message);
 
   void start();
   void stop();
   void printStatus();
-  std::string getCapabilitiesJson();
+  nlohmann::json getCapabilities();
 
   bool isMonitoring() const;
   bool scanFile(const std::string &path);
