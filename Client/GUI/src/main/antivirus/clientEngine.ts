@@ -380,7 +380,7 @@ const resolveWorkingDir = (
 
 const readConfig = (workingDir: string): Partial<AvSettings> => {
   try {
-    const configPath = path.join(workingDir, "config.json");
+    const configPath = path.join(workingDir, "..", "config.json");
     if (!fs.existsSync(configPath)) {
       return {};
     }
@@ -459,7 +459,7 @@ const ensureConfig = (workingDir: string, settings: AvSettings): void => {
   try {
     const normalized = normalizeSettings(settings);
     fs.mkdirSync(workingDir, { recursive: true });
-    const configPath = path.join(workingDir, "config.json");
+    const configPath = path.join(workingDir, "..", "config.json");
     const current = fs.existsSync(configPath)
       ? JSON.parse(fs.readFileSync(configPath, "utf-8"))
       : {};
