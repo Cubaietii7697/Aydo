@@ -224,7 +224,6 @@ bool ProcessMonitor::scanDirectory(const std::string &path) {
 bool ProcessMonitor::isThreat(const std::string &path) {
   // Layer 1: Check if signed Windows file
   if (Utils::isWindowsSigned(path)) {
-    log("  -> [SIGNED] Digitally signed by trusted publisher");
     return false;
   }
 
@@ -235,12 +234,11 @@ bool ProcessMonitor::isThreat(const std::string &path) {
   {
     std::lock_guard<std::mutex> lock(m_cacheMutex);
     if (auto it = m_scannedHashes.find(hexHash); it != m_scannedHashes.end()) {
-      log("  -> [CACHED] File already scanned (" + std::string(it->second ? "THREAT" : "clean") + ")");
       return it->second;
     }
   }
 
-  // check the Entropy
+  // Compute Entropy
   const auto bytes = Utils::readFile(path);
 
   std::array<int, Constants::ALPHABET_SIZE> freq{};
@@ -255,34 +253,16 @@ bool ProcessMonitor::isThreat(const std::string &path) {
 
   // Check hashes database
   if (const auto resHASH = m_hashDb.getHashName(hexHash); resHASH && !resHASH->empty()) {
-    log("  -> [HASH] MATCH: " + *resHASH);
     {
       std::lock_guard<std::mutex> lock(m_cacheMutex);
       m_scannedHashes[hexHash] = true;
     }
-
     return true;
   }
 
-  std::cout << "  -> [HASH] Not found" << std::endl;
-
   // Check YARA signatures with scoring
   if (const auto yaraResult = m_yara.scanFileWithScoring(path); yaraResult.hasMatches()) {
-    std::string rulesStr;
-    for (size_t i = 0; i < yaraResult.matchedRules.size(); ++i) {
-      rulesStr += yaraResult.matchedRules[i];
-      if (i < yaraResult.matchedRules.size() - 1) {
-        rulesStr += ", ";
-      }
-    }
-
-    log("  -> [YARA] MATCH: " + rulesStr);
-    log("  -> [YARA] Score: " + std::to_string(yaraResult.scoring.totalScore) +
-        " (threshold: " + std::to_string(m_yara.getScoringSystem().getKillThreshold()) + ")");
-    log("  -> [YARA] Matched rules: " + std::to_string(yaraResult.matchedRules.size()));
-
     if (yaraResult.scoring.highestLevel <= ThreatLevel::Info && yaraResult.matchedRules.size() < Constants::YARA_INFO_MATCH_THRESHOLD) {
-      std::cout << "  -> [YARA] Only info-level rules matched, insufficient for threat classification" << std::endl;
       {
         std::lock_guard<std::mutex> lock(m_cacheMutex);
         m_scannedHashes[hexHash] = false;
@@ -291,24 +271,17 @@ bool ProcessMonitor::isThreat(const std::string &path) {
     }
 
     if (yaraResult.scoring.shouldKill) {
-      std::cout << "  -> [YARA] Threat level exceeds threshold!" << std::endl;
       {
         std::lock_guard<std::mutex> lock(m_cacheMutex);
         m_scannedHashes[hexHash] = true;
       }
       return true;
     }
-
-    std::cout << "  -> [YARA] Score below threshold, not a critical threat" << std::endl;
-  } else {
-    std::cout << "  -> [YARA] Not found" << std::endl;
   }
 
   auto &config = UserConfig::getInstance();
 
   if (entropy > config.entropyThreshold) {
-    log("  -> [ENTROPY] High entropy detected (" + std::to_string(entropy) + "). Requesting cloud analysis...");
-
     try {
       auto &server = ServerCommunications::getInstance();
       nlohmann::json response;
@@ -323,7 +296,6 @@ bool ProcessMonitor::isThreat(const std::string &path) {
             int score = response.value("score", 0);
 
             if (virusType != "Clean" || score > 0) {
-              std::cout << "  -> [SERVER] Threat detected: " << virusType << " (Score: " << score << ")" << std::endl;
               {
                 std::lock_guard<std::mutex> lock(m_cacheMutex);
                 m_scannedHashes[hexHash] = true;
@@ -331,7 +303,6 @@ bool ProcessMonitor::isThreat(const std::string &path) {
               return true;
             }
 
-            std::cout << "  -> [SERVER] File confirmed clean by server analysis." << std::endl;
             {
               std::lock_guard<std::mutex> lock(m_cacheMutex);
               m_scannedHashes[hexHash] = false;
@@ -340,28 +311,22 @@ bool ProcessMonitor::isThreat(const std::string &path) {
           }
 
           if (status == "Pending" && !fileUploaded) {
-            std::cout << "  -> [SERVER] File unknown to server. Uploading..." << std::endl;
             if (server.uploadFile(hexHash, path)) {
-              std::cout << "  -> [SERVER] Upload successful. Sandbox analysis started." << std::endl;
               fileUploaded = true;
             } else {
-              std::cerr << "  -> [SERVER] Failed to upload file." << std::endl;
               break;
             }
           } else if (status == "InProgress" || status == "Pending") {
           } else if (status == "Failed") {
-            std::cerr << "  -> [SERVER] Analysis failed on the server side." << std::endl;
             break;
           }
         } else {
-          std::cerr << "  -> [SERVER] Failed to communicate with server." << std::endl;
           break;
         }
 
         Sleep(Constants::DYNAMIC_SCAN_POLL_INTERVAL * 1000);
       }
-    } catch (const std::exception &e) {
-      std::cerr << "  -> [SERVER] Communication error: " << e.what() << std::endl;
+    } catch (...) {
     }
   }
 
@@ -377,33 +342,26 @@ bool ProcessMonitor::isThreat(const std::string &path) {
 void ProcessMonitor::handleProcessStarted(uint32_t pid, const std::string &path) {
   try {
     if (isThreat(path)) {
-      log("  -> [ALERT] MALICIOUS DETECTED! Killing PID=" + std::to_string(pid) + " (" + path + ")");
+      notifyEvent(Protocol::EventType::ThreatDetected, "high", "MALICIOUS DETECTED: " + path, {{"target", path}, {"pid", pid}});
 
       if (m_driver->killProcess(pid)) {
-        log("  -> [SUCCESS] Process terminated!");
+        notifyEvent(Protocol::EventType::Info, "medium", "SUCCESS: Process terminated PID=" + std::to_string(pid));
       } else {
-        log("  -> [FAILED] Could not terminate process (Error: " + std::to_string(GetLastError()) + ")");
+        notifyEvent(Protocol::EventType::Info, "high", "FAILED: Could not terminate process PID=" + std::to_string(pid));
       }
 
       auto &config = UserConfig::getInstance();
       if (config.infectedFileAction == 1) { // Quarantine
         if (Utils::quarantineFile(path)) {
-          log("[QUARANTINE] Isolated: " + path);
-        } else {
-          log("[ERROR] Failed to quarantine: " + path);
+          notifyEvent(Protocol::EventType::Quarantine, "medium", "Isolated: " + path);
         }
       } else if (config.infectedFileAction == 2) { // Delete
         if (Utils::deleteFile(path)) {
-          log("[DELETE] Removed: " + path);
-        } else {
-          log("[ERROR] Failed to delete: " + path);
+          notifyEvent(Protocol::EventType::Delete, "medium", "Removed: " + path);
         }
       }
-    } else {
-      log("  -> [CLEAN] Process is safe: " + path);
     }
-  } catch (const std::exception &ex) {
-    log("  -> [ERROR] Scan failed for PID=" + std::to_string(pid) + ": " + ex.what());
+  } catch (...) {
   }
 }
 
