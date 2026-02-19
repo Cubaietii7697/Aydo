@@ -7,6 +7,12 @@ import type {
   ScanDepth,
 } from "@shared/antivirus";
 
+const SERVER_DEFAULT_URL = "http://192.168.56.1";
+const DEFAULT_KILL_THRESHOLD = 150;
+const DEFAULT_ENTROPY_THRESHOLD = 6.0;
+const DEFAULT_RUNTIME = 60;
+const DEFAULT_SCAN_TARGET = "System";
+
 export type AntivirusState = AvSnapshot & {
   loading: boolean;
   error: string | null;
@@ -33,12 +39,12 @@ class AntivirusService {
       startupScan: true,
       scanDepth: "standard",
       telemetry: true,
-      serverUrl: "http://192.168.56.1",
+      serverUrl: SERVER_DEFAULT_URL,
       accessToken: "",
       refreshToken: "",
-      killThreshold: 150,
-      entropyThreshold: 6.0,
-      runtime: 60,
+      killThreshold: DEFAULT_KILL_THRESHOLD,
+      entropyThreshold: DEFAULT_ENTROPY_THRESHOLD,
+      runtime: DEFAULT_RUNTIME,
       infectedFileAction: "none",
     },
     scan: { inProgress: false, progress: 0, target: null },
@@ -149,7 +155,7 @@ class AntivirusService {
       scan: {
         inProgress: true,
         progress: 0,
-        target: request.paths?.[0] ?? "System",
+        target: request.paths?.[0] ?? DEFAULT_SCAN_TARGET,
       },
     });
     const bridge = this.getBridge();

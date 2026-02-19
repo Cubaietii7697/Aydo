@@ -9,6 +9,13 @@ import type {
   ScanRequest,
 } from "@shared/antivirus";
 
+const DEV_SERVER_PORTS = [5173, 5174, 5175, 5176];
+const DEV_SERVER_PING_TIMEOUT_MS = 1000;
+const WINDOW_DEFAULT_WIDTH = 1280;
+const WINDOW_DEFAULT_HEIGHT = 820;
+const WINDOW_MIN_WIDTH = 1080;
+const WINDOW_MIN_HEIGHT = 720;
+
 const sendToRenderer = (channel: string, payload: AvEventEnvelope) => {
   for (const window of BrowserWindow.getAllWindows()) {
     window.webContents.send(channel, payload);
@@ -144,12 +151,10 @@ const resolvePreloadPath = (): string => {
 
 const findDevServer = async (): Promise<string | undefined> => {
   // Try common dev server ports
-  const ports = [5173, 5174, 5175, 5176];
-
-  for (const port of ports) {
+  for (const port of DEV_SERVER_PORTS) {
     try {
       const url = `http://localhost:${port}`;
-      const response = await fetch(url, { method: "HEAD", timeout: 1000 });
+      const response = await fetch(url, { method: "HEAD", timeout: DEV_SERVER_PING_TIMEOUT_MS });
       if (response.ok || response.status === 304) {
         return url;
       }
@@ -171,10 +176,10 @@ const createWindow = async (): Promise<void> => {
   }
 
   const mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 820,
-    minWidth: 1080,
-    minHeight: 720,
+    width: WINDOW_DEFAULT_WIDTH,
+    height: WINDOW_DEFAULT_HEIGHT,
+    minWidth: WINDOW_MIN_WIDTH,
+    minHeight: WINDOW_MIN_HEIGHT,
     backgroundColor: "#0c1219",
     frame: false,
     show: false,

@@ -16,6 +16,9 @@ type AuthState = {
 
 const STORAGE_KEY = "aydo.user";
 const SERVER_URL_KEY = "aydo.serverUrl";
+const SERVER_DEFAULT_URL = "http://192.168.56.1";
+const MIN_PASSWORD_LENGTH = 6;
+const GUEST_SIM_DELAY_MS = 600;
 
 class AuthService {
   private state: AuthState = {
@@ -41,9 +44,9 @@ class AuthService {
   getStoredServerUrl(): string {
     try {
       const stored = localStorage.getItem(SERVER_URL_KEY);
-      return stored ?? "http://192.168.56.1";
+      return stored ?? SERVER_DEFAULT_URL;
     } catch {
-      return "http://192.168.56.1";
+      return SERVER_DEFAULT_URL;
     }
   }
 
@@ -54,7 +57,7 @@ class AuthService {
   ): Promise<{ ok: boolean; message: string }> {
     this.update({ loading: true, error: null });
 
-    if (!email.includes("@") || password.length < 6) {
+    if (!email.includes("@") || password.length < MIN_PASSWORD_LENGTH) {
       this.update({
         loading: false,
         error:
@@ -132,7 +135,7 @@ class AuthService {
       return { ok: false, message: "Missing name" };
     }
 
-    if (!email.includes("@") || password.length < 6) {
+    if (!email.includes("@") || password.length < MIN_PASSWORD_LENGTH) {
       this.update({
         loading: false,
         error: "Invalid details. Use a valid email and at least 6 characters.",
@@ -207,7 +210,7 @@ class AuthService {
     this.update({ loading: true, error: null });
 
     // Simulate a short delay for premium feel
-    await new Promise((resolve) => setTimeout(resolve, 600));
+    await new Promise((resolve) => setTimeout(resolve, GUEST_SIM_DELAY_MS));
 
     this.update({
       loading: false,

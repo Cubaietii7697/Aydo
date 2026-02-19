@@ -19,18 +19,39 @@ import type { AntivirusEngine } from "./engine";
 const PIPE_NAME = "\\\\.\\pipe\\AydoServicePipe";
 const RECONNECT_DELAY_MS = 3000;
 
+// Configurable defaults and thresholds
+const SERVER_DEFAULT_URL = "http://192.168.56.1";
+const DEFAULT_KILL_THRESHOLD = 150;
+const DEFAULT_ENTROPY_THRESHOLD = 6.0;
+const DEFAULT_RUNTIME = 60;
+const MIN_KILL_THRESHOLD = 120;
+const MAX_KILL_THRESHOLD = 190;
+const MIN_RUNTIME = 35;
+const MAX_RUNTIME = 100;
+
+// Heartbeat ping generation
+const PING_BASE_MS = 10; // base ping
+const PING_VARIANCE_MS = 12; // additional random variance
+
+const ENGINE_VERSION = "client-1.0.0";
+
+// Persistent config mapping for infected file actions
+const INFECTED_ACTION_NONE = 0;
+const INFECTED_ACTION_QUARANTINE = 1;
+const INFECTED_ACTION_DELETE = 2;
+
 const defaultSettings: AvSettings = {
   sensitivity: "balanced",
   realtime: true,
   startupScan: true,
   scanDepth: "standard",
   telemetry: true,
-  serverUrl: "http://192.168.56.1",
+  serverUrl: SERVER_DEFAULT_URL,
   accessToken: "",
   refreshToken: "",
-  killThreshold: 150,
-  entropyThreshold: 6.0,
-  runtime: 60,
+  killThreshold: DEFAULT_KILL_THRESHOLD,
+  entropyThreshold: DEFAULT_ENTROPY_THRESHOLD,
+  runtime: DEFAULT_RUNTIME,
   infectedFileAction: "none",
 };
 
@@ -88,7 +109,7 @@ export class ClientEngine extends EventEmitter implements AntivirusEngine {
 
     return {
       ok: true,
-      engineVersion: "client-1.0.0",
+      engineVersion: ENGINE_VERSION,
       serverTime: new Date().toISOString(),
     };
   }
@@ -242,8 +263,8 @@ export class ClientEngine extends EventEmitter implements AntivirusEngine {
       this.socket.write(JSON.stringify({ command: "ping" }) + "\n");
 
       this.emitEvent("heartbeat", "low", "Client heartbeat", {
-        engineVersion: "client-1.0.0",
-        pingMs: 10 + Math.round(Math.random() * 12),
+        engineVersion: ENGINE_VERSION,
+        pingMs: PING_BASE_MS + Math.round(Math.random() * PING_VARIANCE_MS),
       });
     }, HEARTBEAT_INTERVAL_MS);
   }
@@ -399,9 +420,9 @@ const readConfig = (workingDir: string): Partial<AvSettings> => {
         : undefined,
       runtime: Number.isFinite(raw.runtime) ? raw.runtime : undefined,
       infectedFileAction:
-        raw.infectedFileAction === 1
+        raw.infectedFileAction === INFECTED_ACTION_QUARANTINE
           ? "quarantine"
-          : raw.infectedFileAction === 2
+          : raw.infectedFileAction === INFECTED_ACTION_DELETE
             ? "delete"
             : "none",
     };
@@ -411,20 +432,20 @@ const readConfig = (workingDir: string): Partial<AvSettings> => {
 };
 
 const deriveSensitivity = (killThreshold: number): Sensitivity => {
-  if (killThreshold <= 120) {
+  if (killThreshold <= MIN_KILL_THRESHOLD) {
     return "aggressive";
   }
-  if (killThreshold >= 190) {
+  if (killThreshold >= MAX_KILL_THRESHOLD) {
     return "low";
   }
   return "balanced";
 };
 
 const deriveScanDepth = (runtime: number): ScanDepth => {
-  if (runtime <= 35) {
+  if (runtime <= MIN_RUNTIME) {
     return "quick";
   }
-  if (runtime >= 100) {
+  if (runtime >= MAX_RUNTIME) {
     return "deep";
   }
   return "standard";
@@ -474,10 +495,10 @@ const ensureConfig = (workingDir: string, settings: AvSettings): void => {
       runtime: normalized.runtime,
       infectedFileAction:
         normalized.infectedFileAction === "quarantine"
-          ? 1
+          ? INFECTED_ACTION_QUARANTINE
           : normalized.infectedFileAction === "delete"
-            ? 2
-            : 0,
+            ? INFECTED_ACTION_DELETE
+            : INFECTED_ACTION_NONE,
     };
 
     fs.writeFileSync(configPath, JSON.stringify(next, null, 2));

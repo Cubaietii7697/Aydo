@@ -22,18 +22,33 @@ const RECONNECT_DELAY_MS = 4000;
 const HEARTBEAT_TIMEOUT_MS = 14000;
 const MAX_EVENTS = 120;
 
+const SERVER_DEFAULT_URL = "http://192.168.56.1";
+const DEFAULT_KILL_THRESHOLD = 150;
+const DEFAULT_ENTROPY_THRESHOLD = 6.0;
+const DEFAULT_RUNTIME = 60;
+const DEFAULT_SCAN_TARGET = "System";
+const WATCHDOG_INTERVAL_MS = 6000;
+const MAX_POINTS = 720;
+const ACTIVITY_INTERVAL_MS = 5000; // 5s heartbeat
+const ACTIVITY_INCREMENT_BASE = 1;
+const ACTIVITY_INCREMENT_VARIANCE = 1;
+const BUMP_ACTIVITY_MIN = 2;
+const BUMP_ACTIVITY_VARIANCE = 3;
+const MAX_PROGRESS = 100;
+const BUMP_ACTIVITY_ON_COMPLETE = 5;
+
 const defaultSettings: AvSettings = {
   sensitivity: "balanced",
   realtime: true,
   startupScan: true,
   scanDepth: "standard",
   telemetry: true,
-  serverUrl: "http://192.168.56.1",
+  serverUrl: SERVER_DEFAULT_URL,
   accessToken: "",
   refreshToken: "",
-  killThreshold: 150,
-  entropyThreshold: 6.0,
-  runtime: 60,
+  killThreshold: DEFAULT_KILL_THRESHOLD,
+  entropyThreshold: DEFAULT_ENTROPY_THRESHOLD,
+  runtime: DEFAULT_RUNTIME,
   infectedFileAction: "none",
 };
 
@@ -100,7 +115,7 @@ export class AntivirusBridge {
 
     this.unsubscribe = this.engine.onEvent((event) => this.handleEvent(event));
     this.settings = this.engine.getSettings();
-    this.watchdogTimer = setInterval(() => this.monitorHeartbeat(), 6000);
+    this.watchdogTimer = setInterval(() => this.monitorHeartbeat(), WATCHDOG_INTERVAL_MS);
   }
 
   async connect(): Promise<{ ok: boolean; message: string }> {
@@ -183,7 +198,7 @@ export class AntivirusBridge {
 
     this.scan.inProgress = true;
     this.scan.progress = 0;
-    this.scan.target = request.paths?.[0] ?? "System";
+    this.scan.target = request.paths?.[0] ?? DEFAULT_SCAN_TARGET;
     await this.engine.startScan(request);
     return { ok: true, message: "Scan started" };
   }
@@ -214,7 +229,7 @@ export class AntivirusBridge {
   private handleEvent(event: AvEvent): void {
     if (event.type === "heartbeat") {
       this.lastHeartbeatAt = Date.now();
-      const activityValue = 1 + Math.round(Math.random() * 1);
+      const activityValue = ACTIVITY_INCREMENT_BASE + Math.round(Math.random() * ACTIVITY_INCREMENT_VARIANCE);
       this.bumpActivity(activityValue);
       this.stats.dailyActivity += 1; // Increment on each heartbeat check
       this.setStatus("connected", "Live protection active");
@@ -224,12 +239,12 @@ export class AntivirusBridge {
       const progress =
         typeof event.data?.progress === "number" ? event.data?.progress : 0;
       this.scan.inProgress = true;
-      this.scan.progress = Math.min(100, progress);
+      this.scan.progress = Math.min(MAX_PROGRESS, progress);
       this.scan.target =
         typeof event.data?.target === "string"
           ? event.data?.target
           : this.scan.target;
-      this.bumpActivity(2 + Math.round(Math.random() * 3));
+      this.bumpActivity(BUMP_ACTIVITY_MIN + Math.round(Math.random() * BUMP_ACTIVITY_VARIANCE));
     }
 
     if (event.type === "threat_detected" || event.type === "quarantine") {
@@ -245,13 +260,13 @@ export class AntivirusBridge {
 
     if (event.type === "scan_complete") {
       this.scan.inProgress = false;
-      this.scan.progress = 100;
+      this.scan.progress = MAX_PROGRESS;
       this.stats.lastScanAt = event.timestamp;
       this.stats.lastScanDurationSec =
         typeof event.data?.durationSec === "number"
           ? event.data?.durationSec
           : null;
-      this.bumpActivity(5);
+      this.bumpActivity(BUMP_ACTIVITY_ON_COMPLETE);
       this.incrementBreakdown("Clean"); // Most scanned files are clean in summary
     }
 
@@ -311,7 +326,6 @@ export class AntivirusBridge {
     });
     // Keep 360 points (1 hour total at 10s interval, but heartbeat is 5s,
     // so 720 points for 1 hour at 5s interval)
-    const MAX_POINTS = 720;
     const next =
       this.activity.length >= MAX_POINTS
         ? this.activity.slice(1)
@@ -361,11 +375,8 @@ export class AntivirusBridge {
 function seedActivity(): AvActivityPoint[] {
   const now = Date.now();
   const points: AvActivityPoint[] = [];
-  const MAX_POINTS = 720;
-  const INTERVAL_MS = 5000; // 5s heartbeat
-
-  for (let i = MAX_POINTS - 1; i >= 0; i -= 1) {
-    const time = new Date(now - i * INTERVAL_MS);
+    for (let i = MAX_POINTS - 1; i >= 0; i -= 1) {
+      const time = new Date(now - i * ACTIVITY_INTERVAL_MS);
     points.push({
       time: time.toLocaleTimeString([], {
         hour: "2-digit",
