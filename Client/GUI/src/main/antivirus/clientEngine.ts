@@ -501,7 +501,7 @@ const ensureConfig = (workingDir: string, settings: AvSettings): void => {
             : INFECTED_ACTION_NONE,
     };
 
-    fs.writeFileSync(configPath, JSON.stringify(next, null, 2));
+    fs.writeFileSync(configPath, JSON.stringify(next));
   } catch (error) {
     // Ignore config errors; engine will use defaults.
   }
