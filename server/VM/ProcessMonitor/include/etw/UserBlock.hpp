@@ -4,12 +4,15 @@
 #include <thread>
 #include <vector>
 
+#include "Deadline.hpp"
+
 class UserBlock {
 public:
   using Callback = std::function<void(const EVENT_RECORD &, const krabs::trace_context &)>;
   explicit UserBlock(const std::wstring &userSessionName);
   void start(Callback on_event);
   void stop();
+  bool stopWithDeadline(const Deadline &deadline);
 
   void addApiCallsProvider(UCHAR level,
                            ULONGLONG any,

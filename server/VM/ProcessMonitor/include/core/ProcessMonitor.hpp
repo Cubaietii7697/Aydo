@@ -12,6 +12,7 @@
 #include <memory>
 #include <set>
 #include <string>
+#include <optional>
 
 #include <krabs.hpp>
 
@@ -21,6 +22,7 @@
 #include "KernelBlock.hpp"
 #include "ThreadAnalysisEngine.hpp"
 #include "Threads.hpp"
+#include "Deadline.hpp"
 #include "UserBlock.hpp"
 
 class ProcessMonitor {
@@ -30,6 +32,8 @@ public:
 
   std::set<DWORD> findPidsByName(const std::wstring &exeName) const;
   void logEvent(const EVENT_RECORD &record, const krabs::trace_context &ctx);
+  bool waitForTarget(const Deadline &deadline, std::chrono::milliseconds pollInterval);
+  bool stopWithDeadline(const Deadline &deadline);
 
   void start();
   void stop();
@@ -43,6 +47,7 @@ private:
   std::mutex m_analysisMtx;
   std::unique_ptr<EventWriter> m_writer = nullptr;
   std::set<DWORD> m_targetPids;
+  std::optional<std::wstring> m_targetExeName;
 
 private:
   void _analyzeRecord(const EVENT_RECORD &record,

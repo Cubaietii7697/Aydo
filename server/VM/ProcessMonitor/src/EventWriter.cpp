@@ -9,6 +9,7 @@
 
 #include "Constants.hpp"
 #include "EventWriterConstants.hpp"
+#include "SafeKrabsParser.hpp"
 #include "SqlRequests.hpp"
 #include "Utils.hpp"
 
@@ -401,7 +402,27 @@ void EventWriter::_fillPropsViaTdh(nlohmann::json &props,
     }
 
     krabs::schema schema(rec, ctx.schema_locator);
-    krabs::parser parser(schema);
+    SafeKrabsParserSession parser(schema);
+    bool loggedFatalParserState = false;
+    auto logFatalParserState = [&]() {
+      if (loggedFatalParserState || !parser.isPoisoned()) {
+        return;
+      }
+
+      std::string provider = "<unknown_provider>";
+      try {
+        provider = Utils::narrow_utf8(schema.provider_name());
+      } catch (...) {
+      }
+
+      const int eventId = static_cast<int>(rec.EventHeader.EventDescriptor.Id);
+      const std::string msg = std::format(
+          "krabs parser fatal state: provider='{}' event_id={} payload/schema mismatch; remaining properties marked <parse_error>\n",
+          provider,
+          eventId);
+      OutputDebugStringA(msg.c_str());
+      loggedFatalParserState = true;
+    };
 
     for (ULONG i = 0; i < info->TopLevelPropertyCount; ++i) {
       auto const &epi = info->EventPropertyInfoArray[i];
@@ -413,66 +434,127 @@ void EventWriter::_fillPropsViaTdh(nlohmann::json &props,
         continue;
       }
 
-      try {
-        switch (epi.nonStructType.InType) {
-        // Strings
-        case TDH_INTYPE_UNICODESTRING:
-          props[name] = Utils::narrow_utf8(parser.parse<std::wstring>(wname));
-          break;
-        case TDH_INTYPE_ANSISTRING:
-          props[name] = parser.parse<std::string>(wname);
-          break;
-        case TDH_INTYPE_INT8:
-          props[name] = parser.parse<int8_t>(wname);
-          break;
-        case TDH_INTYPE_UINT8:
-          props[name] = parser.parse<uint8_t>(wname);
-          break;
-        case TDH_INTYPE_INT16:
-          props[name] = parser.parse<int16_t>(wname);
-          break;
-        case TDH_INTYPE_UINT16:
-          props[name] = parser.parse<uint16_t>(wname);
-          break;
-        case TDH_INTYPE_INT32:
-          props[name] = parser.parse<int32_t>(wname);
-          break;
-        case TDH_INTYPE_UINT32:
-          props[name] = parser.parse<uint32_t>(wname);
-          break;
-        case TDH_INTYPE_INT64:
-          props[name] = parser.parse<int64_t>(wname);
-          break;
-        case TDH_INTYPE_UINT64:
-          props[name] = parser.parse<uint64_t>(wname);
-          break;
-        case TDH_INTYPE_BOOLEAN:
-          props[name] = parser.parse<bool>(wname);
-          break;
-
-        // Hex / Pointers
-        case TDH_INTYPE_POINTER:
-        case TDH_INTYPE_HEXINT32:
-        case TDH_INTYPE_HEXINT64: {
-          uint64_t val = (epi.length == EventWriterConstants::g_uint32ByteWidth) ? parser.parse<uint32_t>(wname) : parser.parse<uint64_t>(wname);
-          props[name] = (std::ostringstream() << "0x" << std::hex << std::nouppercase << val).str();
-          break;
-        }
-
-        // GUIDs
-        case TDH_INTYPE_GUID: {
-          GUID g = parser.parse<GUID>(wname);
-          wchar_t bufGuid[Constants::g_guidStringBufferChars];
-          props[name] = StringFromGUID2(g, bufGuid, Constants::g_guidStringBufferChars) ? Utils::narrow_utf8(bufGuid) : "<unsupported>";
-          break;
-        }
-
-        default: // Fallback
-          props[name] = Utils::narrow_utf8(parser.parse<std::wstring>(wname));
-          break;
-        }
-      } catch (...) {
+      if (parser.isPoisoned()) {
         props[name] = "<parse_error>";
+        logFatalParserState();
+        continue;
+      }
+
+      const bool wasPoisoned = parser.isPoisoned();
+      bool parsed = false;
+
+      switch (epi.nonStructType.InType) {
+      // Strings
+      case TDH_INTYPE_UNICODESTRING:
+        if (auto v = parser.tryParse<std::wstring>(wname)) {
+          props[name] = Utils::narrow_utf8(*v);
+          parsed = true;
+        }
+        break;
+      case TDH_INTYPE_ANSISTRING:
+        if (auto v = parser.tryParse<std::string>(wname)) {
+          props[name] = *v;
+          parsed = true;
+        }
+        break;
+      case TDH_INTYPE_INT8:
+        if (auto v = parser.tryParse<int8_t>(wname)) {
+          props[name] = *v;
+          parsed = true;
+        }
+        break;
+      case TDH_INTYPE_UINT8:
+        if (auto v = parser.tryParse<uint8_t>(wname)) {
+          props[name] = *v;
+          parsed = true;
+        }
+        break;
+      case TDH_INTYPE_INT16:
+        if (auto v = parser.tryParse<int16_t>(wname)) {
+          props[name] = *v;
+          parsed = true;
+        }
+        break;
+      case TDH_INTYPE_UINT16:
+        if (auto v = parser.tryParse<uint16_t>(wname)) {
+          props[name] = *v;
+          parsed = true;
+        }
+        break;
+      case TDH_INTYPE_INT32:
+        if (auto v = parser.tryParse<int32_t>(wname)) {
+          props[name] = *v;
+          parsed = true;
+        }
+        break;
+      case TDH_INTYPE_UINT32:
+        if (auto v = parser.tryParse<uint32_t>(wname)) {
+          props[name] = *v;
+          parsed = true;
+        }
+        break;
+      case TDH_INTYPE_INT64:
+        if (auto v = parser.tryParse<int64_t>(wname)) {
+          props[name] = *v;
+          parsed = true;
+        }
+        break;
+      case TDH_INTYPE_UINT64:
+        if (auto v = parser.tryParse<uint64_t>(wname)) {
+          props[name] = *v;
+          parsed = true;
+        }
+        break;
+      case TDH_INTYPE_BOOLEAN:
+        if (auto v = parser.tryParse<bool>(wname)) {
+          props[name] = *v;
+          parsed = true;
+        }
+        break;
+
+      // Hex / Pointers
+      case TDH_INTYPE_POINTER:
+      case TDH_INTYPE_HEXINT32:
+      case TDH_INTYPE_HEXINT64: {
+        std::optional<uint64_t> parsedHex;
+        if (epi.length == EventWriterConstants::g_uint32ByteWidth) {
+          if (auto v = parser.tryParse<uint32_t>(wname)) {
+            parsedHex = static_cast<uint64_t>(*v);
+          }
+        } else {
+          parsedHex = parser.tryParse<uint64_t>(wname);
+        }
+        if (parsedHex) {
+          props[name] = (std::ostringstream() << "0x" << std::hex << std::nouppercase << *parsedHex).str();
+          parsed = true;
+        }
+        break;
+      }
+
+      // GUIDs
+      case TDH_INTYPE_GUID: {
+        if (auto g = parser.tryParse<GUID>(wname)) {
+          wchar_t bufGuid[Constants::g_guidStringBufferChars];
+          props[name] = StringFromGUID2(*g, bufGuid, Constants::g_guidStringBufferChars) ? Utils::narrow_utf8(bufGuid) : "<unsupported>";
+          parsed = true;
+        }
+        break;
+      }
+
+      default: // Fallback
+        if (auto v = parser.tryParse<std::wstring>(wname)) {
+          props[name] = Utils::narrow_utf8(*v);
+          parsed = true;
+        }
+        break;
+      }
+
+      if (!parsed) {
+        props[name] = "<parse_error>";
+      }
+
+      if (!wasPoisoned && parser.isPoisoned()) {
+        logFatalParserState();
       }
     }
   } catch (const std::exception &e) {

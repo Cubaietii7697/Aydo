@@ -2,8 +2,37 @@
 #include <initializer_list>
 #include <optional>
 #include <string_view>
+#include <thread>
+#include <windows.h>
+#include <algorithm>
+#include <iostream>
 
+#include "Deadline.hpp"
+#include "SafeKrabsParser.hpp"
 #include "Utils.hpp"
+
+namespace ProcessMonitorConstants {
+inline constexpr DWORD s_invalidPid = 0;
+inline constexpr DWORD s_allProcessesSnapshot = 0;
+inline constexpr ULONGLONG s_defaultAnyMask = 0;
+inline constexpr ULONGLONG s_defaultAllMask = 0;
+inline constexpr long long s_minWaitMs = 0;
+inline constexpr long long s_maxWaitMs = 0x7fffffff;
+inline constexpr std::wstring_view s_pidSeparator = L", ";
+} // namespace ProcessMonitorConstants
+
+static std::wstring s_joinPids(const std::set<DWORD> &pids) {
+  std::wstring out;
+  bool first = true;
+  for (const DWORD pid : pids) {
+    if (!first) {
+      out += ProcessMonitorConstants::s_pidSeparator;
+    }
+    out += std::to_wstring(pid);
+    first = false;
+  }
+  return out;
+}
 
 ProcessMonitor::ProcessMonitor(const std::wstring &exeName, const std::wstring &sessionNameKernel, const std::wstring &sessionNameUser, const std::wstring &outPath) noexcept
     : m_user{sessionNameUser}
@@ -11,7 +40,8 @@ ProcessMonitor::ProcessMonitor(const std::wstring &exeName, const std::wstring &
     , m_threads{}
     , m_caches{}
     , m_writer(std::make_unique<EventWriter>(outPath, EventWriter::WireFormat::Sqlite, false, true))
-    , m_threadAnalysis(&m_caches.thread, m_writer.get()) {
+    , m_threadAnalysis(&m_caches.thread, m_writer.get())
+    , m_targetExeName(exeName) {
   m_targetPids = findPidsByName(exeName);
 }
 ProcessMonitor::ProcessMonitor(const std::set<DWORD> &initialPids, const std::wstring &sessionNameKernel, const std::wstring &sessionNameUser, std::wstring outPath) noexcept
@@ -20,7 +50,8 @@ ProcessMonitor::ProcessMonitor(const std::set<DWORD> &initialPids, const std::ws
     , m_threads{}
     , m_caches{}
     , m_writer(std::make_unique<EventWriter>(outPath, EventWriter::WireFormat::Sqlite, false, true))
-    , m_threadAnalysis(&m_caches.thread, m_writer.get()) {
+    , m_threadAnalysis(&m_caches.thread, m_writer.get())
+    , m_targetExeName(std::nullopt) {
   m_targetPids = initialPids;
 }
 
@@ -31,7 +62,7 @@ bool ProcessMonitor::_pidAllowed(const EVENT_RECORD &record,
   }
 
   auto inTargets = [this](DWORD pid) {
-    return pid != 0 && m_targetPids.contains(pid);
+    return pid != ProcessMonitorConstants::s_invalidPid && m_targetPids.contains(pid);
   };
 
   if (inTargets(record.EventHeader.ProcessId)) {
@@ -40,19 +71,18 @@ bool ProcessMonitor::_pidAllowed(const EVENT_RECORD &record,
 
   try {
     krabs::schema schema(record, ctx.schema_locator);
-    krabs::parser parser(schema);
+    SafeKrabsParserSession parser(schema);
 
     auto tryU32 = [&](const wchar_t *name) -> std::optional<uint32_t> {
-      try {
-        return parser.parse<uint32_t>(name);
-      } catch (...) {
-        return std::nullopt;
-      }
+      return parser.tryParse<uint32_t>(name);
     };
 
     for (const auto *field : {L"SourcePid", L"SourceProcessId", L"TargetPid", L"TargetProcessId", L"ProcessId"}) {
       if (auto v = tryU32(field); v && inTargets(static_cast<DWORD>(*v))) {
         return true;
+      }
+      if (parser.isPoisoned()) {
+        break;
       }
     }
   } catch (...) {
@@ -92,22 +122,14 @@ void ProcessMonitor::_analyzeRecord(const EVENT_RECORD &record,
     } catch (...) {
     }
 
-    krabs::parser parser(schema);
+    SafeKrabsParserSession parser(schema);
 
     auto tryU32 = [&](const wchar_t *name) -> std::optional<uint32_t> {
-      try {
-        return parser.parse<uint32_t>(name);
-      } catch (...) {
-        return std::nullopt;
-      }
+      return parser.tryParse<uint32_t>(name);
     };
 
     auto tryU64 = [&](const wchar_t *name) -> std::optional<uint64_t> {
-      try {
-        return parser.parse<uint64_t>(name);
-      } catch (...) {
-        return std::nullopt;
-      }
+      return parser.tryParse<uint64_t>(name);
     };
 
     auto setFirstU32 = [&](std::string_view dst, std::initializer_list<const wchar_t *> aliases) {
@@ -116,25 +138,44 @@ void ProcessMonitor::_analyzeRecord(const EVENT_RECORD &record,
           ne.fields[std::string(dst)] = *v;
           return true;
         }
+        if (parser.isPoisoned()) {
+          return false;
+        }
       }
       return false;
     };
 
     const bool hasSourcePid = setFirstU32("SourcePid", {L"SourcePid", L"SourceProcessId"});
     (void)hasSourcePid;
-    setFirstU32("TargetPid", {L"TargetPid", L"TargetProcessId", L"ProcessId"});
-    // Keep TargetThreatId for compatibility with malformed legacy event payloads.
-    setFirstU32("TargetTid", {L"TargetTid", L"TargetThreadId", L"TargetThreatId", L"TThreadId"});
-    setFirstU32("ProcessId", {L"ProcessId"});
-    setFirstU32("TThreadId", {L"TThreadId"});
-    setFirstU32("DesiredAccess", {L"DesiredAccess"});
-    setFirstU32("ReturnCode", {L"ReturnCode", L"ReturnValue"});
-
-    if (auto v = tryU64(L"TargetProcessStartKey")) {
-      ne.fields["TargetProcessStartKey"] = *v;
+    if (!parser.isPoisoned()) {
+      setFirstU32("TargetPid", {L"TargetPid", L"TargetProcessId", L"ProcessId"});
     }
-    if (auto v = tryU64(L"TargetProcessCreationTime")) {
-      ne.fields["TargetProcessCreationTime"] = *v;
+    if (!parser.isPoisoned()) {
+      // Keep TargetThreatId for compatibility with malformed legacy event payloads.
+      setFirstU32("TargetTid", {L"TargetTid", L"TargetThreadId", L"TargetThreatId", L"TThreadId"});
+    }
+    if (!parser.isPoisoned()) {
+      setFirstU32("ProcessId", {L"ProcessId"});
+    }
+    if (!parser.isPoisoned()) {
+      setFirstU32("TThreadId", {L"TThreadId"});
+    }
+    if (!parser.isPoisoned()) {
+      setFirstU32("DesiredAccess", {L"DesiredAccess"});
+    }
+    if (!parser.isPoisoned()) {
+      setFirstU32("ReturnCode", {L"ReturnCode", L"ReturnValue"});
+    }
+
+    if (!parser.isPoisoned()) {
+      if (auto v = tryU64(L"TargetProcessStartKey")) {
+        ne.fields["TargetProcessStartKey"] = *v;
+      }
+    }
+    if (!parser.isPoisoned()) {
+      if (auto v = tryU64(L"TargetProcessCreationTime")) {
+        ne.fields["TargetProcessCreationTime"] = *v;
+      }
     }
   } catch (...) {
     ne.provider = "<no_schema>";
@@ -167,7 +208,7 @@ void ProcessMonitor::_onUserEvent(const EVENT_RECORD &record,
 
 std::set<DWORD> ProcessMonitor::findPidsByName(const std::wstring &exeName) const {
   std::set<DWORD> pids;
-  HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+  HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, ProcessMonitorConstants::s_allProcessesSnapshot);
   if (snap == INVALID_HANDLE_VALUE) {
     return pids;
   }
@@ -203,6 +244,56 @@ void ProcessMonitor::stop() {
   }
 }
 
+static bool s_joinWithDeadline(std::jthread &t, const Deadline &deadline, const char *tag) {
+  if (!t.joinable()) {
+    return true;
+  }
+
+  const auto rem = deadline.remaining_ms();
+  const DWORD waitMs = static_cast<DWORD>(std::clamp<long long>(rem.count(), ProcessMonitorConstants::s_minWaitMs, ProcessMonitorConstants::s_maxWaitMs));
+  const HANDLE h = reinterpret_cast<HANDLE>(t.native_handle());
+  const DWORD res = WaitForSingleObject(h, waitMs);
+  if (res == WAIT_OBJECT_0) {
+    t.join();
+    return true;
+  }
+
+  std::string msg = std::string("ProcessMonitor: thread '") + (tag ? tag : "unknown") + "' join timed out; detaching\n";
+  OutputDebugStringA(msg.c_str());
+  t.detach();
+  return false;
+}
+
+bool ProcessMonitor::waitForTarget(const Deadline &deadline,
+                                   std::chrono::milliseconds pollInterval) {
+  if (!m_targetExeName.has_value()) {
+    return true; // explicit PID list supplied
+  }
+
+  while (!deadline.expired()) {
+    m_targetPids = findPidsByName(*m_targetExeName);
+    if (!m_targetPids.empty()) {
+      std::wcout << L"Matched target '" << *m_targetExeName
+                 << L"' (count=" << m_targetPids.size()
+                 << L"): " << s_joinPids(m_targetPids) << std::endl;
+      return true;
+    }
+    std::this_thread::sleep_for(pollInterval);
+  }
+
+  OutputDebugStringA("ProcessMonitor: target process not found before deadline\n");
+  return false;
+}
+
+bool ProcessMonitor::stopWithDeadline(const Deadline &deadline) {
+  bool ok = true;
+  ok &= m_kernel.stopWithDeadline(deadline);
+  ok &= m_user.stopWithDeadline(deadline);
+  ok &= s_joinWithDeadline(m_threads.kernel, deadline, "kernel_thread");
+  ok &= s_joinWithDeadline(m_threads.user, deadline, "user_thread");
+  return ok;
+}
+
 void ProcessMonitor::_enableKernelProviders() {
   m_kernel.addDefaultKernelProviders();
   m_kernel.start([this](const EVENT_RECORD &rec, const krabs::trace_context &ctx) {
@@ -211,7 +302,9 @@ void ProcessMonitor::_enableKernelProviders() {
 }
 
 void ProcessMonitor::_enableUserProviders() {
-  m_user.addApiCallsProvider(TRACE_LEVEL_INFORMATION, 0, 0);
+  m_user.addApiCallsProvider(TRACE_LEVEL_INFORMATION,
+                             ProcessMonitorConstants::s_defaultAnyMask,
+                             ProcessMonitorConstants::s_defaultAllMask);
   m_user.start([this](const EVENT_RECORD &rec, const krabs::trace_context &ctx) {
     _onUserEvent(rec, ctx);
   });

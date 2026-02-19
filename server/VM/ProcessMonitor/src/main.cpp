@@ -5,8 +5,10 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <windows.h>
 
 #include "Constants.hpp"
+#include "Deadline.hpp"
 #include "ProcessMonitor.hpp"
 #include "SelfTest.hpp"
 
@@ -17,6 +19,10 @@ static constexpr int s_outputPathArgIndex = 2;
 static constexpr int s_traceDurationArgIndex = 3;
 static constexpr int s_minRunArgCount = 3;
 static constexpr int s_maxRunArgCount = 4;
+static constexpr int s_minTraceDurationSeconds = 1;
+static constexpr int s_hardStopExitCode = EXIT_FAILURE;
+inline constexpr auto s_targetPollInterval = std::chrono::milliseconds(250);
+inline constexpr auto s_stopGracePeriod = std::chrono::seconds(5);
 
 static constexpr std::wstring_view s_selfTestFlag = L"--self-test";
 static constexpr std::wstring_view s_kernelSessionName = L"NTKernelLogger";
@@ -39,19 +45,43 @@ int wmain(int argc, wchar_t *argv[]) {
 
   const int traceDurationSeconds =
       (argc == MainConstants::s_maxRunArgCount) ? _wtoi(argv[MainConstants::s_traceDurationArgIndex]) : Constants::g_defaultTraceDurationSeconds;
+  if (traceDurationSeconds < MainConstants::s_minTraceDurationSeconds) {
+    std::wcerr << L"TraceTime must be >= " << MainConstants::s_minTraceDurationSeconds << L" seconds" << std::endl;
+    return EXIT_FAILURE;
+  }
 
   try {
+    // Hard watchdog: enforce process lifetime upper bound regardless of stop/join behavior.
+    std::thread([hardStopAfter = std::chrono::seconds(traceDurationSeconds)] {
+      std::this_thread::sleep_for(hardStopAfter);
+      OutputDebugStringA("ProcessMonitor: hard stop reached; terminating process\n");
+      TerminateProcess(GetCurrentProcess(), MainConstants::s_hardStopExitCode);
+    }).detach();
+
+    const auto now = std::chrono::steady_clock::now();
+    Deadline deadline(now + std::chrono::seconds(traceDurationSeconds));
+    const Deadline stopDeadline(deadline.time_point() + MainConstants::s_stopGracePeriod); // grace
+
     auto pm = std::make_unique<ProcessMonitor>(
         targetExe,
         std::wstring(MainConstants::s_kernelSessionName),
         std::wstring(MainConstants::s_userSessionName),
         argv[MainConstants::s_outputPathArgIndex]);
+
+    if (!pm->waitForTarget(deadline, MainConstants::s_targetPollInterval)) {
+      std::wcerr << L"Target process '" << targetExe << L"' not found before deadline" << std::endl;
+      return EXIT_FAILURE;
+    }
     // Start monitor
     pm->start();
 
-    std::this_thread::sleep_for(std::chrono::seconds(traceDurationSeconds));
+    if (const auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(deadline.time_point() - std::chrono::steady_clock::now()); remaining.count() > 0) {
+      std::this_thread::sleep_for(remaining);
+    }
 
-    pm->stop();
+    if (!pm->stopWithDeadline(stopDeadline)) {
+      std::wcerr << L"ProcessMonitor stop exceeded deadline; some events may be lost" << std::endl;
+    }
   } catch (...) {
     return EXIT_FAILURE;
   }

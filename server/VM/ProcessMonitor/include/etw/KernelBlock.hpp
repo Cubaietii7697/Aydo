@@ -13,6 +13,8 @@
 #include <mutex>
 #include <string>
 
+#include "Deadline.hpp"
+
 class KernelBlock {
 public:
   explicit KernelBlock(const std::wstring &userSessionName);
@@ -26,6 +28,8 @@ public:
 
   void start(const Callback &cb);
   void stop();
+  // Stop with deadline; may detach worker thread if it exceeds deadline.
+  bool stopWithDeadline(const Deadline &deadline);
 
 private:
   std::unique_ptr<krabs::kernel_trace> m_trace;

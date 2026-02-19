@@ -2,12 +2,17 @@
 
 #include <array>
 #include <new>
+#include <windows.h>
+#include <algorithm>
 
 #include "Utils.hpp"
 
 namespace UserBlockConstants {
-inline constexpr size_t g_apiCalls = 18;
-static constexpr std::array<const wchar_t *, g_apiCalls> s_apiCallProviderNames = {
+inline constexpr long long s_minWaitMs = 0;
+inline constexpr long long s_maxWaitMs = 0x7fffffff;
+static constexpr const char *s_timeoutDetachMsg = "UserBlock: trace thread did not stop before deadline; detaching\n";
+
+static constexpr auto s_apiCallProviderNames = std::to_array<const wchar_t *>({
     L"Microsoft-Windows-DNS-Client",
     L"Microsoft-Windows-WinHTTP",
     L"Microsoft-Windows-WMI-Activity",
@@ -26,7 +31,7 @@ static constexpr std::array<const wchar_t *, g_apiCalls> s_apiCallProviderNames 
     L"Microsoft-Windows-CAPI2",
     L"Microsoft-Windows-Bits-Client",
     L"Microsoft-Windows-Installer",
-};
+});
 } // namespace UserBlockConstants
 
 UserBlock::UserBlock(const std::wstring &userSessionName)
@@ -149,4 +154,29 @@ void UserBlock::stop() {
   }
   m_trace.reset();
   m_cb = Callback{};
+}
+
+bool UserBlock::stopWithDeadline(const Deadline &deadline) {
+  if (m_trace) {
+    m_trace->stop();
+  }
+
+  bool ok = true;
+  if (m_thread.joinable()) {
+    const auto rem = deadline.remaining_ms();
+    const DWORD waitMs = static_cast<DWORD>(std::clamp<long long>(rem.count(), UserBlockConstants::s_minWaitMs, UserBlockConstants::s_maxWaitMs));
+    const HANDLE h = reinterpret_cast<HANDLE>(m_thread.native_handle());
+    const DWORD res = WaitForSingleObject(h, waitMs);
+    if (res == WAIT_OBJECT_0) {
+      m_thread.join();
+    } else {
+      OutputDebugStringA(UserBlockConstants::s_timeoutDetachMsg);
+      m_thread.detach();
+      ok = false;
+    }
+  }
+
+  m_trace.reset();
+  m_cb = Callback{};
+  return ok;
 }
