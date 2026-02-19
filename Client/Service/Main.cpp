@@ -31,9 +31,9 @@ static void pipeServerLoop(ProcessMonitor *monitor) {
         PIPE_ACCESS_DUPLEX,
         PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT,
         PIPE_UNLIMITED_INSTANCES,
-        512,
-        512,
-        0,
+        Constants::PIPE_BUFFER_SIZE,
+        Constants::PIPE_BUFFER_SIZE,
+        0,  // No timeout
         NULL);
 
     if (hPipe == INVALID_HANDLE_VALUE) {

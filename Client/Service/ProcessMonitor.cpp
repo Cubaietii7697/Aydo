@@ -126,13 +126,13 @@ bool ProcessMonitor::scanFile(const std::string &path) {
     if (threat) {
       notifyEvent(Protocol::EventType::ThreatDetected, "high", "THREAT: " + path, {{"target", path}});
       auto &config = UserConfig::getInstance();
-      if (config.infectedFileAction == 1) { // Quarantine
+      if (config.infectedFileAction == Constants::INFECTED_FILE_ACTION_QUARANTINE) { // Quarantine
         if (Utils::quarantineFile(path)) {
           notifyEvent(Protocol::EventType::Quarantine, "medium", "Isolated: " + path, {{"target", path}});
         } else {
           notifyEvent(Protocol::EventType::Info, "medium", "Failed to quarantine: " + path, {{"target", path}});
         }
-      } else if (config.infectedFileAction == 2) { // Delete
+      } else if (config.infectedFileAction == Constants::INFECTED_FILE_ACTION_DELETE) { // Delete
         if (Utils::deleteFile(path)) {
           notifyEvent(Protocol::EventType::Delete, "medium", "Removed: " + path, {{"target", path}});
         } else {
@@ -185,7 +185,7 @@ bool ProcessMonitor::scanDirectory(const std::string &path) {
       displayPath = file.filename().string();
     }
 
-    int progress = static_cast<int>((scanned * 100) / total);
+    int progress = static_cast<int>((scanned * Constants::SCAN_PROGRESS_PERCENTAGE_MAX) / total);
     notifyEvent(Protocol::EventType::ScanProgress, "low", "Scanning: " + displayPath, {{"target", path}, {"progress", progress}});
 
     try {
@@ -193,13 +193,13 @@ bool ProcessMonitor::scanDirectory(const std::string &path) {
         threats++;
         notifyEvent(Protocol::EventType::ThreatDetected, "high", "THREAT DETECTED: " + filePath, {{"target", filePath}});
         auto &config = UserConfig::getInstance();
-        if (config.infectedFileAction == 1) { // Quarantine
+        if (config.infectedFileAction == Constants::INFECTED_FILE_ACTION_QUARANTINE) { // Quarantine
           if (Utils::quarantineFile(filePath)) {
             notifyEvent(Protocol::EventType::Quarantine, "medium", "Isolated: " + filePath, {{"target", filePath}});
           } else {
             notifyEvent(Protocol::EventType::Info, "medium", "Failed to quarantine: " + filePath, {{"target", filePath}});
           }
-        } else if (config.infectedFileAction == 2) { // Delete
+        } else if (config.infectedFileAction == Constants::INFECTED_FILE_ACTION_DELETE) { // Delete
           if (Utils::deleteFile(filePath)) {
             notifyEvent(Protocol::EventType::Delete, "medium", "Removed: " + filePath, {{"target", filePath}});
           } else {
@@ -324,7 +324,7 @@ bool ProcessMonitor::isThreat(const std::string &path) {
           break;
         }
 
-        Sleep(Constants::DYNAMIC_SCAN_POLL_INTERVAL * 1000);
+        Sleep(Constants::DYNAMIC_SCAN_POLL_INTERVAL * 1000);  // Convert seconds to milliseconds
       }
     } catch (...) {
     }
@@ -351,11 +351,11 @@ void ProcessMonitor::handleProcessStarted(uint32_t pid, const std::string &path)
       }
 
       auto &config = UserConfig::getInstance();
-      if (config.infectedFileAction == 1) { // Quarantine
+      if (config.infectedFileAction == Constants::INFECTED_FILE_ACTION_QUARANTINE) { // Quarantine
         if (Utils::quarantineFile(path)) {
           notifyEvent(Protocol::EventType::Quarantine, "medium", "Isolated: " + path);
         }
-      } else if (config.infectedFileAction == 2) { // Delete
+      } else if (config.infectedFileAction == Constants::INFECTED_FILE_ACTION_DELETE) { // Delete
         if (Utils::deleteFile(path)) {
           notifyEvent(Protocol::EventType::Delete, "medium", "Removed: " + path);
         }
