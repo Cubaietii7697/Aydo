@@ -155,6 +155,7 @@ const findDevServer = async (): Promise<string | undefined> => {
     try {
       const url = `http://localhost:${port}`;
       const response = await fetch(url, { method: "HEAD", timeout: DEV_SERVER_PING_TIMEOUT_MS });
+      // if the dev server is fine (304 or 2xx)
       if (response.ok || response.status === 304) {
         return url;
       }
