@@ -441,7 +441,14 @@ FodyWeavers.xsd
 /vcpkg
 vcpkg
 x64/
-*.json
+config.json
 *.env
 *.sqlite
 *.vcxproj
+
+# Electron desktop (Bun)
+apps/desktop/dist/
+apps/desktop/release/
+apps/desktop/.electron-vite/
+apps/desktop/test-results/
+apps/desktop/playwright-report/

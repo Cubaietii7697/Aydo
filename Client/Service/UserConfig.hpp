@@ -11,6 +11,7 @@ public:
   std::string accessToken;
   std::string refreshToken;
   int runtime = 60;
+  int infectedFileAction = 0; // 0=None, 1=Quarantine, 2=Delete
 
   static UserConfig &getInstance();
   bool load(const std::string &configPath = "config.json");
