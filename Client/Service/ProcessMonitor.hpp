@@ -54,10 +54,6 @@ public:
 
   bool isThreat(const std::string &path);
   void setBlockingActive(bool active);
-
-  bool isThreat(const std::string &path);
-  void setBlockingActive(bool active);
-
 private:
   std::atomic<bool> m_blockingActive{false};
   void monitorLoop();
