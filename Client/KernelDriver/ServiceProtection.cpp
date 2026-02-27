@@ -77,9 +77,8 @@ BOOLEAN isProtectedServiceKey(PCUNICODE_STRING keyPath) {
     return FALSE;
   }
 
-  for (ULONG i = 0; i < (sizeof(Constants::PROTECTED_REGISTRY_PATHS) /
-                         sizeof(Constants::PROTECTED_REGISTRY_PATHS[0]));
-       ++i) {
+  const ULONG arraySize = sizeof(Constants::PROTECTED_REGISTRY_PATHS) / sizeof(Constants::PROTECTED_REGISTRY_PATHS[0]);
+  for (ULONG i = 0; i < arraySize; ++i) {
     UNICODE_STRING us;
     RtlInitUnicodeString(&us, Constants::PROTECTED_REGISTRY_PATHS[i]);
 
