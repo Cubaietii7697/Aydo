@@ -1,5 +1,3 @@
-; KernelDriver.inf - Hybrid Kernel Driver with File System Filter
-
 [Version]
 Signature   = "$WINDOWS NT$"
 Class       = System
