@@ -1,3 +1,4 @@
+#include "pch.h"
 #include "SelfTest.hpp"
 
 #include <atomic>
@@ -5,7 +6,6 @@
 #include <cstdlib>
 #include <iostream>
 #include <thread>
-#include <evntrace.h>
 
 #include "Deadline.hpp"
 #include "UserBlock.hpp"
@@ -21,7 +21,7 @@ static constexpr std::wstring_view s_SESSION_NAME = L"NTUserLoggerLiveSelfTest";
 
 int RunProcessMonitorLiveSelfTest() {
   std::atomic_uint64_t eventCount{0};
-  UserBlock userBlock(std::wstring(SelfTestLiveConstants::s_SESSION_NAME));
+  UserBlock userBlock{std::wstring(SelfTestLiveConstants::s_SESSION_NAME)};
   userBlock.addAnalystProviders(SelfTestLiveConstants::s_TRACE_LEVEL,
                                 SelfTestLiveConstants::s_ANY_MASK,
                                 SelfTestLiveConstants::s_ALL_MASK);
