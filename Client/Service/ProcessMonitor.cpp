@@ -1,6 +1,7 @@
 #include "ProcessMonitor.hpp"
 #include <windows.h>
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <filesystem>
 #include <iostream>
@@ -119,6 +120,20 @@ bool ProcessMonitor::scanFile(const std::string &path) {
     return scanDirectory(path);
   }
 
+  try {
+    const auto fileSize = std::filesystem::file_size(path);
+    auto &config = UserConfig::getInstance();
+    if (config.maxScanSize > 0 && fileSize > config.maxScanSize) {
+      notifyEvent(Protocol::EventType::Info, "low", "Skipping large file: " + path,
+                  {{"target", path}, {"size", fileSize}});
+      return false;
+    }
+  } catch (const std::exception &ex) {
+    notifyEvent(Protocol::EventType::Info, "medium", "SCAN ERROR: " + std::string(ex.what()),
+                {{"target", path}});
+    return false;
+  }
+
   notifyEvent(Protocol::EventType::ScanProgress, "low", "Requested: " + std::filesystem::path(path).filename().string(), {{"target", path}});
 
   try {
@@ -222,13 +237,16 @@ bool ProcessMonitor::scanDirectory(const std::string &path) {
 }
 
 bool ProcessMonitor::isThreat(const std::string &path) {
-  // Layer 1: Check if signed Windows file
+  // Layer 1: Check if signed Windows file (cache as clean to avoid rescanning)
   if (Utils::isWindowsSigned(path)) {
     return false;
   }
 
-  // Compute hash
+  // Compute hash up front so we can cache the result regardless of the path type
   const auto hexHash = Utils::computeSHA256(path);
+  if (hexHash.empty()) {
+    return false;
+  }
 
   // Check if already scanned
   {
@@ -237,19 +255,6 @@ bool ProcessMonitor::isThreat(const std::string &path) {
       return it->second;
     }
   }
-
-  // Compute Entropy
-  const auto bytes = Utils::readFile(path);
-
-  std::array<int, Constants::ALPHABET_SIZE> freq{};
-  for (uint8_t b : bytes) {
-    ++freq[b];
-  }
-
-  const std::vector<int> countedBytes(freq.begin(), freq.end());
-  const double entropy = Utils::calculateEntropy(
-      countedBytes,
-      static_cast<std::streamsize>(bytes.size()));
 
   // Check hashes database
   if (const auto resHASH = m_hashDb.getHashName(hexHash); resHASH && !resHASH->empty()) {
@@ -281,13 +286,49 @@ bool ProcessMonitor::isThreat(const std::string &path) {
 
   auto &config = UserConfig::getInstance();
 
+  // Skip cloud/dynamic scan and entropy when server is unreachable to avoid expensive work
+  bool serverReachable = false;
+  const bool cloudEnabled = !config.serverUrl.empty();
+  if (cloudEnabled) {
+    try {
+      serverReachable = ServerCommunications::getInstance().isServerReachable();
+    } catch (...) {
+      serverReachable = false;
+    }
+  }
+
+  if (!serverReachable) {
+    {
+      std::lock_guard<std::mutex> lock(m_cacheMutex);
+      m_scannedHashes[hexHash] = false;
+    }
+    log("[CLOUD] Server unreachable, skipping entropy and dynamic scan for: " + path);
+    return false;
+  }
+
+  // Compute Entropy
+  const auto bytes = Utils::readFile(path);
+
+  std::array<int, Constants::ALPHABET_SIZE> freq{};
+  for (uint8_t b : bytes) {
+    ++freq[b];
+  }
+
+  const std::vector<int> countedBytes(freq.begin(), freq.end());
+  const double entropy = Utils::calculateEntropy(
+      countedBytes,
+      static_cast<std::streamsize>(bytes.size()));
+
   if (entropy > config.entropyThreshold) {
     try {
       auto &server = ServerCommunications::getInstance();
       nlohmann::json response;
       bool fileUploaded = false;
 
-      while (true) {
+      const auto start = std::chrono::steady_clock::now();
+      const auto maxWait = std::chrono::milliseconds(Constants::DYNAMIC_SCAN_MAX_WAIT_MS);
+
+      while (std::chrono::steady_clock::now() - start < maxWait) {
         if (server.requestFileScan(hexHash, config.runtime, response)) {
           std::string status = response.value("status", "Unknown");
 
@@ -318,6 +359,7 @@ bool ProcessMonitor::isThreat(const std::string &path) {
               break;
             }
           } else if (status == "InProgress" || status == "Pending") {
+            // keep polling within the time budget
           } else if (status == "Failed") {
             break;
           }
@@ -325,7 +367,7 @@ bool ProcessMonitor::isThreat(const std::string &path) {
           break;
         }
 
-        Sleep(Constants::DYNAMIC_SCAN_POLL_INTERVAL * 1000);  // Convert seconds to milliseconds
+        Sleep(Constants::DYNAMIC_SCAN_CLIENT_POLL_MS);
       }
     } catch (...) {
     }
@@ -365,18 +407,26 @@ void ProcessMonitor::handleProcessStarted(uint32_t pid, const std::string &path)
           notifyEvent(Protocol::EventType::Delete, "medium", "Removed: " + path);
         }
       }
-<<<<<<< HEAD
-=======
     } else {
-        if (!m_driver->resumeProcess(pid)) {
-          std::cout << "  -> [FAILED] Could not resume process (Error: " << GetLastError() << ")" << std::endl
-                    << std::endl;
-        }
+      if (!m_driver->resumeProcess(pid)) {
+        std::cout << "  -> [FAILED] Could not resume process (Error: " << GetLastError() << ")" << std::endl
+                  << std::endl;
+      }
       std::cout << "  -> [CLEAN] Process is safe: " << path << std::endl
                 << std::endl;
->>>>>>> 47b9043 (IMPLEMENT FILE PAUSING LETS GOOOOOOOOOOOOOOOOOOOOOO)
+    }
+  } catch (const std::exception &ex) {
+    std::cerr << "[SCAN ERROR] Exception while scanning PID " << pid << ": " << ex.what() << std::endl;
+
+    if (!m_driver->resumeProcess(pid)) {
+      std::cerr << "  -> [FAILED] Could not resume process after scan exception (Error: " << GetLastError() << ")" << std::endl;
     }
   } catch (...) {
+    std::cerr << "[SCAN ERROR] Unknown exception while scanning PID " << pid << std::endl;
+
+    if (!m_driver->resumeProcess(pid)) {
+      std::cerr << "  -> [FAILED] Could not resume process after scan exception (Error: " << GetLastError() << ")" << std::endl;
+    }
   }
 }
 

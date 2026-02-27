@@ -1,9 +1,11 @@
 #include "ServerCommunications.hpp"
+#include "../Constants.hpp"
 #include "../UserConfig.hpp"
 
 #include <cpr/cpr.h>
 #include <iostream>
 #include <nlohmann/json.hpp>
+#include <thread>
 
 std::unique_ptr<ServerCommunications> ServerCommunications::m_instance = nullptr;
 std::mutex ServerCommunications::m_mutex;
@@ -12,7 +14,12 @@ void ServerCommunications::initialize(const std::string &serverAddress, const st
   std::lock_guard<std::mutex> lock(m_mutex);
   if (!m_instance) {
     m_instance.reset(new ServerCommunications(serverAddress, authenticationToken, refreshToken));
+    m_instance->startReachabilityMonitor();
   }
+}
+
+bool ServerCommunications::isServerReachable() const {
+  return m_serverReachable.load(std::memory_order_relaxed);
 }
 
 ServerCommunications &ServerCommunications::getInstance() {
@@ -30,7 +37,55 @@ ServerCommunications::ServerCommunications(const std::string &serverAddress,
     , m_authenticationToken(authenticationToken)
     , m_refreshToken(refreshToken) {}
 
-ServerCommunications::~ServerCommunications() {}
+ServerCommunications::~ServerCommunications() {
+  stopReachabilityMonitor();
+}
+
+void ServerCommunications::startReachabilityMonitor() {
+  if (m_reachabilityThread.joinable()) {
+    return;
+  }
+
+  m_stopReachability.store(false, std::memory_order_relaxed);
+  m_reachabilityThread = std::thread([this]() {
+    while (!m_stopReachability.load(std::memory_order_relaxed)) {
+      const bool reachable = pingServer();
+      m_serverReachable.store(reachable, std::memory_order_relaxed);
+      std::this_thread::sleep_for(Constants::SERVER_REACHABILITY_POLL_INTERVAL);
+    }
+  });
+}
+
+void ServerCommunications::stopReachabilityMonitor() {
+  m_stopReachability.store(true, std::memory_order_relaxed);
+  if (m_reachabilityThread.joinable()) {
+    m_reachabilityThread.join();
+  }
+}
+
+bool ServerCommunications::pingServer() const {
+  if (m_serverAddress.empty()) {
+    return false;
+  }
+
+  try {
+    cpr::Header headers;
+    if (!m_authenticationToken.empty()) {
+      headers.insert({"Authorization", "Bearer " + m_authenticationToken});
+    }
+
+    const auto response = cpr::Get(
+        cpr::Url{m_serverAddress + "/api/health"},
+        headers,
+        cpr::Timeout{Constants::REQUEST_TIMEOUT_DURATION});
+
+    // Any HTTP response code other than 0 means the server is reachable even if the endpoint is missing
+    return response.status_code >= 200 && response.status_code < 500;
+  } catch (const std::exception &e) {
+    std::cerr << "Ping error: " << e.what() << std::endl;
+    return false;
+  }
+}
 
 long ServerCommunications::postRequest(const std::string &endpoint, const std::string &body, std::string &responseBody) {
   auto performRequest = [&]() -> long {
@@ -43,7 +98,8 @@ long ServerCommunications::postRequest(const std::string &endpoint, const std::s
       auto response = cpr::Post(
           cpr::Url{m_serverAddress + endpoint},
           cpr::Body{body},
-          headers);
+          headers,
+          cpr::Timeout{Constants::REQUEST_TIMEOUT_DURATION});
 
       responseBody = response.text;
       return response.status_code;
@@ -87,7 +143,8 @@ bool ServerCommunications::refreshToken() {
     auto response = cpr::Post(
         cpr::Url{m_serverAddress + "/api/auth/refresh-token"},
         cpr::Body{payload.dump()},
-        cpr::Header{{"Content-Type", "application/json"}});
+        cpr::Header{{"Content-Type", "application/json"}},
+        cpr::Timeout{Constants::REQUEST_TIMEOUT_DURATION});
 
     if (response.status_code == static_cast<long>(HttpStatus::Ok)) {
       auto jsonResponse = nlohmann::json::parse(response.text);
@@ -189,7 +246,8 @@ bool ServerCommunications::uploadFile(const std::string &fileHash, const std::st
           cpr::Url{m_serverAddress + "/api/sandbox/upload-file"},
           cpr::Multipart{{"fileHash", fileHash},
                          {"file", cpr::File{filePath}}},
-          headers);
+          headers,
+          cpr::Timeout{Constants::REQUEST_TIMEOUT_DURATION});
 
       return response.status_code;
     } catch (const std::exception &e) {

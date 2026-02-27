@@ -5,21 +5,17 @@
 
 #include <atomic>
 #include <cstdlib>
-#include <functional>
 #include <iostream>
 #include <string>
 #include <thread>
 
+#include <nlohmann/json.hpp>
 
 #include "Constants.hpp"
 #include "Databases/HashesDatabase.hpp"
 #include "KernelCommunications/KernelCommunications.hpp"
 #include "ProcessMonitor.hpp"
-<<<<<<< HEAD
 #include "Protocol.hpp"
-=======
-#include "Utils.hpp"
->>>>>>> 47b9043 (IMPLEMENT FILE PAUSING LETS GOOOOOOOOOOOOOOOOOOOOOO)
 #include "Yara/YScanningEngine.hpp"
 
 #pragma comment(lib, "ws2_32.lib")
@@ -57,7 +53,7 @@ static void pipeServerLoop(ProcessMonitor *monitor) {
         WriteFile(hPipe, serialized.c_str(), static_cast<DWORD>(serialized.size()), &written, NULL);
       };
 
-      monitor->setEventHandler([sendEvent](const Protocol::Event &ev) {
+      monitor->setEventHandler([sendEvent](const Protocol::Event &ev) mutable {
         sendEvent(ev);
       });
 
@@ -164,16 +160,6 @@ int main() {
 
   std::cout << "Successfully registered as service!" << std::endl;
 
-  // Write minifilter protected path to registry (after service is registered with kernel driver)
-  wchar_t currentDir[MAX_PATH] = {0};
-  if (GetCurrentDirectoryW(static_cast<DWORD>(std::size(currentDir)), currentDir)) {
-    if (Utils::writeMinifilterProtectedPath(currentDir)) {
-      std::cout << "Registered protected path with minifilter: " << Utils::wstring_to_utf8(currentDir) << std::endl;
-    } else {
-      std::cerr << "Warning: Failed to pre-populate minifilter registry" << std::endl;
-    }
-  }
-
   std::cout << "Initializing scanning engines..." << std::endl;
 
   try {
@@ -184,11 +170,7 @@ int main() {
 
     ProcessMonitor monitor(driver, yara, hashDb);
     g_monitor = &monitor;
-
-<<<<<<< HEAD
-=======
     std::cout << "Starting background monitoring thread..." << std::endl;
->>>>>>> 47b9043 (IMPLEMENT FILE PAUSING LETS GOOOOOOOOOOOOOOOOOOOOOO)
     monitor.start();
 
     std::thread commandThread(pipeServerLoop, &monitor);

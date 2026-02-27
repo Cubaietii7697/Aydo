@@ -243,7 +243,6 @@ bool Utils::isWindowsSigned(const std::string &path) {
   return status == ERROR_SUCCESS;
 }
 
-<<<<<<< HEAD
 bool Utils::quarantineFile(const std::string &path) {
   try {
     std::filesystem::path src(path);
@@ -280,65 +279,4 @@ bool Utils::deleteFile(const std::string &path) {
   } catch (...) {
     return false;
   }
-=======
-bool Utils::writeMinifilterProtectedPath(const std::wstring &protectedPath) {
-  // Build the registry path using the minifilter driver name constant
-  std::wstring regPath = L"System\\CurrentControlSet\\Services\\";
-  regPath += Constants::MINIFILTER_DRIVER_NAME;
-
-  std::cout << "Attempting to write to registry: " << wstring_to_utf8(regPath) << std::endl;
-  std::cout << "Value to write: " << wstring_to_utf8(protectedPath) << std::endl;
-
-  HKEY hKey = nullptr;
-  LONG result = RegOpenKeyExW(
-      HKEY_LOCAL_MACHINE,
-      regPath.c_str(),
-      0,
-      KEY_ALL_ACCESS,
-      &hKey);
-
-  if (result != ERROR_SUCCESS) {
-    std::cout << "RegOpenKeyExW failed: 0x" << std::hex << result << std::dec << ", trying to create..." << std::endl;
-    // Key doesn't exist, try to create it
-    result = RegCreateKeyExW(
-        HKEY_LOCAL_MACHINE,
-        regPath.c_str(),
-        0,
-        nullptr,
-        REG_OPTION_NON_VOLATILE,
-        KEY_ALL_ACCESS,
-        nullptr,
-        &hKey,
-        nullptr);
-
-    if (result != ERROR_SUCCESS) {
-      std::cerr << "Failed to create registry key: 0x" << std::hex << result << std::dec << std::endl;
-      return false;
-    }
-  }
-
-  std::cout << "Registry key opened/created successfully" << std::endl;
-
-  // Write the ProtectedPath value as a REG_SZ
-  // Include null terminator in the size
-  DWORD dataSize = static_cast<DWORD>((protectedPath.length() + 1) * sizeof(wchar_t));
-  std::cout << "Writing " << dataSize << " bytes to ProtectedPath value" << std::endl;
-
-  result = RegSetValueExW(
-      hKey,
-      L"ProtectedPath",
-      0,
-      REG_SZ,
-      reinterpret_cast<const BYTE *>(protectedPath.c_str()),
-      dataSize);
-
-  if (result != ERROR_SUCCESS) {
-    std::cerr << "Failed to write ProtectedPath value: 0x" << std::hex << result << std::dec << std::endl;
-  } else {
-    std::cout << "Successfully wrote ProtectedPath to registry" << std::endl;
-  }
-
-  RegCloseKey(hKey);
-  return result == ERROR_SUCCESS;
->>>>>>> 47b9043 (IMPLEMENT FILE PAUSING LETS GOOOOOOOOOOOOOOOOOOOOOO)
 }
