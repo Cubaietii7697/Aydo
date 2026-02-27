@@ -85,6 +85,38 @@ bool ServerCommunications::pingServer() const {
     std::cerr << "Ping error: " << e.what() << std::endl;
     return false;
   }
+
+  return status;
+}
+
+bool ServerCommunications::refreshToken() {
+  if (m_refreshToken.empty()) {
+    return false;
+  }
+
+  nlohmann::json payload = {{"refreshToken", m_refreshToken}};
+  std::string responseBody;
+
+  try {
+    auto response = cpr::Post(
+        cpr::Url{m_serverAddress + "/api/auth/refresh-token"},
+        cpr::Body{payload.dump()},
+        cpr::Header{{"Content-Type", "application/json"}});
+
+    if (response.status_code == static_cast<long>(HttpStatus::Ok)) {
+      auto jsonResponse = nlohmann::json::parse(response.text);
+      if (jsonResponse.contains("accessToken")) {
+        m_authenticationToken = jsonResponse["accessToken"];
+        UserConfig::getInstance().accessToken = m_authenticationToken;
+        UserConfig::getInstance().save();
+        return true;
+      }
+    }
+  } catch (const std::exception &e) {
+    std::cerr << "Refresh token error: " << e.what() << std::endl;
+  }
+
+  return false;
 }
 
 long ServerCommunications::postRequest(const std::string &endpoint, const std::string &body, std::string &responseBody) {
@@ -246,8 +278,12 @@ bool ServerCommunications::uploadFile(const std::string &fileHash, const std::st
           cpr::Url{m_serverAddress + "/api/sandbox/upload-file"},
           cpr::Multipart{{"fileHash", fileHash},
                          {"file", cpr::File{filePath}}},
+<<<<<<< HEAD
           headers,
           cpr::Timeout{Constants::REQUEST_TIMEOUT_DURATION});
+=======
+          headers);
+>>>>>>> 62c615ae23524c8b1487656e043218b99dab08dd
 
       return response.status_code;
     } catch (const std::exception &e) {

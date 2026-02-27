@@ -1,12 +1,18 @@
 #include "Communications.hpp"
 #include <ntdef.h>
 #include <ntstatus.h>
+#include <ntdef.h>
+#include <ntstatus.h>
 
+#include <ntifs.h>
+#include <wdm.h>
 #include <ntifs.h>
 #include <wdm.h>
 #include "../IOCTLs.hpp"
 #include "Constants.hpp"
+#include "Constants.hpp"
 #include "Logger.hpp"
+#include "ServiceProtection.hpp"
 #include "ServiceProtection.hpp"
 #include "Types.hpp"
 #include "Utils.hpp"
@@ -14,11 +20,15 @@
 
 extern "C" PUCHAR PsGetProcessImageFileName(PEPROCESS Process);
 
+extern "C" PUCHAR PsGetProcessImageFileName(PEPROCESS Process);
+
 namespace Communications {
 
 NTSTATUS handleKillProcessRequest(PIRP Irp) {
+NTSTATUS handleKillProcessRequest(PIRP Irp) {
   IOCTL_KILL_PROCESS_INPUT *input = nullptr;
   NTSTATUS status = Validation::validateInputBuffer(Irp, &input);
+  CHECK_NT_RETURN(status, "Invalid input buffer for IOCTL_KILL_PROCESS (0x%X)", status);
   CHECK_NT_RETURN(status, "Invalid input buffer for IOCTL_KILL_PROCESS (0x%X)", status);
 
   LOG_INFO("Received IOCTL_KILL_PROCESS for PID: %lu", input->ProcessId);
@@ -32,13 +42,21 @@ NTSTATUS handleKillProcessRequest(PIRP Irp) {
   CHECK_NT_RETURN(status, "Failed to kill process PID: %lu (0x%X)", input->ProcessId, status);
 
   LOG_INFO("Successfully killed process PID: %lu", input->ProcessId);
+  CHECK_NT_RETURN(status, "Failed to kill process PID: %lu (0x%X)", input->ProcessId, status);
+
+  LOG_INFO("Successfully killed process PID: %lu", input->ProcessId);
   return status;
 }
 
 NTSTATUS handleGetProcessNotificationRequest(PIRP Irp, ULONG *BytesReturned) {
+NTSTATUS handleGetProcessNotificationRequest(PIRP Irp, ULONG *BytesReturned) {
   IOCTL_GET_PROCESS_NOTIFICATION_OUTPUT *output = nullptr;
   PPROCESS_NOTIFICATION notification = nullptr;
+  PPROCESS_NOTIFICATION notification = nullptr;
   NTSTATUS status = Validation::validateOutputBuffer(Irp, &output);
+  CHECK_NT_RETURN(status, "Invalid output buffer for IOCTL_GET_PROCESS_NOTIFICATION (0x%X)", status);
+
+  notification = (PPROCESS_NOTIFICATION)Utils::dequeueProcessNotification();
   CHECK_NT_RETURN(status, "Invalid output buffer for IOCTL_GET_PROCESS_NOTIFICATION (0x%X)", status);
 
   notification = (PPROCESS_NOTIFICATION)Utils::dequeueProcessNotification();
@@ -142,6 +160,15 @@ NTSTATUS handleDeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp) {
 
   case IOCTL_GET_PROCESS_NOTIFICATION:
     status = handleGetProcessNotificationRequest(Irp, &bytesReturned);
+    break;
+  case IOCTL_REGISTER_SERVICE:
+    status = handleRegisterService(Irp);
+    break;
+  case IOCTL_GET_PROTECTED_PID:
+    status = handleGetProtectedPIDRequest(Irp, &bytesReturned);
+    break;
+  case IOCTL_RESUME_PROCESS:
+    status = handleResumeProcessRequest(Irp);
     break;
   case IOCTL_REGISTER_SERVICE:
     status = handleRegisterService(Irp);

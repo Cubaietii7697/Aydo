@@ -65,9 +65,6 @@ bool UserConfig::save(const std::string &configPath) const {
     j["refreshToken"] = refreshToken;
     j["runtime"] = runtime;
     j["entropyThreshold"] = entropyThreshold;
-    j["infectedFileAction"] = infectedFileAction;
-    j["dynamicScanThreshold"] = dynamicScanThreshold;
-    j["maxScanSize"] = maxScanSize;
 
     std::ofstream file(configPath);
     if (!file.is_open()) {
