@@ -49,12 +49,6 @@
     <Filter Include="Header Files\ServerCommunications">
       <UniqueIdentifier>{920a1b42-3da8-40d1-8fcd-0a833371e62f}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\MinifilterCommunications">
-      <UniqueIdentifier>{7e6c4bd8-e12f-4101-afe5-93eae401b369}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header Files\MinifilterCommunications">
-      <UniqueIdentifier>{d54e873a-69f9-48bd-98d4-706a0d21540b}</UniqueIdentifier>
-    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Main.cpp">
@@ -101,9 +95,6 @@
     </ClCompile>
     <ClCompile Include="UserConfig.cpp">
       <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="MinifilterCommunications\MinifilterCommunications.cpp">
-      <Filter>Source Files\MinifilterCommunications</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -172,9 +163,6 @@
     </ClInclude>
     <ClInclude Include="UserConfig.hpp">
       <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="MinifilterCommunications\MinifilterCommunications.hpp">
-      <Filter>Header Files\MinifilterCommunications</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
