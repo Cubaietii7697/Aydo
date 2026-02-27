@@ -131,11 +131,38 @@ void ProcessMonitor::_analyzeRecord(const EVENT_RECORD &record,
     auto tryU64 = [&](const wchar_t *name) -> std::optional<uint64_t> {
       return parser.tryParse<uint64_t>(name);
     };
+    auto tryWStr = [&](const wchar_t *name) -> std::optional<std::wstring> {
+      return parser.tryParse<std::wstring>(name);
+    };
 
     auto setFirstU32 = [&](std::string_view dst, std::initializer_list<const wchar_t *> aliases) {
       for (const auto *a : aliases) {
         if (auto v = tryU32(a)) {
           ne.fields[std::string(dst)] = *v;
+          return true;
+        }
+        if (parser.isPoisoned()) {
+          return false;
+        }
+      }
+      return false;
+    };
+    auto setFirstU64 = [&](std::string_view dst, std::initializer_list<const wchar_t *> aliases) {
+      for (const auto *a : aliases) {
+        if (auto v = tryU64(a)) {
+          ne.fields[std::string(dst)] = *v;
+          return true;
+        }
+        if (parser.isPoisoned()) {
+          return false;
+        }
+      }
+      return false;
+    };
+    auto setFirstStr = [&](std::string_view dst, std::initializer_list<const wchar_t *> aliases) {
+      for (const auto *a : aliases) {
+        if (auto v = tryWStr(a)) {
+          ne.fields[std::string(dst)] = Utils::narrow_utf8(*v);
           return true;
         }
         if (parser.isPoisoned()) {
@@ -161,10 +188,38 @@ void ProcessMonitor::_analyzeRecord(const EVENT_RECORD &record,
       setFirstU32("TThreadId", {L"TThreadId"});
     }
     if (!parser.isPoisoned()) {
-      setFirstU32("DesiredAccess", {L"DesiredAccess"});
+      if (!setFirstU64("DesiredAccess", {L"DesiredAccess", L"GrantedAccess"})) {
+        setFirstU32("DesiredAccess", {L"DesiredAccess", L"GrantedAccess"});
+      }
+    }
+    if (!parser.isPoisoned()) {
+      if (!setFirstU64("GrantedAccess", {L"GrantedAccess", L"DesiredAccess"})) {
+        setFirstU32("GrantedAccess", {L"GrantedAccess", L"DesiredAccess"});
+      }
     }
     if (!parser.isPoisoned()) {
       setFirstU32("ReturnCode", {L"ReturnCode", L"ReturnValue"});
+    }
+    if (!parser.isPoisoned()) {
+      setFirstStr("Image", {L"Image", L"ImagePath", L"ProcessPath", L"ProcessName", L"ImageFileName", L"NewProcessName"});
+    }
+    if (!parser.isPoisoned()) {
+      setFirstStr("SourceImage", {L"SourceImage", L"CallerProcessName", L"SourceProcessName"});
+    }
+    if (!parser.isPoisoned()) {
+      setFirstStr("TargetImage", {L"TargetImage", L"TargetProcessName", L"TargetProcessPath"});
+    }
+    if (!parser.isPoisoned()) {
+      setFirstStr("ObjectName", {L"ObjectName", L"TargetObject", L"RegName", L"KeyName", L"Path"});
+    }
+    if (!parser.isPoisoned()) {
+      setFirstStr("TaskName", {L"TaskName"});
+    }
+    if (!parser.isPoisoned()) {
+      setFirstStr("ServiceName", {L"ServiceName"});
+    }
+    if (!parser.isPoisoned()) {
+      setFirstStr("EventType", {L"EventType"});
     }
 
     if (!parser.isPoisoned()) {
@@ -302,7 +357,7 @@ void ProcessMonitor::_enableKernelProviders() {
 }
 
 void ProcessMonitor::_enableUserProviders() {
-  m_user.addApiCallsProvider(TRACE_LEVEL_INFORMATION,
+  m_user.addAnalystProviders(TRACE_LEVEL_INFORMATION,
                              ProcessMonitorConstants::s_defaultAnyMask,
                              ProcessMonitorConstants::s_defaultAllMask);
   m_user.start([this](const EVENT_RECORD &rec, const krabs::trace_context &ctx) {

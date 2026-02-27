@@ -48,6 +48,12 @@
     <ClCompile Include="src\Utils.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\ProviderProfiles.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AttackMetadata.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="src\ThreadAnalysisEngine.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -60,6 +66,9 @@
     <ClCompile Include="src\SelfTest.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\SelfTestLive.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="src\detectors\RemoteThreadCreationDetector.cpp">
       <Filter>Source Files\detectors</Filter>
     </ClCompile>
@@ -67,6 +76,21 @@
       <Filter>Source Files\detectors</Filter>
     </ClCompile>
     <ClCompile Include="src\detectors\ThreadHijackDetector.cpp">
+      <Filter>Source Files\detectors</Filter>
+    </ClCompile>
+    <ClCompile Include="src\detectors\ThreatIntelInjectionDetector.cpp">
+      <Filter>Source Files\detectors</Filter>
+    </ClCompile>
+    <ClCompile Include="src\detectors\RegistryRunKeyPersistenceDetector.cpp">
+      <Filter>Source Files\detectors</Filter>
+    </ClCompile>
+    <ClCompile Include="src\detectors\ScheduledTaskPersistenceDetector.cpp">
+      <Filter>Source Files\detectors</Filter>
+    </ClCompile>
+    <ClCompile Include="src\detectors\ServicePersistenceDetector.cpp">
+      <Filter>Source Files\detectors</Filter>
+    </ClCompile>
+    <ClCompile Include="src\detectors\LsassCredentialAccessDetector.cpp">
       <Filter>Source Files\detectors</Filter>
     </ClCompile>
   </ItemGroup>
@@ -95,6 +119,9 @@
     <ClInclude Include="include\etw\KernelBlock.hpp">
       <Filter>Header Files\etw</Filter>
     </ClInclude>
+    <ClInclude Include="include\etw\ProviderProfiles.hpp">
+      <Filter>Header Files\etw</Filter>
+    </ClInclude>
     <ClInclude Include="include\etw\UserBlock.hpp">
       <Filter>Header Files\etw</Filter>
     </ClInclude>
@@ -119,6 +146,9 @@
     <ClInclude Include="include\analysis\NormalizedEvent.hpp">
       <Filter>Header Files\analysis</Filter>
     </ClInclude>
+    <ClInclude Include="include\analysis\AttackMetadata.hpp">
+      <Filter>Header Files\analysis</Filter>
+    </ClInclude>
     <ClInclude Include="include\analysis\ThreadAnalysisEngine.hpp">
       <Filter>Header Files\analysis</Filter>
     </ClInclude>
@@ -138,6 +168,21 @@
       <Filter>Header Files\detectors</Filter>
     </ClInclude>
     <ClInclude Include="include\detectors\ThreadHijackDetector.hpp">
+      <Filter>Header Files\detectors</Filter>
+    </ClInclude>
+    <ClInclude Include="include\detectors\ThreatIntelInjectionDetector.hpp">
+      <Filter>Header Files\detectors</Filter>
+    </ClInclude>
+    <ClInclude Include="include\detectors\RegistryRunKeyPersistenceDetector.hpp">
+      <Filter>Header Files\detectors</Filter>
+    </ClInclude>
+    <ClInclude Include="include\detectors\ScheduledTaskPersistenceDetector.hpp">
+      <Filter>Header Files\detectors</Filter>
+    </ClInclude>
+    <ClInclude Include="include\detectors\ServicePersistenceDetector.hpp">
+      <Filter>Header Files\detectors</Filter>
+    </ClInclude>
+    <ClInclude Include="include\detectors\LsassCredentialAccessDetector.hpp">
       <Filter>Header Files\detectors</Filter>
     </ClInclude>
   </ItemGroup>

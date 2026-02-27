@@ -54,7 +54,7 @@ std::vector<Finding> ThreadHijackDetector::evaluate(const NormalizedEvent &ne, T
     return {};
   }
 
-  return {buildFinding(ne, st.ownerPid, targetTid, s_defaultSeverity + 1, s_defaultConfidence, "resume_after_context_change")};
+  return {_buildFinding(ne, st.ownerPid, targetTid, s_defaultSeverity + 1, s_defaultConfidence, "resume_after_context_change")};
 }
 
 bool ThreadHijackDetector::_isDuplicate(
@@ -75,12 +75,12 @@ bool ThreadHijackDetector::_isDuplicate(
   return false;
 }
 
-Finding ThreadHijackDetector::buildFinding(const NormalizedEvent &ne,
-                                           DWORD ownerPid,
-                                           DWORD tid,
-                                           int severity,
-                                           int confidence,
-                                           const char *phase) const {
+Finding ThreadHijackDetector::_buildFinding(const NormalizedEvent &ne,
+                                            DWORD ownerPid,
+                                            DWORD tid,
+                                            int severity,
+                                            int confidence,
+                                            const char *phase) const {
   nlohmann::json ev;
   ev["provider"] = ne.provider;
   ev["eventId"] = ne.eventId;

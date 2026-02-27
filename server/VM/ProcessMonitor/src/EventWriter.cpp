@@ -12,6 +12,7 @@
 #include "SafeKrabsParser.hpp"
 #include "SqlRequests.hpp"
 #include "Utils.hpp"
+#include "AttackMetadata.hpp"
 
 static void s_execSql(sqlite3 *db, const char *sql, const char *tag) {
   if (!db || !sql) {
@@ -43,6 +44,11 @@ CREATE TABLE IF NOT EXISTS Findings (
     TargetPid      INTEGER,
     Tid            INTEGER,
     EvidenceJson   TEXT,
+    AttackTactic       TEXT,
+    AttackTechnique    TEXT,
+    AttackSubTechnique TEXT,
+    AttackReference    TEXT,
+    Prevention         TEXT,
     InsertionTime  DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -51,6 +57,77 @@ CREATE INDEX IF NOT EXISTS idx_findings_type ON Findings(Type);
 )SQL";
 
   s_execSql(db, s_findingsDdl, "sqlite3_exec(FINDINGS_DDL)");
+}
+
+static bool s_tableHasColumn(sqlite3 *db, const char *tableName, const char *columnName) {
+  if (!db || !tableName || !columnName) {
+    return false;
+  }
+
+  std::string pragma = "PRAGMA table_info(";
+  pragma += tableName;
+  pragma += ");";
+
+  sqlite3_stmt *stmt = nullptr;
+  if (sqlite3_prepare_v2(db, pragma.c_str(), -1, &stmt, nullptr) != SQLITE_OK || !stmt) {
+    if (stmt) {
+      sqlite3_finalize(stmt);
+    }
+    return false;
+  }
+
+  bool found = false;
+  while (sqlite3_step(stmt) == SQLITE_ROW) {
+    const auto *name = reinterpret_cast<const char *>(sqlite3_column_text(stmt, EventWriterConstants::g_pragmaTableInfoNameColumnIndex));
+    if (!name) {
+      continue;
+    }
+    if (Utils::toLower(std::string(name)) == Utils::toLower(std::string(columnName))) {
+      found = true;
+      break;
+    }
+  }
+
+  sqlite3_finalize(stmt);
+  return found;
+}
+
+static void s_ensureTableColumn(sqlite3 *db,
+                                const char *tableName,
+                                const char *columnName,
+                                const char *columnDefinition) {
+  if (!db || !tableName || !columnName || !columnDefinition) {
+    return;
+  }
+
+  if (s_tableHasColumn(db, tableName, columnName)) {
+    return;
+  }
+
+  std::string sql = "ALTER TABLE ";
+  sql += tableName;
+  sql += " ADD COLUMN ";
+  sql += columnDefinition;
+  sql += ";";
+  s_execSql(db, sql.c_str(), "sqlite3_exec(ALTER_TABLE_ADD_COLUMN)");
+}
+
+static void s_ensureAttackColumns(sqlite3 *db) {
+  if (!db) {
+    return;
+  }
+
+  s_ensureTableColumn(db, "Events", "AttackTactic", "AttackTactic TEXT");
+  s_ensureTableColumn(db, "Events", "AttackTechnique", "AttackTechnique TEXT");
+  s_ensureTableColumn(db, "Events", "AttackSubTechnique", "AttackSubTechnique TEXT");
+  s_ensureTableColumn(db, "Events", "AttackReference", "AttackReference TEXT");
+  s_ensureTableColumn(db, "Events", "Prevention", "Prevention TEXT");
+
+  s_ensureTableColumn(db, "Findings", "AttackTactic", "AttackTactic TEXT");
+  s_ensureTableColumn(db, "Findings", "AttackTechnique", "AttackTechnique TEXT");
+  s_ensureTableColumn(db, "Findings", "AttackSubTechnique", "AttackSubTechnique TEXT");
+  s_ensureTableColumn(db, "Findings", "AttackReference", "AttackReference TEXT");
+  s_ensureTableColumn(db, "Findings", "Prevention", "Prevention TEXT");
 }
 
 EventWriter::EventWriter(std::wstring path,
@@ -141,6 +218,7 @@ void EventWriter::_initSqliteSchema() {
   s_execSql(m_db, SqlRequests::TABLES_CREATE, "sqlite3_exec(TABLES_CREATE)");
   // Always attempt Findings DDL independently in case legacy Events schema migration fails.
   s_ensureFindingsSchema(m_db);
+  s_ensureAttackColumns(m_db);
 }
 
 bool EventWriter::_bindJsonValues(sqlite3_stmt *stmt,
@@ -669,17 +747,37 @@ void EventWriter::_writeAuxEventTables(const nlohmann::json &j) {
 }
 
 void EventWriter::writeFinding(const Finding &f) {
+  Finding finding = f;
+  AttackMetadataCatalog::applyToFinding(finding);
+  try {
+    auto evidence = nlohmann::json::parse(finding.evidence_json);
+    if (evidence.is_object()) {
+      evidence["attack_tactic"] = finding.attack_tactic;
+      evidence["attack_technique"] = finding.attack_technique;
+      evidence["attack_sub_technique"] = finding.attack_sub_technique;
+      evidence["attack_reference"] = finding.attack_reference;
+      evidence["prevention"] = finding.prevention;
+      finding.evidence_json = evidence.dump();
+    }
+  } catch (...) {
+  }
+
   if (m_wireFormat != WireFormat::Sqlite) {
     nlohmann::json j;
     j["RecordType"] = "Finding";
-    j["EventTime"] = Utils::iso8601FromTimePoint(f.ts);
-    j["Type"] = f.type;
-    j["Severity"] = f.severity;
-    j["Confidence"] = f.confidence;
-    j["SourcePid"] = f.source_pid;
-    j["TargetPid"] = f.target_pid;
-    j["Tid"] = f.tid;
-    j["EvidenceJson"] = f.evidence_json;
+    j["EventTime"] = Utils::iso8601FromTimePoint(finding.ts);
+    j["Type"] = finding.type;
+    j["Severity"] = finding.severity;
+    j["Confidence"] = finding.confidence;
+    j["SourcePid"] = finding.source_pid;
+    j["TargetPid"] = finding.target_pid;
+    j["Tid"] = finding.tid;
+    j["EvidenceJson"] = finding.evidence_json;
+    j["AttackTactic"] = finding.attack_tactic;
+    j["AttackTechnique"] = finding.attack_technique;
+    j["AttackSubTechnique"] = finding.attack_sub_technique;
+    j["AttackReference"] = finding.attack_reference;
+    j["Prevention"] = finding.prevention;
     _writeOut(j);
     return;
   }
@@ -698,8 +796,8 @@ void EventWriter::writeFinding(const Finding &f) {
   }
 
   static const char *s_sql =
-      "INSERT INTO Findings(EventTime, Type, Severity, Confidence, SourcePid, TargetPid, Tid, EvidenceJson) "
-      "VALUES(?,?,?,?,?,?,?,?);";
+      "INSERT INTO Findings(EventTime, Type, Severity, Confidence, SourcePid, TargetPid, Tid, EvidenceJson, AttackTactic, AttackTechnique, AttackSubTechnique, AttackReference, Prevention) "
+      "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?);";
 
   sqlite3_stmt *stmt = nullptr;
   if (sqlite3_prepare_v2(m_db, s_sql, EventWriterConstants::g_sqliteAutoLength, &stmt, nullptr) != SQLITE_OK || !stmt) {
@@ -709,6 +807,7 @@ void EventWriter::writeFinding(const Finding &f) {
     }
 
     s_ensureFindingsSchema(m_db);
+    s_ensureAttackColumns(m_db);
     if (sqlite3_prepare_v2(m_db, s_sql, EventWriterConstants::g_sqliteAutoLength, &stmt, nullptr) != SQLITE_OK || !stmt) {
       if (stmt) {
         sqlite3_finalize(stmt);
@@ -717,16 +816,21 @@ void EventWriter::writeFinding(const Finding &f) {
     }
   }
 
-  const auto ts = Utils::iso8601FromTimePoint(f.ts);
+  const auto ts = Utils::iso8601FromTimePoint(finding.ts);
 
   sqlite3_bind_text(stmt, EventWriterConstants::g_findingBindEventTime, ts.c_str(), EventWriterConstants::g_sqliteAutoLength, SQLITE_TRANSIENT);
-  sqlite3_bind_text(stmt, EventWriterConstants::g_findingBindType, f.type.c_str(), EventWriterConstants::g_sqliteAutoLength, SQLITE_TRANSIENT);
-  sqlite3_bind_int(stmt, EventWriterConstants::g_findingBindSeverity, f.severity);
-  sqlite3_bind_int(stmt, EventWriterConstants::g_findingBindConfidence, f.confidence);
-  sqlite3_bind_int(stmt, EventWriterConstants::g_findingBindSourcePid, static_cast<int>(f.source_pid));
-  sqlite3_bind_int(stmt, EventWriterConstants::g_findingBindTargetPid, static_cast<int>(f.target_pid));
-  sqlite3_bind_int(stmt, EventWriterConstants::g_findingBindTid, static_cast<int>(f.tid));
-  sqlite3_bind_text(stmt, EventWriterConstants::g_findingBindEvidenceJson, f.evidence_json.c_str(), EventWriterConstants::g_sqliteAutoLength, SQLITE_TRANSIENT);
+  sqlite3_bind_text(stmt, EventWriterConstants::g_findingBindType, finding.type.c_str(), EventWriterConstants::g_sqliteAutoLength, SQLITE_TRANSIENT);
+  sqlite3_bind_int(stmt, EventWriterConstants::g_findingBindSeverity, finding.severity);
+  sqlite3_bind_int(stmt, EventWriterConstants::g_findingBindConfidence, finding.confidence);
+  sqlite3_bind_int(stmt, EventWriterConstants::g_findingBindSourcePid, static_cast<int>(finding.source_pid));
+  sqlite3_bind_int(stmt, EventWriterConstants::g_findingBindTargetPid, static_cast<int>(finding.target_pid));
+  sqlite3_bind_int(stmt, EventWriterConstants::g_findingBindTid, static_cast<int>(finding.tid));
+  sqlite3_bind_text(stmt, EventWriterConstants::g_findingBindEvidenceJson, finding.evidence_json.c_str(), EventWriterConstants::g_sqliteAutoLength, SQLITE_TRANSIENT);
+  sqlite3_bind_text(stmt, EventWriterConstants::g_findingBindAttackTactic, finding.attack_tactic.c_str(), EventWriterConstants::g_sqliteAutoLength, SQLITE_TRANSIENT);
+  sqlite3_bind_text(stmt, EventWriterConstants::g_findingBindAttackTechnique, finding.attack_technique.c_str(), EventWriterConstants::g_sqliteAutoLength, SQLITE_TRANSIENT);
+  sqlite3_bind_text(stmt, EventWriterConstants::g_findingBindAttackSubTechnique, finding.attack_sub_technique.c_str(), EventWriterConstants::g_sqliteAutoLength, SQLITE_TRANSIENT);
+  sqlite3_bind_text(stmt, EventWriterConstants::g_findingBindAttackReference, finding.attack_reference.c_str(), EventWriterConstants::g_sqliteAutoLength, SQLITE_TRANSIENT);
+  sqlite3_bind_text(stmt, EventWriterConstants::g_findingBindPrevention, finding.prevention.c_str(), EventWriterConstants::g_sqliteAutoLength, SQLITE_TRANSIENT);
 
   sqlite3_step(stmt);
   sqlite3_finalize(stmt);
@@ -890,6 +994,9 @@ void EventWriter::_writeEventJson(const EVENT_RECORD &rec,
       j["file"] = std::move(fil);
     }
     _enrichSigmaFields(j);
+
+    const AttackMetadata attackMetadata = AttackMetadataCatalog::forEventJson(j);
+    AttackMetadataCatalog::applyToJson(attackMetadata, j);
   } catch (const std::exception &) {
     OutputDebugStringA("krabs: fatal exception in _writeEventJson envelope\n");
   }
@@ -1034,6 +1141,8 @@ void EventWriter::_enrichSigmaFields(nlohmann::json &j) const {
                        "path", // proc.path / file.path (lookup scans proc/file)
                        "Process", "ProcessName",
                        "ImageFileName", "ImageName"});
+  ensureCopy("SourceImage", {"SourceImage", "CallerProcessName", "SourceProcessName", "Image"});
+  ensureCopy("TargetImage", {"TargetImage", "TargetProcessName", "TargetProcessPath", "Image"});
 
   ensureCopy("ProcessName", {"ProcessName",
                              "name", // proc.name
@@ -1054,6 +1163,7 @@ void EventWriter::_enrichSigmaFields(nlohmann::json &j) const {
   ensureCopy("Commandline", {"Commandline", "CommandLine",
                              "CommandLineParams", "CommandLineParameters",
                              "Parameters", "Arguments"});
+  ensureCopy("GrantedAccess", {"GrantedAccess", "DesiredAccess", "AccessMask"});
 
   ensureCopy("ParentImage", {"ParentImage",
                              "ParentProcessPath", "ParentImagePath", "ParentImageName",

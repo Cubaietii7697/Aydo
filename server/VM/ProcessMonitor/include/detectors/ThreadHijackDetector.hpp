@@ -10,7 +10,6 @@
 class ThreadHijackDetector : public IThreadDetector {
 public:
   std::vector<Finding> evaluate(const NormalizedEvent &ne, ThreadCaches &caches) override;
-  Finding buildFinding(const NormalizedEvent &ne, DWORD ownerPid, DWORD tid, int severity, int confidence, const char *phase) const;
   std::string name() const override { return "ThreadHijackDetector"; }
 
 private:
@@ -21,6 +20,7 @@ private:
                     DWORD ownerPid,
                     DWORD tid,
                     std::chrono::time_point<std::chrono::system_clock> now);
+  Finding _buildFinding(const NormalizedEvent &ne, DWORD ownerPid, DWORD tid, int severity, int confidence, const char *phase) const;
 
   std::map<std::tuple<DWORD, DWORD, DWORD>, std::chrono::time_point<std::chrono::system_clock>> m_recentFindings;
 };

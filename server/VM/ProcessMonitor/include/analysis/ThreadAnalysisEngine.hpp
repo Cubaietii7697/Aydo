@@ -3,7 +3,12 @@
 #include "IThreadDetector.hpp"
 #include "ThreadCaches.hpp"
 #include "AsynchronousProcedureCallQueueingDetector.hpp"
+#include "LsassCredentialAccessDetector.hpp"
+#include "RegistryRunKeyPersistenceDetector.hpp"
 #include "RemoteThreadCreationDetector.hpp"
+#include "ScheduledTaskPersistenceDetector.hpp"
+#include "ServicePersistenceDetector.hpp"
+#include "ThreatIntelInjectionDetector.hpp"
 #include "ThreadHijackDetector.hpp"
 #include <memory>
 

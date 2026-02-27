@@ -216,13 +216,21 @@ $(ProjectDir)include;$(ProjectDir)include\core;$(ProjectDir)include\etw;$(Projec
     <ClCompile Include="src\KernelBlock.cpp" />
     <ClCompile Include="src\UserBlock.cpp" />
     <ClCompile Include="src\Utils.cpp" />
+    <ClCompile Include="src\ProviderProfiles.cpp" />
+    <ClCompile Include="src\AttackMetadata.cpp" />
     <ClCompile Include="src\ThreadAnalysisEngine.cpp" />
     <ClCompile Include="src\ThreadCaches.cpp" />
     <ClCompile Include="src\ThreadHelpers.cpp" />
     <ClCompile Include="src\SelfTest.cpp" />
+    <ClCompile Include="src\SelfTestLive.cpp" />
     <ClCompile Include="src\detectors\RemoteThreadCreationDetector.cpp" />
     <ClCompile Include="src\detectors\AsynchronousProcedureCallQueueingDetector.cpp" />
     <ClCompile Include="src\detectors\ThreadHijackDetector.cpp" />
+    <ClCompile Include="src\detectors\ThreatIntelInjectionDetector.cpp" />
+    <ClCompile Include="src\detectors\RegistryRunKeyPersistenceDetector.cpp" />
+    <ClCompile Include="src\detectors\ScheduledTaskPersistenceDetector.cpp" />
+    <ClCompile Include="src\detectors\ServicePersistenceDetector.cpp" />
+    <ClCompile Include="src\detectors\LsassCredentialAccessDetector.cpp" />
   </ItemGroup>
   <!-- =======================
        Header files
@@ -236,6 +244,7 @@ $(ProjectDir)include;$(ProjectDir)include\core;$(ProjectDir)include\etw;$(Projec
     <ClInclude Include="include\core\SelfTest.hpp" />
     <ClInclude Include="include\etw\EtwGuids.hpp" />
     <ClInclude Include="include\etw\KernelBlock.hpp" />
+    <ClInclude Include="include\etw\ProviderProfiles.hpp" />
     <ClInclude Include="include\etw\UserBlock.hpp" />
     <ClInclude Include="include\storage\EventWriter.hpp" />
     <ClInclude Include="include\storage\EventWriterConstants.hpp" />
@@ -244,6 +253,7 @@ $(ProjectDir)include;$(ProjectDir)include\core;$(ProjectDir)include\etw;$(Projec
     <ClInclude Include="include\analysis\Finding.hpp" />
     <ClInclude Include="include\analysis\IThreadDetector.hpp" />
     <ClInclude Include="include\analysis\NormalizedEvent.hpp" />
+    <ClInclude Include="include\analysis\AttackMetadata.hpp" />
     <ClInclude Include="include\analysis\ThreadAnalysisEngine.hpp" />
     <ClInclude Include="include\analysis\ThreadCaches.hpp" />
     <ClInclude Include="include\analysis\ThreadHelpers.hpp" />
@@ -251,6 +261,11 @@ $(ProjectDir)include;$(ProjectDir)include\core;$(ProjectDir)include\etw;$(Projec
     <ClInclude Include="include\detectors\RemoteThreadCreationDetector.hpp" />
     <ClInclude Include="include\detectors\AsynchronousProcedureCallQueueingDetector.hpp" />
     <ClInclude Include="include\detectors\ThreadHijackDetector.hpp" />
+    <ClInclude Include="include\detectors\ThreatIntelInjectionDetector.hpp" />
+    <ClInclude Include="include\detectors\RegistryRunKeyPersistenceDetector.hpp" />
+    <ClInclude Include="include\detectors\ScheduledTaskPersistenceDetector.hpp" />
+    <ClInclude Include="include\detectors\ServicePersistenceDetector.hpp" />
+    <ClInclude Include="include\detectors\LsassCredentialAccessDetector.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

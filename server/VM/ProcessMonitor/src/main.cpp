@@ -25,6 +25,7 @@ inline constexpr auto s_targetPollInterval = std::chrono::milliseconds(250);
 inline constexpr auto s_stopGracePeriod = std::chrono::seconds(5);
 
 static constexpr std::wstring_view s_selfTestFlag = L"--self-test";
+static constexpr std::wstring_view s_selfTestLiveFlag = L"--self-test-live";
 static constexpr std::wstring_view s_kernelSessionName = L"NTKernelLogger";
 static constexpr std::wstring_view s_userSessionName = L"NTUserLogger";
 } // namespace MainConstants
@@ -33,10 +34,14 @@ int wmain(int argc, wchar_t *argv[]) {
   if (argc == MainConstants::s_selfTestArgCount && _wcsicmp(argv[MainConstants::s_executableArgIndex], MainConstants::s_selfTestFlag.data()) == 0) {
     return RunProcessMonitorSelfTest();
   }
+  if (argc == MainConstants::s_selfTestArgCount && _wcsicmp(argv[MainConstants::s_executableArgIndex], MainConstants::s_selfTestLiveFlag.data()) == 0) {
+    return RunProcessMonitorLiveSelfTest();
+  }
 
   if (argc < MainConstants::s_minRunArgCount || argc > MainConstants::s_maxRunArgCount) {
     std::wcerr << L"Usage: " << argv[0] << L" <exefile> <logFile> [TraceTime]" << std::endl;
     std::wcerr << L"       " << argv[0] << L" --self-test" << std::endl;
+    std::wcerr << L"       " << argv[0] << L" --self-test-live" << std::endl;
 
     return EXIT_FAILURE;
   }

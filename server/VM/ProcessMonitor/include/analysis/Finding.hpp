@@ -11,4 +11,13 @@ struct Finding {
   DWORD target_pid;
   DWORD tid;
   std::string evidence_json;
+  std::string attack_tactic;
+  std::string attack_technique;
+  std::string attack_sub_technique;
+  std::string attack_reference;
+  std::string prevention;
+
+  bool hasAttackMetadata() const {
+    return !attack_technique.empty() || !attack_tactic.empty() || !attack_reference.empty();
+  }
 };

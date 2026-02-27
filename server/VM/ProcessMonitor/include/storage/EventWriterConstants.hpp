@@ -32,5 +32,10 @@ inline constexpr int g_findingBindSourcePid = 5;
 inline constexpr int g_findingBindTargetPid = 6;
 inline constexpr int g_findingBindTid = 7;
 inline constexpr int g_findingBindEvidenceJson = 8;
+inline constexpr int g_findingBindAttackTactic = 9;
+inline constexpr int g_findingBindAttackTechnique = 10;
+inline constexpr int g_findingBindAttackSubTechnique = 11;
+inline constexpr int g_findingBindAttackReference = 12;
+inline constexpr int g_findingBindPrevention = 13;
 
 } // namespace EventWriterConstants
