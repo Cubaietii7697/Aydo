@@ -27,6 +27,7 @@ inline constexpr auto s_stopGracePeriod = std::chrono::seconds(5);
 static constexpr std::wstring_view s_selfTestFlag = L"--self-test";
 static constexpr std::wstring_view s_kernelSessionName = L"NTKernelLogger";
 static constexpr std::wstring_view s_userSessionName = L"NTUserLogger";
+static constexpr std::wstring_view s_startBannerPrefix = L"Starting ProcessMonitor";
 } // namespace MainConstants
 
 int wmain(int argc, wchar_t *argv[]) {
@@ -42,6 +43,7 @@ int wmain(int argc, wchar_t *argv[]) {
   }
 
   const std::wstring targetExe = argv[MainConstants::s_executableArgIndex];
+  const std::wstring outputPath = argv[MainConstants::s_outputPathArgIndex];
 
   const int traceDurationSeconds =
       (argc == MainConstants::s_maxRunArgCount) ? _wtoi(argv[MainConstants::s_traceDurationArgIndex]) : Constants::g_defaultTraceDurationSeconds;
@@ -51,6 +53,11 @@ int wmain(int argc, wchar_t *argv[]) {
   }
 
   try {
+    std::wcout << MainConstants::s_startBannerPrefix
+               << L": target='" << targetExe
+               << L"', output='" << outputPath
+               << L"', trace_seconds=" << traceDurationSeconds << std::endl;
+
     // Hard watchdog: enforce process lifetime upper bound regardless of stop/join behavior.
     std::thread([hardStopAfter = std::chrono::seconds(traceDurationSeconds)] {
       std::this_thread::sleep_for(hardStopAfter);
@@ -66,7 +73,7 @@ int wmain(int argc, wchar_t *argv[]) {
         targetExe,
         std::wstring(MainConstants::s_kernelSessionName),
         std::wstring(MainConstants::s_userSessionName),
-        argv[MainConstants::s_outputPathArgIndex]);
+        outputPath);
 
     if (!pm->waitForTarget(deadline, MainConstants::s_targetPollInterval)) {
       std::wcerr << L"Target process '" << targetExe << L"' not found before deadline" << std::endl;

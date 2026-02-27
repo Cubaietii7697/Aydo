@@ -44,6 +44,7 @@ private:
                                 std::vector<nlohmann::json> &values) const;
   void _writeToSqlite(const nlohmann::json &j);
   void _initSqliteSchema();
+  void _ensureEventsColumns();
   void _writeOut(const nlohmann::json &j);
 
   void _fillPropsViaTdh(nlohmann::json &props,

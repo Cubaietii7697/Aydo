@@ -17,6 +17,9 @@ public:
   void addApiCallsProvider(UCHAR level,
                            ULONGLONG any,
                            ULONGLONG all);
+  bool addSysmonProvider(UCHAR level,
+                         ULONGLONG any,
+                         ULONGLONG all);
 
   void addProvider(const wchar_t *name,
                    UCHAR level,
@@ -34,7 +37,7 @@ private:
 
 private:
   std::unique_ptr<krabs::user_trace> m_trace;
-  std::vector<std::unique_ptr<krabs::provider<>>> m_providers;
+  std::vector<std::pair<GUID, std::unique_ptr<krabs::provider<>>>> m_providers;
   std::wstring m_sessionName;
   std::thread m_thread;
   Callback m_cb;

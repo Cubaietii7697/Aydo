@@ -4,6 +4,8 @@
 #include <new>
 #include <windows.h>
 #include <algorithm>
+#include <iostream>
+#include <atomic>
 
 #include "Utils.hpp"
 
@@ -11,6 +13,10 @@ namespace UserBlockConstants {
 inline constexpr long long s_minWaitMs = 0;
 inline constexpr long long s_maxWaitMs = 0x7fffffff;
 static constexpr const char *s_timeoutDetachMsg = "UserBlock: trace thread did not stop before deadline; detaching\n";
+static constexpr const char *s_sysmonUnavailableMsg = "UserBlock: provider 'Microsoft-Windows-Sysmon' not found; skipping\n";
+inline constexpr const wchar_t *s_sysmonProviderName = L"Microsoft-Windows-Sysmon";
+inline constexpr GUID s_sysmonProviderGuid = {
+    0x5770385f, 0xc22a, 0x43e0, {0xbf, 0x4c, 0x06, 0xf5, 0x69, 0x8f, 0xfb, 0xd9}};
 
 static constexpr auto s_apiCallProviderNames = std::to_array<const wchar_t *>({
     L"Microsoft-Windows-DNS-Client",
@@ -111,7 +117,7 @@ void UserBlock::addProvider(const GUID &id,
   if (all) {
     p->all(all);
   }
-  m_providers.emplace_back(std::move(p));
+  m_providers.emplace_back(id, std::move(p));
 }
 
 void UserBlock::addApiCallsProvider(UCHAR level,
@@ -122,6 +128,19 @@ void UserBlock::addApiCallsProvider(UCHAR level,
   }
 }
 
+bool UserBlock::addSysmonProvider(UCHAR level,
+                                  ULONGLONG any,
+                                  ULONGLONG all) {
+  const size_t providerCountBefore = m_providers.size();
+  addProvider(UserBlockConstants::s_sysmonProviderGuid, level, any, all);
+  addProvider(UserBlockConstants::s_sysmonProviderName, level, any, all);
+  const bool added = m_providers.size() > providerCountBefore;
+  if (!added) {
+    OutputDebugStringA(UserBlockConstants::s_sysmonUnavailableMsg);
+  }
+  return added;
+}
+
 void UserBlock::start(Callback on_event) {
   stop();
 
@@ -129,11 +148,30 @@ void UserBlock::start(Callback on_event) {
 
   m_cb = std::move(on_event);
 
-  for (auto const &p : m_providers) {
+  static std::atomic<size_t> s_logged{0};
+  for (auto const &pg : m_providers) {
     try {
-      p->add_on_event_callback(m_cb);
-      m_trace->enable(*p);
+      auto &p = *pg.second;
+      p.add_on_event_callback(m_cb);
+      m_trace->enable(p);
+      if (s_logged.fetch_add(1, std::memory_order_relaxed) < UserBlockConstants::s_apiCallProviderNames.size() + 8) {
+        const GUID &gid = pg.first;
+        wchar_t buf[64]{};
+        StringFromGUID2(gid, buf, static_cast<int>(std::size(buf)));
+        std::string msg = "UserBlock: enabled provider ";
+        msg += Utils::narrow_utf8(buf);
+        msg += "\n";
+        OutputDebugStringA(msg.c_str());
+      }
+    } catch (const std::exception &e) {
+      std::string msg = std::string("UserBlock: enable failed: ") + e.what() + "\n";
+      OutputDebugStringA(msg.c_str());
+      wchar_t buf[64]{};
+      StringFromGUID2(pg.first, buf, static_cast<int>(std::size(buf)));
+      std::wcout << L"UserBlock: enable failed for provider " << buf << L"\n";
     } catch (...) {
+      OutputDebugStringA("UserBlock: enable failed: unknown exception\n");
+      std::wcout << L"UserBlock: enable failed: unknown exception\n";
     }
   }
 
