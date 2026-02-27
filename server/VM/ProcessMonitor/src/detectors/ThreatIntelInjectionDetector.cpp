@@ -42,9 +42,7 @@ bool ThreatIntelInjectionDetector::isMatch(const NormalizedEvent &ne) const {
 
   const auto eventName = ThreadHelpers::bestName(ne);
   return ThreadHelpers::containsI(eventName, "injection") ||
-         ThreadHelpers::containsI(eventName, "createremotethread") ||
-         ThreadHelpers::containsI(eventName, "queueuserapc") ||
-         ThreadHelpers::containsI(eventName, "setthreadcontext");
+         ThreadHelpers::containsI(eventName, "createremotethread");
 }
 
 bool ThreatIntelInjectionDetector::_isDuplicate(
@@ -111,4 +109,3 @@ Finding ThreatIntelInjectionDetector::_buildFinding(const NormalizedEvent &ne,
   finding.evidence_json = ev.dump();
   return finding;
 }
-
