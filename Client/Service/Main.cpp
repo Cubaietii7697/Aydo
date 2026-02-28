@@ -9,6 +9,8 @@
 #include <string>
 #include <thread>
 
+#include <nlohmann/json.hpp>
+
 #include "Constants.hpp"
 #include "Databases/HashesDatabase.hpp"
 #include "KernelCommunications/KernelCommunications.hpp"
@@ -33,7 +35,7 @@ static void pipeServerLoop(ProcessMonitor *monitor) {
         PIPE_UNLIMITED_INSTANCES,
         Constants::PIPE_BUFFER_SIZE,
         Constants::PIPE_BUFFER_SIZE,
-        0,  // No timeout
+        0, // No timeout
         NULL);
 
     if (hPipe == INVALID_HANDLE_VALUE) {
@@ -51,7 +53,7 @@ static void pipeServerLoop(ProcessMonitor *monitor) {
         WriteFile(hPipe, serialized.c_str(), static_cast<DWORD>(serialized.size()), &written, NULL);
       };
 
-      monitor->setEventHandler([sendEvent](const Protocol::Event &ev) {
+      monitor->setEventHandler([sendEvent](const Protocol::Event &ev) mutable {
         sendEvent(ev);
       });
 
@@ -144,6 +146,22 @@ int main() {
     return EXIT_FAILURE;
   }
 
+  std::cout << "Successfully connected to driver!" << std::endl;
+  std::cout << std::endl;
+
+  // Register itself as a service
+  if (!driver->registerSelfAsService()) {
+    std::cerr << "Failed to register as service. Error: " << GetLastError() << std::endl;
+
+    std::cin.get();
+
+    return EXIT_FAILURE;
+  }
+
+  std::cout << "Successfully registered as service!" << std::endl;
+
+  std::cout << "Initializing scanning engines..." << std::endl;
+
   try {
     YScanningEngine yara(Constants::YARA_RULES_FILES, config.killThreshold);
 
@@ -152,7 +170,7 @@ int main() {
 
     ProcessMonitor monitor(driver, yara, hashDb);
     g_monitor = &monitor;
-
+    std::cout << "Starting background monitoring thread..." << std::endl;
     monitor.start();
 
     std::thread commandThread(pipeServerLoop, &monitor);

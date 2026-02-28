@@ -15,7 +15,7 @@ int main(int argc, char *argv[]) {
     std::cerr << "Usage: " << argv[0] << " <sandbox_id> <virus_path> [runTime]" << std::endl;
     return EXIT_FAILURE;
   }
-  //Utills::printBanner();
+  // Utills::printBanner();
   const std::string sandboxId(argv[1]);
   const std::filesystem::path suspiciousHostPath(argv[2]);
   const int runTimeSec = (argc == 4) ? std::atoi(argv[3]) : DEFUALT_TIME_CHECK;
@@ -67,7 +67,7 @@ int main(int argc, char *argv[]) {
 
   const std::string hostLogPath =
       (hostShared / std::filesystem::path(SHARE_FILE_NAME)).string();
-  std::cout << "[1.0/7] Clone linked VM & configure shared folder" << std::endl;
+  std::cout << "[1.0/7] Clone linked VM if needed" << std::endl;
   {
     // Create linked clone if it does not exist yet
     if (!std::filesystem::exists(sandboxVmxRaw)) {
@@ -84,39 +84,6 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
       }
     }
-
-    // Reconfigure the VM's shared folder.
-    // Remove any existing share name.
-    // Add a new folder.
-    if (!sharedFolderName.empty()) {
-      {
-        const std::string cmd = std::format(
-            R"({} -T ws removeSharedFolder {} {})",
-            vmRunPath,
-            sandboxVmx,
-            sharedFolderName);
-        // ignore rc � folder may not exist yet
-        (void)Utills::executeAndWaitRC(cmd);
-      }
-
-      {
-        const std::string cmd = std::format(
-            R"({} -T ws addSharedFolder {} {} {})",
-            vmRunPath,
-            sandboxVmx,
-            sharedFolderName,
-            Utills::ensureQuoted(hostShared.string()));
-        int rc = Utills::executeAndWaitRC(cmd);
-        if (rc != 0) {
-          std::cerr << "\tFAIL addSharedFolder rc=" << rc << std::endl;
-          return EXIT_FAILURE;
-        }
-      }
-    } else {
-      std::cerr << "\tFAIL: could not derive shared folder name from GUEST_SHARED_DIR='"
-                << GUEST_SHARED_DIR << "'" << std::endl;
-      return EXIT_FAILURE;
-    }
   }
 
   std::cout << "[1.1/7] Start VM" << std::endl;
@@ -127,6 +94,33 @@ int main(int argc, char *argv[]) {
       std::cerr << "\tFAIL start rc=" << rc << std::endl;
       Utills::closeVM(vmRunPath, sandboxVmx, sandboxId);
       return EXIT_FAILURE;
+    }
+  }
+
+  std::cout << "[1.1.b/7] Configure Shared Folder" << std::endl;
+  if (!sharedFolderName.empty()) {
+    {
+      const std::string cmd = std::format(
+          R"({} -T ws removeSharedFolder {} {})",
+          vmRunPath,
+          sandboxVmx,
+          sharedFolderName);
+      // ignore rc
+      (void)Utills::executeAndWaitRC(cmd);
+    }
+
+    {
+      const std::string cmd = std::format(
+          R"({} -T ws addSharedFolder {} {} {})",
+          vmRunPath,
+          sandboxVmx,
+          sharedFolderName,
+          Utills::ensureQuoted(hostShared.string()));
+      int rc = Utills::executeAndWaitRC(cmd);
+      if (rc != 0) {
+        std::cerr << "\tFAIL addSharedFolder rc=" << rc << std::endl;
+        return EXIT_FAILURE;
+      }
     }
   }
 

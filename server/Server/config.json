@@ -17,11 +17,11 @@
     {
       "name": "default",
       "rdbms": "postgresql",
-      "host": "crossover.proxy.rlwy.net",
-      "port": 38423,
+      "host": "trolley.proxy.rlwy.net",
+      "port": 41942,
       "dbname": "railway",
       "user": "postgres",
-      "password": "lgaOqnFVPMMNuhcTvyZWHJsgwfarruQJ"
+      "password": "pafwVfWMYkwYuqvbAJfIrrJXUJeybltG"
     }
   ],
   "custom_config": {

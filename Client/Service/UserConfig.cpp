@@ -41,6 +41,12 @@ bool UserConfig::load(const std::string &configPath) {
     if (j.contains("infectedFileAction")) {
       infectedFileAction = j["infectedFileAction"];
     }
+    if (j.contains("dynamicScanThreshold")) {
+      dynamicScanThreshold = j["dynamicScanThreshold"];
+    }
+    if (j.contains("maxScanSize")) {
+      maxScanSize = j["maxScanSize"];
+    }
 
     return true;
   } catch (const std::exception &e) {
@@ -48,6 +54,7 @@ bool UserConfig::load(const std::string &configPath) {
     return false;
   }
 }
+
 
 bool UserConfig::save(const std::string &configPath) const {
   try {
@@ -58,7 +65,6 @@ bool UserConfig::save(const std::string &configPath) const {
     j["refreshToken"] = refreshToken;
     j["runtime"] = runtime;
     j["entropyThreshold"] = entropyThreshold;
-    j["infectedFileAction"] = infectedFileAction;
 
     std::ofstream file(configPath);
     if (!file.is_open()) {

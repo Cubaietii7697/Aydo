@@ -12,6 +12,8 @@ public:
   std::string refreshToken;
   int runtime = 60;
   int infectedFileAction = 0; // 0=None, 1=Quarantine, 2=Delete
+  int dynamicScanThreshold = 25;
+  unsigned long long maxScanSize = 500 * 1024 * 1024; // 500MB default
 
   static UserConfig &getInstance();
   bool load(const std::string &configPath = "config.json");

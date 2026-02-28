@@ -38,5 +38,8 @@ public:
 
   // Wrapper functions for specific IOCTL operations
   bool killProcess(ULONG processId);
+  bool resumeProcess(ULONG processId);
   std::optional<IOCTL_GET_PROCESS_NOTIFICATION_OUTPUT> getProcessNotification();
+  bool registerSelfAsService();
+
 };
