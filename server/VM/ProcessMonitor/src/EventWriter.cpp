@@ -34,29 +34,7 @@ static void s_execSql(sqlite3 *db, const char *sql, const char *tag) {
 }
 
 static void s_ensureFindingsSchema(sqlite3 *db) {
-  static constexpr const char *s_findingsDdl = R"SQL(
-CREATE TABLE IF NOT EXISTS Findings (
-    EventTime      DATETIME NOT NULL,
-    Type           TEXT,
-    Severity       INTEGER,
-    Confidence     INTEGER,
-    SourcePid      INTEGER,
-    TargetPid      INTEGER,
-    Tid            INTEGER,
-    EvidenceJson   TEXT,
-    AttackTactic       TEXT,
-    AttackTechnique    TEXT,
-    AttackSubTechnique TEXT,
-    AttackReference    TEXT,
-    Prevention         TEXT,
-    InsertionTime  DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX IF NOT EXISTS idx_findings_time ON Findings(EventTime);
-CREATE INDEX IF NOT EXISTS idx_findings_type ON Findings(Type);
-)SQL";
-
-  s_execSql(db, s_findingsDdl, "sqlite3_exec(FINDINGS_DDL)");
+  s_execSql(db, EventWriterConstants::FINDINGS_DDL, "sqlite3_exec(FINDINGS_DDL)");
 }
 
 static bool s_tableHasColumn(sqlite3 *db, const char *tableName, const char *columnName) {
@@ -78,7 +56,7 @@ static bool s_tableHasColumn(sqlite3 *db, const char *tableName, const char *col
 
   bool found = false;
   while (sqlite3_step(stmt) == SQLITE_ROW) {
-    const auto *name = reinterpret_cast<const char *>(sqlite3_column_text(stmt, EventWriterConstants::g_pragmaTableInfoNameColumnIndex));
+    const auto *name = reinterpret_cast<const char *>(sqlite3_column_text(stmt, EventWriterConstants::PRAGMA_TABLE_INFO_NAME_COLUMN_INDEX));
     if (!name) {
       continue;
     }
@@ -229,7 +207,7 @@ bool EventWriter::_bindJsonValues(sqlite3_stmt *stmt,
 
   for (size_t i = 0; i < values.size(); ++i) {
     const auto &val = values[i];
-    const auto idx = static_cast<int>(i + EventWriterConstants::g_sqliteIndexBase);
+    const auto idx = static_cast<int>(i + EventWriterConstants::SQLITE_INDEX_BASE);
 
     int rc = SQLITE_OK;
 
@@ -245,11 +223,11 @@ bool EventWriter::_bindJsonValues(sqlite3_stmt *stmt,
       rc = sqlite3_bind_int(stmt, idx, val.get<bool>() ? 1 : 0);
     } else if (val.is_string()) {
       const std::string &s = val.get_ref<const std::string &>();
-      rc = sqlite3_bind_text(stmt, idx, s.c_str(), EventWriterConstants::g_sqliteAutoLength, SQLITE_TRANSIENT);
+      rc = sqlite3_bind_text(stmt, idx, s.c_str(), EventWriterConstants::SQLITE_AUTO_LENGTH, SQLITE_TRANSIENT);
     } else {
       // Fallback: store as JSON text.
       const std::string s = val.dump();
-      rc = sqlite3_bind_text(stmt, idx, s.c_str(), EventWriterConstants::g_sqliteAutoLength, SQLITE_TRANSIENT);
+      rc = sqlite3_bind_text(stmt, idx, s.c_str(), EventWriterConstants::SQLITE_AUTO_LENGTH, SQLITE_TRANSIENT);
     }
 
     if (rc != SQLITE_OK) {
@@ -267,7 +245,7 @@ bool EventWriter::_prepareInsertStatement(const std::string &sql, sqlite3_stmt *
 
   *stmtOut = nullptr;
 
-  if (const int rc = sqlite3_prepare_v2(m_db, sql.c_str(), EventWriterConstants::g_sqliteAutoLength, stmtOut, nullptr); rc != SQLITE_OK || !*stmtOut) {
+  if (const int rc = sqlite3_prepare_v2(m_db, sql.c_str(), EventWriterConstants::SQLITE_AUTO_LENGTH, stmtOut, nullptr); rc != SQLITE_OK || !*stmtOut) {
     if (*stmtOut) {
       sqlite3_finalize(*stmtOut);
       *stmtOut = nullptr;
@@ -333,7 +311,7 @@ void EventWriter::_collectColumnsAndValues(const nlohmann::json &j,
 
     sqlite3_stmt *stmt = nullptr;
     const char *sql = "PRAGMA table_info(Events);";
-    if (sqlite3_prepare_v2(m_db, sql, EventWriterConstants::g_sqliteAutoLength, &stmt, nullptr) != SQLITE_OK || !stmt) {
+    if (sqlite3_prepare_v2(m_db, sql, EventWriterConstants::SQLITE_AUTO_LENGTH, &stmt, nullptr) != SQLITE_OK || !stmt) {
       if (stmt) {
         sqlite3_finalize(stmt);
       }
@@ -342,7 +320,7 @@ void EventWriter::_collectColumnsAndValues(const nlohmann::json &j,
 
     while (sqlite3_step(stmt) == SQLITE_ROW) {
       // PRAGMA table_info columns: (cid, name, type, notnull, dflt_value, pk)
-      const unsigned char *txt = sqlite3_column_text(stmt, EventWriterConstants::g_pragmaTableInfoNameColumnIndex);
+      const unsigned char *txt = sqlite3_column_text(stmt, EventWriterConstants::PRAGMA_TABLE_INFO_NAME_COLUMN_INDEX);
       if (!txt) {
         continue;
       }
@@ -368,7 +346,7 @@ void EventWriter::_collectColumnsAndValues(const nlohmann::json &j,
       return &it.value();
     }
 
-    for (const auto *cat : EventWriterConstants::g_eventBucketNames) {
+    for (const auto *cat : EventWriterConstants::EVENT_BUCKET_NAMES) {
       if (auto catIt = j.find(cat); catIt != j.end() && catIt->is_object()) {
         if (auto it = catIt->find(key); it != catIt->end() && !it->is_null()) {
           return &it.value();
@@ -381,7 +359,7 @@ void EventWriter::_collectColumnsAndValues(const nlohmann::json &j,
   // Helpful for bridging PascalCase columns (UserSid) to snake_case payload keys (user_sid)
   auto findSnakeCase = [&](const std::string &key) -> const nlohmann::json * {
     std::string snake;
-    snake.reserve(key.size() + Constants::g_snakeCaseExtraCapacity);
+    snake.reserve(key.size() + Constants::SNAKE_CASE_EXTRA_CAPACITY);
 
     for (size_t i = 0; i < key.size(); ++i) {
       const auto c = static_cast<unsigned char>(key[i]);
@@ -595,7 +573,7 @@ void EventWriter::_fillPropsViaTdh(nlohmann::json &props,
       case TDH_INTYPE_HEXINT32:
       case TDH_INTYPE_HEXINT64: {
         std::optional<uint64_t> parsedHex;
-        if (epi.length == EventWriterConstants::g_uint32ByteWidth) {
+        if (epi.length == EventWriterConstants::UINT32_BYTE_WIDTH) {
           if (auto v = parser.tryParse<uint32_t>(wname)) {
             parsedHex = static_cast<uint64_t>(*v);
           }
@@ -612,8 +590,8 @@ void EventWriter::_fillPropsViaTdh(nlohmann::json &props,
       // GUIDs
       case TDH_INTYPE_GUID: {
         if (auto g = parser.tryParse<GUID>(wname)) {
-          wchar_t bufGuid[Constants::g_guidStringBufferChars];
-          props[name] = StringFromGUID2(*g, bufGuid, Constants::g_guidStringBufferChars) ? Utils::narrow_utf8(bufGuid) : "<unsupported>";
+          wchar_t bufGuid[Constants::GUID_STRING_BUFFER_CHARS];
+          props[name] = StringFromGUID2(*g, bufGuid, Constants::GUID_STRING_BUFFER_CHARS) ? Utils::narrow_utf8(bufGuid) : "<unsupported>";
           parsed = true;
         }
         break;
@@ -674,10 +652,10 @@ void EventWriter::_writeAuxEventTables(const nlohmann::json &j) {
         "INSERT OR REPLACE INTO EventPayloads (EventRecordId, JsonText) VALUES (?, ?);";
 
     sqlite3_stmt *stmt = nullptr;
-    if (sqlite3_prepare_v2(m_db, sql, EventWriterConstants::g_sqliteAutoLength, &stmt, nullptr) == SQLITE_OK && stmt) {
-      sqlite3_bind_int64(stmt, EventWriterConstants::g_payloadBindEventRecordId, eventRecordId);
+    if (sqlite3_prepare_v2(m_db, sql, EventWriterConstants::SQLITE_AUTO_LENGTH, &stmt, nullptr) == SQLITE_OK && stmt) {
+      sqlite3_bind_int64(stmt, EventWriterConstants::PAYLOAD_BIND_EVENT_RECORD_ID, eventRecordId);
       const std::string payload = j.dump(); // compact JSON
-      sqlite3_bind_text(stmt, EventWriterConstants::g_payloadBindJsonText, payload.c_str(), static_cast<int>(payload.size()), SQLITE_TRANSIENT);
+      sqlite3_bind_text(stmt, EventWriterConstants::PAYLOAD_BIND_JSON_TEXT, payload.c_str(), static_cast<int>(payload.size()), SQLITE_TRANSIENT);
 
       (void)sqlite3_step(stmt);
     }
@@ -691,7 +669,7 @@ void EventWriter::_writeAuxEventTables(const nlohmann::json &j) {
         "INSERT OR REPLACE INTO EventFields (EventRecordId, Key, Value, ValueType) VALUES (?, ?, ?, ?);";
 
     sqlite3_stmt *stmt = nullptr;
-    if (sqlite3_prepare_v2(m_db, sql, EventWriterConstants::g_sqliteAutoLength, &stmt, nullptr) != SQLITE_OK || !stmt) {
+    if (sqlite3_prepare_v2(m_db, sql, EventWriterConstants::SQLITE_AUTO_LENGTH, &stmt, nullptr) != SQLITE_OK || !stmt) {
       if (stmt) {
         sqlite3_finalize(stmt);
       }
@@ -699,13 +677,13 @@ void EventWriter::_writeAuxEventTables(const nlohmann::json &j) {
     }
 
     std::vector<std::pair<std::string, nlohmann::json>> flat;
-    flat.reserve(EventWriterConstants::g_flattenedFieldReserveSize);
+    flat.reserve(EventWriterConstants::FLATTENED_FIELD_RESERVE_SIZE);
 
     // top-level keys
     _flattenJsonOneLevel(j, "", flat);
 
     // common nested buckets
-    for (const char *b : EventWriterConstants::g_eventBucketNames) {
+    for (const char *b : EventWriterConstants::EVENT_BUCKET_NAMES) {
       auto it = j.find(b);
       if (it != j.end() && it->is_object()) {
         _flattenJsonOneLevel(*it, b, flat);
@@ -734,10 +712,10 @@ void EventWriter::_writeAuxEventTables(const nlohmann::json &j) {
       sqlite3_reset(stmt);
       sqlite3_clear_bindings(stmt);
 
-      sqlite3_bind_int64(stmt, EventWriterConstants::g_fieldBindEventRecordId, eventRecordId);
-      sqlite3_bind_text(stmt, EventWriterConstants::g_fieldBindKey, k.c_str(), static_cast<int>(k.size()), SQLITE_TRANSIENT);
-      sqlite3_bind_text(stmt, EventWriterConstants::g_fieldBindValue, valueText.c_str(), static_cast<int>(valueText.size()), SQLITE_TRANSIENT);
-      sqlite3_bind_text(stmt, EventWriterConstants::g_fieldBindValueType, type.c_str(), static_cast<int>(type.size()), SQLITE_TRANSIENT);
+      sqlite3_bind_int64(stmt, EventWriterConstants::FIELD_BIND_EVENT_RECORD_ID, eventRecordId);
+      sqlite3_bind_text(stmt, EventWriterConstants::FIELD_BIND_KEY, k.c_str(), static_cast<int>(k.size()), SQLITE_TRANSIENT);
+      sqlite3_bind_text(stmt, EventWriterConstants::FIELD_BIND_VALUE, valueText.c_str(), static_cast<int>(valueText.size()), SQLITE_TRANSIENT);
+      sqlite3_bind_text(stmt, EventWriterConstants::FIELD_BIND_VALUE_TYPE, type.c_str(), static_cast<int>(type.size()), SQLITE_TRANSIENT);
 
       (void)sqlite3_step(stmt);
     }
@@ -795,12 +773,12 @@ void EventWriter::writeFinding(const Finding &f) {
     _initSqliteSchema();
   }
 
-  static const char *s_sql =
+  static const char *INSERT_FINDING_SQL =
       "INSERT INTO Findings(EventTime, Type, Severity, Confidence, SourcePid, TargetPid, Tid, EvidenceJson, AttackTactic, AttackTechnique, AttackSubTechnique, AttackReference, Prevention) "
       "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?);";
 
   sqlite3_stmt *stmt = nullptr;
-  if (sqlite3_prepare_v2(m_db, s_sql, EventWriterConstants::g_sqliteAutoLength, &stmt, nullptr) != SQLITE_OK || !stmt) {
+  if (sqlite3_prepare_v2(m_db, INSERT_FINDING_SQL, EventWriterConstants::SQLITE_AUTO_LENGTH, &stmt, nullptr) != SQLITE_OK || !stmt) {
     if (stmt) {
       sqlite3_finalize(stmt);
       stmt = nullptr;
@@ -808,7 +786,7 @@ void EventWriter::writeFinding(const Finding &f) {
 
     s_ensureFindingsSchema(m_db);
     s_ensureAttackColumns(m_db);
-    if (sqlite3_prepare_v2(m_db, s_sql, EventWriterConstants::g_sqliteAutoLength, &stmt, nullptr) != SQLITE_OK || !stmt) {
+    if (sqlite3_prepare_v2(m_db, INSERT_FINDING_SQL, EventWriterConstants::SQLITE_AUTO_LENGTH, &stmt, nullptr) != SQLITE_OK || !stmt) {
       if (stmt) {
         sqlite3_finalize(stmt);
       }
@@ -818,19 +796,19 @@ void EventWriter::writeFinding(const Finding &f) {
 
   const auto ts = Utils::iso8601FromTimePoint(finding.ts);
 
-  sqlite3_bind_text(stmt, EventWriterConstants::g_findingBindEventTime, ts.c_str(), EventWriterConstants::g_sqliteAutoLength, SQLITE_TRANSIENT);
-  sqlite3_bind_text(stmt, EventWriterConstants::g_findingBindType, finding.type.c_str(), EventWriterConstants::g_sqliteAutoLength, SQLITE_TRANSIENT);
-  sqlite3_bind_int(stmt, EventWriterConstants::g_findingBindSeverity, finding.severity);
-  sqlite3_bind_int(stmt, EventWriterConstants::g_findingBindConfidence, finding.confidence);
-  sqlite3_bind_int(stmt, EventWriterConstants::g_findingBindSourcePid, static_cast<int>(finding.source_pid));
-  sqlite3_bind_int(stmt, EventWriterConstants::g_findingBindTargetPid, static_cast<int>(finding.target_pid));
-  sqlite3_bind_int(stmt, EventWriterConstants::g_findingBindTid, static_cast<int>(finding.tid));
-  sqlite3_bind_text(stmt, EventWriterConstants::g_findingBindEvidenceJson, finding.evidence_json.c_str(), EventWriterConstants::g_sqliteAutoLength, SQLITE_TRANSIENT);
-  sqlite3_bind_text(stmt, EventWriterConstants::g_findingBindAttackTactic, finding.attack_tactic.c_str(), EventWriterConstants::g_sqliteAutoLength, SQLITE_TRANSIENT);
-  sqlite3_bind_text(stmt, EventWriterConstants::g_findingBindAttackTechnique, finding.attack_technique.c_str(), EventWriterConstants::g_sqliteAutoLength, SQLITE_TRANSIENT);
-  sqlite3_bind_text(stmt, EventWriterConstants::g_findingBindAttackSubTechnique, finding.attack_sub_technique.c_str(), EventWriterConstants::g_sqliteAutoLength, SQLITE_TRANSIENT);
-  sqlite3_bind_text(stmt, EventWriterConstants::g_findingBindAttackReference, finding.attack_reference.c_str(), EventWriterConstants::g_sqliteAutoLength, SQLITE_TRANSIENT);
-  sqlite3_bind_text(stmt, EventWriterConstants::g_findingBindPrevention, finding.prevention.c_str(), EventWriterConstants::g_sqliteAutoLength, SQLITE_TRANSIENT);
+  sqlite3_bind_text(stmt, EventWriterConstants::FINDING_BIND_EVENT_TIME, ts.c_str(), EventWriterConstants::SQLITE_AUTO_LENGTH, SQLITE_TRANSIENT);
+  sqlite3_bind_text(stmt, EventWriterConstants::FINDING_BIND_TYPE, finding.type.c_str(), EventWriterConstants::SQLITE_AUTO_LENGTH, SQLITE_TRANSIENT);
+  sqlite3_bind_int(stmt, EventWriterConstants::FINDING_BIND_SEVERITY, finding.severity);
+  sqlite3_bind_int(stmt, EventWriterConstants::FINDING_BIND_CONFIDENCE, finding.confidence);
+  sqlite3_bind_int(stmt, EventWriterConstants::FINDING_BIND_SOURCE_PID, static_cast<int>(finding.source_pid));
+  sqlite3_bind_int(stmt, EventWriterConstants::FINDING_BIND_TARGET_PID, static_cast<int>(finding.target_pid));
+  sqlite3_bind_int(stmt, EventWriterConstants::FINDING_BIND_TID, static_cast<int>(finding.tid));
+  sqlite3_bind_text(stmt, EventWriterConstants::FINDING_BIND_EVIDENCE_JSON, finding.evidence_json.c_str(), EventWriterConstants::SQLITE_AUTO_LENGTH, SQLITE_TRANSIENT);
+  sqlite3_bind_text(stmt, EventWriterConstants::FINDING_BIND_ATTACK_TACTIC, finding.attack_tactic.c_str(), EventWriterConstants::SQLITE_AUTO_LENGTH, SQLITE_TRANSIENT);
+  sqlite3_bind_text(stmt, EventWriterConstants::FINDING_BIND_ATTACK_TECHNIQUE, finding.attack_technique.c_str(), EventWriterConstants::SQLITE_AUTO_LENGTH, SQLITE_TRANSIENT);
+  sqlite3_bind_text(stmt, EventWriterConstants::FINDING_BIND_ATTACK_SUB_TECHNIQUE, finding.attack_sub_technique.c_str(), EventWriterConstants::SQLITE_AUTO_LENGTH, SQLITE_TRANSIENT);
+  sqlite3_bind_text(stmt, EventWriterConstants::FINDING_BIND_ATTACK_REFERENCE, finding.attack_reference.c_str(), EventWriterConstants::SQLITE_AUTO_LENGTH, SQLITE_TRANSIENT);
+  sqlite3_bind_text(stmt, EventWriterConstants::FINDING_BIND_PREVENTION, finding.prevention.c_str(), EventWriterConstants::SQLITE_AUTO_LENGTH, SQLITE_TRANSIENT);
 
   sqlite3_step(stmt);
   sqlite3_finalize(stmt);
@@ -1048,7 +1026,7 @@ void EventWriter::_writeOut(const nlohmann::json &j) {
                 static_cast<std::streamsize>(buf.size()));
   } else { // JsonLines
     const std::string line =
-        m_pretty ? (j.dump(Constants::g_jsonIndentWidth) + "\n")
+        m_pretty ? (j.dump(Constants::JSON_INDENT_WIDTH) + "\n")
                  : (j.dump() + "\n");
     m_out.write(line.data(), static_cast<std::streamsize>(line.size()));
   }
@@ -1056,11 +1034,11 @@ void EventWriter::_writeOut(const nlohmann::json &j) {
 
 void EventWriter::_enrichSigmaFields(nlohmann::json &j) const {
   // Use a fixed-size array to avoid heap allocation for every event
-  const nlohmann::json *searchScope[EventWriterConstants::g_searchScopeCapacity];
+  const nlohmann::json *searchScope[EventWriterConstants::SEARCH_SCOPE_CAPACITY];
   size_t scopeSize = 0;
   searchScope[scopeSize++] = &j;
 
-  for (const auto *cat : EventWriterConstants::g_eventBucketNames) {
+  for (const auto *cat : EventWriterConstants::EVENT_BUCKET_NAMES) {
     if (auto it = j.find(cat); it != j.end() && it->is_object()) {
       searchScope[scopeSize++] = &(*it);
     }
@@ -1178,7 +1156,7 @@ void EventWriter::_enrichSigmaFields(nlohmann::json &j) const {
       (!j.contains("ParentProcessName") || j["ParentProcessName"].is_null())) {
     if (const nlohmann::json *pp = lookup({"ParentProcessId", "ParentPid", "PPID", "ppid"})) {
       DWORD ppid = 0;
-      if (tryToDword(*pp, ppid) && ppid != 0 && ppid != Constants::g_invalidPid) {
+      if (tryToDword(*pp, ppid) && ppid != 0 && ppid != Constants::INVALID_PID) {
         nlohmann::json p = Utils::bestEffortProcFromPid(ppid);
         if ((!j.contains("ParentImage") || j["ParentImage"].is_null()) &&
             p.contains("path") && p["path"].is_string()) {
@@ -1275,7 +1253,7 @@ void EventWriter::_ensureSinkOpenLocked() {
         throw std::runtime_error("Failed to open sqlite database");
       }
 
-      sqlite3_busy_timeout(m_db, Constants::g_sqliteBusyTimeoutMs);
+      sqlite3_busy_timeout(m_db, Constants::SQLITE_BUSY_TIMEOUT_MS);
       sqlite3_exec(m_db, "PRAGMA journal_mode=WAL;", nullptr, nullptr, nullptr);
       sqlite3_exec(m_db, "PRAGMA synchronous=NORMAL;", nullptr, nullptr, nullptr);
       _initSqliteSchema();
@@ -1296,5 +1274,6 @@ void EventWriter::_ensureSinkOpenLocked() {
     }
   }
 }
+
 
 

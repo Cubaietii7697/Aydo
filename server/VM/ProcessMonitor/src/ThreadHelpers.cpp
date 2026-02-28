@@ -2,18 +2,10 @@
 
 #include <limits>
 
+#include "ThreadHelpersConstants.hpp"
 #include "Utils.hpp"
 
 namespace ThreadHelpers {
-
-const int g_openProcessEventId = 5;
-const int g_openThreadEventId = 6;
-inline constexpr uint64_t s_accessVmRead = 0x0010ULL;
-inline constexpr uint64_t s_accessVmWrite = 0x0020ULL;
-inline constexpr uint64_t s_accessVmOperation = 0x0008ULL;
-inline constexpr uint64_t s_accessDupHandle = 0x0040ULL;
-inline constexpr uint64_t s_accessQueryInfo = 0x0400ULL;
-inline constexpr uint64_t s_accessQueryLimitedInfo = 0x1000ULL;
 
 uint64_t packPids(uint32_t src, uint32_t tgt) {
   // 32 bits
@@ -329,7 +321,7 @@ bool isProcessAccess(const NormalizedEvent &e) {
 
   // Provider-level fallback when schema names are generic "Info".
   if (isKernelAuditApiProvider(e) &&
-      (e.eventId == g_openProcessEventId || e.eventId == g_openThreadEventId) &&
+      (e.eventId == ThreadHelpersConstants::OPEN_PROCESS_EVENT_ID || e.eventId == ThreadHelpersConstants::OPEN_THREAD_EVENT_ID) &&
       hasSuccessfulReturnCode(e)) {
     return true;
   }
@@ -414,12 +406,12 @@ bool isLsassImage(std::string_view image) {
 }
 
 bool isSuspiciousProcessAccessMask(uint64_t accessMask) {
-  const uint64_t suspicious = s_accessVmRead |
-                              s_accessVmWrite |
-                              s_accessVmOperation |
-                              s_accessDupHandle |
-                              s_accessQueryInfo |
-                              s_accessQueryLimitedInfo;
+  const uint64_t suspicious = ThreadHelpersConstants::ACCESS_VM_READ |
+                              ThreadHelpersConstants::ACCESS_VM_WRITE |
+                              ThreadHelpersConstants::ACCESS_VM_OPERATION |
+                              ThreadHelpersConstants::ACCESS_DUP_HANDLE |
+                              ThreadHelpersConstants::ACCESS_QUERY_INFO |
+                              ThreadHelpersConstants::ACCESS_QUERY_LIMITED_INFO;
   return accessMask == 0 || (accessMask & suspicious) != 0;
 }
 

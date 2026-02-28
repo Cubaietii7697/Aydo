@@ -37,7 +37,7 @@ std::vector<Finding> ThreadHijackDetector::evaluate(const NormalizedEvent &ne, T
     return {};
   }
 
-  if ((now - st.lastSuspend) > s_sequenceWindow) {
+  if ((now - st.lastSuspend) > SEQUENCE_WINDOW) {
     return {};
   }
 
@@ -54,7 +54,7 @@ std::vector<Finding> ThreadHijackDetector::evaluate(const NormalizedEvent &ne, T
     return {};
   }
 
-  return {_buildFinding(ne, st.ownerPid, targetTid, s_defaultSeverity + 1, s_defaultConfidence, "resume_after_context_change")};
+  return {_buildFinding(ne, st.ownerPid, targetTid, DEFAULT_SEVERITY + 1, DEFAULT_CONFIDENCE, "resume_after_context_change")};
 }
 
 bool ThreadHijackDetector::_isDuplicate(
@@ -64,13 +64,13 @@ bool ThreadHijackDetector::_isDuplicate(
     std::chrono::time_point<std::chrono::system_clock> now) {
   const auto key = std::make_tuple(actorPid, ownerPid, tid);
 
-  if (const auto it = m_recentFindings.find(key); it != m_recentFindings.end() && (now - it->second) <= s_dedupWindow) {
+  if (const auto it = m_recentFindings.find(key); it != m_recentFindings.end() && (now - it->second) <= DEDUP_WINDOW) {
     return true;
   }
 
   m_recentFindings[key] = now;
   std::erase_if(m_recentFindings, [&](const auto &kv) {
-    return (now - kv.second) > IThreadDetector::s_dedupRetentionWindow;
+    return (now - kv.second) > IThreadDetector::DEDUP_RETENTION_WINDOW;
   });
   return false;
 }
@@ -105,3 +105,4 @@ Finding ThreadHijackDetector::_buildFinding(const NormalizedEvent &ne,
   f.evidence_json = ev.dump();
   return f;
 }
+

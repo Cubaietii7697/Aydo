@@ -22,7 +22,7 @@ std::vector<Finding> AsynchronousProcedureCallQueueingDetector::evaluate(const N
     return {};
   }
 
-  if (!caches.hasRecentProcessAccess(srcPid, tgtPid, now, s_correlationWindow)) {
+  if (!caches.hasRecentProcessAccess(srcPid, tgtPid, now, CORRELATION_WINDOW)) {
     return {};
   }
 
@@ -30,7 +30,7 @@ std::vector<Finding> AsynchronousProcedureCallQueueingDetector::evaluate(const N
     return {};
   }
 
-  return {_buildFinding(ne, srcPid, tgtPid, tgtTid, s_defaultSeverity, s_defaultConfidence)};
+  return {_buildFinding(ne, srcPid, tgtPid, tgtTid, DEFAULT_SEVERITY, DEFAULT_CONFIDENCE)};
 }
 
 bool AsynchronousProcedureCallQueueingDetector::_isDuplicate(
@@ -39,13 +39,13 @@ bool AsynchronousProcedureCallQueueingDetector::_isDuplicate(
     DWORD tgtTid,
     std::chrono::time_point<std::chrono::system_clock> now) {
   const auto key = std::make_tuple(srcPid, tgtPid, tgtTid);
-  if (const auto it = m_recentFindings.find(key); it != m_recentFindings.end() && (now - it->second) <= s_dedupWindow) {
+  if (const auto it = m_recentFindings.find(key); it != m_recentFindings.end() && (now - it->second) <= DEDUP_WINDOW) {
     return true;
   }
 
   m_recentFindings[key] = now;
   std::erase_if(m_recentFindings, [&now](const auto &kv) {
-    return (now - kv.second) > IThreadDetector::s_dedupRetentionWindow;
+    return (now - kv.second) > IThreadDetector::DEDUP_RETENTION_WINDOW;
   });
   return false;
 }
@@ -99,3 +99,4 @@ Finding AsynchronousProcedureCallQueueingDetector::_buildFinding(const Normalize
   f.evidence_json = ev.dump();
   return f;
 }
+

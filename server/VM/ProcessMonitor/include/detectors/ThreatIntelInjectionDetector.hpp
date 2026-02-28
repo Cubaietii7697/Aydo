@@ -17,10 +17,10 @@ public:
   bool isMatch(const NormalizedEvent &ne) const;
 
 private:
-  static constexpr auto s_CORRELATION_WINDOW = std::chrono::seconds(10);
-  static constexpr auto s_DEDUP_WINDOW = std::chrono::seconds(5);
-  static constexpr int s_SEVERITY = 8;
-  static constexpr int s_CONFIDENCE = 75;
+  static constexpr auto CORRELATION_WINDOW = std::chrono::seconds(10);
+  static constexpr auto DEDUP_WINDOW = std::chrono::seconds(5);
+  static constexpr int SEVERITY = 8;
+  static constexpr int CONFIDENCE = 75;
 
   bool _isDuplicate(DWORD srcPid,
                     DWORD tgtPid,
@@ -31,4 +31,5 @@ private:
 
   std::map<std::tuple<DWORD, DWORD, DWORD>, std::chrono::time_point<std::chrono::system_clock>> m_recentFindings;
 };
+
 

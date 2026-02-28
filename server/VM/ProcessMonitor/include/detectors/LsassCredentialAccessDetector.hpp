@@ -18,9 +18,9 @@ public:
   bool isMatch(const NormalizedEvent &ne, ThreadCaches &caches) const;
 
 private:
-  static constexpr auto s_DEDUP_WINDOW = std::chrono::seconds(15);
-  static constexpr int s_SEVERITY = 9;
-  static constexpr int s_CONFIDENCE = 80;
+  static constexpr auto DEDUP_WINDOW = std::chrono::seconds(15);
+  static constexpr int SEVERITY = 9;
+  static constexpr int CONFIDENCE = 80;
 
   bool _isDuplicate(DWORD srcPid,
                     DWORD tgtPid,
@@ -35,3 +35,4 @@ private:
 
   std::map<std::tuple<DWORD, DWORD, DWORD>, std::chrono::time_point<std::chrono::system_clock>> m_recentFindings;
 };
+

@@ -2,12 +2,7 @@
 #include <stdexcept>
 #include <windows.h>
 #include <algorithm>
-
-namespace KernelBlockConstants {
-inline constexpr long long s_minWaitMs = 0;
-inline constexpr long long s_maxWaitMs = 0x7fffffff;
-static constexpr const char *s_timeoutDetachMsg = "KernelBlock: trace thread did not stop before deadline; detaching\n";
-} // namespace KernelBlockConstants
+#include "KernelBlockConstants.hpp"
 
 KernelBlock::KernelBlock(const std::wstring &userSessionName)
     : m_sessionName(userSessionName) {
@@ -73,13 +68,13 @@ bool KernelBlock::stopWithDeadline(const Deadline &deadline) {
   bool ok = true;
   if (m_thread.joinable()) {
     const auto rem = deadline.remaining_ms();
-    const DWORD waitMs = static_cast<DWORD>(std::clamp<long long>(rem.count(), KernelBlockConstants::s_minWaitMs, KernelBlockConstants::s_maxWaitMs));
+    const DWORD waitMs = static_cast<DWORD>(std::clamp<long long>(rem.count(), KernelBlockConstants::MIN_WAIT_MS, KernelBlockConstants::MAX_WAIT_MS));
     const HANDLE h = reinterpret_cast<HANDLE>(m_thread.native_handle());
     const DWORD res = WaitForSingleObject(h, waitMs);
     if (res == WAIT_OBJECT_0) {
       m_thread.join();
     } else {
-      OutputDebugStringA(KernelBlockConstants::s_timeoutDetachMsg);
+      OutputDebugStringA(KernelBlockConstants::TIMEOUT_DETACH_MSG);
       m_thread.detach();
       ok = false;
     }

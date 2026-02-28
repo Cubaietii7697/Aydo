@@ -5,13 +5,8 @@
 #include <algorithm>
 
 #include "ProviderProfiles.hpp"
+#include "UserBlockConstants.hpp"
 #include "Utils.hpp"
-
-namespace UserBlockConstants {
-inline constexpr long long s_minWaitMs = 0;
-inline constexpr long long s_maxWaitMs = 0x7fffffff;
-static constexpr const char *s_timeoutDetachMsg = "UserBlock: trace thread did not stop before deadline; detaching\n";
-} // namespace UserBlockConstants
 
 UserBlock::UserBlock(const std::wstring &userSessionName)
     : m_sessionName(userSessionName) {}
@@ -169,13 +164,13 @@ bool UserBlock::stopWithDeadline(const Deadline &deadline) {
   bool ok = true;
   if (m_thread.joinable()) {
     const auto rem = deadline.remaining_ms();
-    const DWORD waitMs = static_cast<DWORD>(std::clamp<long long>(rem.count(), UserBlockConstants::s_minWaitMs, UserBlockConstants::s_maxWaitMs));
+    const DWORD waitMs = static_cast<DWORD>(std::clamp<long long>(rem.count(), UserBlockConstants::MIN_WAIT_MS, UserBlockConstants::MAX_WAIT_MS));
     const HANDLE h = reinterpret_cast<HANDLE>(m_thread.native_handle());
     const DWORD res = WaitForSingleObject(h, waitMs);
     if (res == WAIT_OBJECT_0) {
       m_thread.join();
     } else {
-      OutputDebugStringA(UserBlockConstants::s_timeoutDetachMsg);
+      OutputDebugStringA(UserBlockConstants::TIMEOUT_DETACH_MSG);
       m_thread.detach();
       ok = false;
     }

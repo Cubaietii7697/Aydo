@@ -3,7 +3,6 @@
 #include <algorithm>
 
 #include "ThreadHelpers.hpp"
-static constexpr int s_fallbackConfidence = 70;
 
 std::vector<Finding> RemoteThreadCreationDetector::evaluate(const NormalizedEvent &ne, ThreadCaches &caches) {
   const auto now = ThreadHelpers::eventTsOrNow(ne);
@@ -19,9 +18,9 @@ std::vector<Finding> RemoteThreadCreationDetector::evaluate(const NormalizedEven
         srcPid != 0 &&
         tgtPid != 0 &&
         srcPid != tgtPid &&
-        caches.hasRecentProcessAccess(srcPid, tgtPid, now, s_correlationWindow) &&
+        caches.hasRecentProcessAccess(srcPid, tgtPid, now, CORRELATION_WINDOW) &&
         !_isDuplicate(srcPid, tgtPid, tgtTid, now)) {
-      findings.emplace_back(_buildFinding(ne, srcPid, tgtPid, tgtTid, s_defaultSeverity + 1, s_defaultConfidence));
+      findings.emplace_back(_buildFinding(ne, srcPid, tgtPid, tgtTid, DEFAULT_SEVERITY + 1, DEFAULT_CONFIDENCE));
     }
   }
 
@@ -30,11 +29,11 @@ std::vector<Finding> RemoteThreadCreationDetector::evaluate(const NormalizedEven
     const auto targetPid = ThreadHelpers::getTargetPid(ne);
     const auto targetTid = ThreadHelpers::getTargetTid(ne);
     if (targetPid && *targetPid != 0) {
-      if (auto recentSource = caches.findRecentSourceForTarget(static_cast<DWORD>(*targetPid), now, s_correlationWindow);
+      if (auto recentSource = caches.findRecentSourceForTarget(static_cast<DWORD>(*targetPid), now, CORRELATION_WINDOW);
           recentSource && *recentSource != *targetPid) {
         const DWORD tgtTid = targetTid ? static_cast<DWORD>(*targetTid) : 0;
         if (!_isDuplicate(*recentSource, static_cast<DWORD>(*targetPid), tgtTid, now)) {
-          findings.emplace_back(_buildFinding(ne, *recentSource, static_cast<DWORD>(*targetPid), tgtTid, s_defaultConfidence, s_fallbackConfidence));
+          findings.emplace_back(_buildFinding(ne, *recentSource, static_cast<DWORD>(*targetPid), tgtTid, DEFAULT_CONFIDENCE, FALLBACK_CONFIDENCE));
         }
       }
     }
@@ -49,13 +48,13 @@ bool RemoteThreadCreationDetector::_isDuplicate(
     DWORD tgtTid,
     std::chrono::time_point<std::chrono::system_clock> now) {
   const auto key = std::make_tuple(srcPid, tgtPid, tgtTid);
-  if (const auto it = m_recentFindings.find(key); it != m_recentFindings.end() && (now - it->second) <= s_dedupWindow) {
+  if (const auto it = m_recentFindings.find(key); it != m_recentFindings.end() && (now - it->second) <= DEDUP_WINDOW) {
     return true;
   }
 
   m_recentFindings[key] = now;
   std::erase_if(m_recentFindings, [&now](const auto &kv) {
-    return (now - kv.second) > IThreadDetector::s_dedupRetentionWindow;
+    return (now - kv.second) > IThreadDetector::DEDUP_RETENTION_WINDOW;
   });
   return false;
 }
@@ -110,3 +109,4 @@ Finding RemoteThreadCreationDetector::_buildFinding(const NormalizedEvent &ne,
   f.evidence_json = ev.dump();
   return f;
 }
+

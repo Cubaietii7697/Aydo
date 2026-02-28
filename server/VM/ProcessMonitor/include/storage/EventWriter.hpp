@@ -59,7 +59,7 @@ private:
   void _ensureSinkOpenLocked();
 
 private:
-  static constexpr std::uint64_t s_initialFallbackEventRecordId = 1;
+  static constexpr std::uint64_t INITIAL_FALLBACK_EVENT_RECORD_ID = 1;
 
   std::mutex m_mtx;
   std::ofstream m_out;
@@ -70,5 +70,6 @@ private:
   sqlite3 *m_db = nullptr;
 
   bool m_lengthPrefixed = true;
-  std::atomic_uint64_t m_fallbackEventRecordId{s_initialFallbackEventRecordId};
+  std::atomic_uint64_t m_fallbackEventRecordId{INITIAL_FALLBACK_EVENT_RECORD_ID};
 };
+

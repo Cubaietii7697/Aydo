@@ -9,9 +9,6 @@
 #include "NormalizedEvent.hpp"
 
 namespace ThreadHelpers {
-extern const int g_openProcessEventId;
-extern const int g_openThreadEventId;
-
 uint64_t packPids(uint32_t src, uint32_t tgt);
 std::optional<uint32_t> getU32(const NormalizedEvent &e, std::string_view key);
 std::optional<uint64_t> getU64(const NormalizedEvent &e, std::string_view key);

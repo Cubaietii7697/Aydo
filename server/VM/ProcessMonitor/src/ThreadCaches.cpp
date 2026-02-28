@@ -158,7 +158,7 @@ void ThreadCaches::cleanup(std::chrono::time_point<std::chrono::system_clock> no
     if (last.time_since_epoch().count() == 0) {
       return true;
     }
-    return (now - last) > s_TID_TTL;
+    return (now - last) > TID_TTL;
   });
 
   std::erase_if(crossProcWindows, [&](const auto &kv) {
@@ -167,10 +167,11 @@ void ThreadCaches::cleanup(std::chrono::time_point<std::chrono::system_clock> no
     if (last.time_since_epoch().count() == 0) {
       return true;
     }
-    return (now - last) > s_XPROC_TTL;
+    return (now - last) > XPROC_TTL;
   });
 
   std::erase_if(m_processImageByPid, [&](const auto &kv) {
-    return (now - kv.second.second) > s_XPROC_TTL;
+    return (now - kv.second.second) > XPROC_TTL;
   });
 }
+

@@ -36,13 +36,13 @@ bool RegistryRunKeyPersistenceDetector::_isDuplicate(
     std::chrono::time_point<std::chrono::system_clock> now) {
   const auto key = std::make_tuple(srcPid, tgtPid, tid);
   if (const auto it = m_recentFindings.find(key);
-      it != m_recentFindings.end() && (now - it->second) <= s_DEDUP_WINDOW) {
+      it != m_recentFindings.end() && (now - it->second) <= DEDUP_WINDOW) {
     return true;
   }
 
   m_recentFindings[key] = now;
   std::erase_if(m_recentFindings, [&now](const auto &kv) {
-    return (now - kv.second) > IThreadDetector::s_dedupRetentionWindow;
+    return (now - kv.second) > IThreadDetector::DEDUP_RETENTION_WINDOW;
   });
   return false;
 }
@@ -66,8 +66,8 @@ Finding RegistryRunKeyPersistenceDetector::_buildFinding(const NormalizedEvent &
 
   Finding finding;
   finding.type = "RegistryRunKeyPersistence";
-  finding.severity = s_SEVERITY;
-  finding.confidence = s_CONFIDENCE;
+  finding.severity = SEVERITY;
+  finding.confidence = CONFIDENCE;
   finding.ts = ne.ts;
   finding.source_pid = srcPid;
   finding.target_pid = tgtPid;
@@ -75,4 +75,5 @@ Finding RegistryRunKeyPersistenceDetector::_buildFinding(const NormalizedEvent &
   finding.evidence_json = ev.dump();
   return finding;
 }
+
 

@@ -6,14 +6,8 @@
 #include <memory>
 #include <optional>
 
+#include "AttackMetadataConstants.hpp"
 #include "Finding.hpp"
-
-inline constexpr uint64_t s_ACCESS_VM_READ = 0x0010ULL;
-inline constexpr uint64_t s_ACCESS_VM_WRITE = 0x0020ULL;
-inline constexpr uint64_t s_ACCESS_VM_OPERATION = 0x0008ULL;
-inline constexpr uint64_t s_ACCESS_DUP_HANDLE = 0x0040ULL;
-inline constexpr uint64_t s_ACCESS_QUERY_INFORMATION = 0x0400ULL;
-inline constexpr uint64_t s_ACCESS_QUERY_LIMITED_INFORMATION = 0x1000ULL;
 
 std::string s_toLower(std::string_view value) {
   std::string lower;
@@ -122,15 +116,13 @@ AttackMetadata s_makeMetadata(std::string_view tactic,
 }
 
 AttackMetadata s_injectionMetadata(std::string_view subTechnique = {}) {
-  static constexpr std::string_view s_PREVENTION =
-      "Use code integrity, EDR memory protections, and block unauthorized cross-process handle access.";
   if (subTechnique.empty()) {
     return s_makeMetadata(
         "Defense Evasion",
         "T1055",
         "",
         "https://attack.mitre.org/techniques/T1055/",
-        s_PREVENTION);
+        AttackMetadataConstants::INJECTION_PREVENTION);
   }
 
   if (subTechnique == "T1055.004") {
@@ -139,7 +131,7 @@ AttackMetadata s_injectionMetadata(std::string_view subTechnique = {}) {
         "T1055",
         "T1055.004",
         "https://attack.mitre.org/techniques/T1055/004/",
-        s_PREVENTION);
+        AttackMetadataConstants::INJECTION_PREVENTION);
   }
 
   if (subTechnique == "T1055.003") {
@@ -148,7 +140,7 @@ AttackMetadata s_injectionMetadata(std::string_view subTechnique = {}) {
         "T1055",
         "T1055.003",
         "https://attack.mitre.org/techniques/T1055/003/",
-        s_PREVENTION);
+        AttackMetadataConstants::INJECTION_PREVENTION);
   }
 
   return s_injectionMetadata();
@@ -242,12 +234,12 @@ AttackMetadata forEventJson(const nlohmann::json &eventJson) {
 
   if (s_containsI(targetImage, "lsass.exe")) {
     const uint64_t access = desiredAccess.value_or(0);
-    const uint64_t suspiciousMask = s_ACCESS_VM_READ |
-                                    s_ACCESS_VM_WRITE |
-                                    s_ACCESS_VM_OPERATION |
-                                    s_ACCESS_DUP_HANDLE |
-                                    s_ACCESS_QUERY_INFORMATION |
-                                    s_ACCESS_QUERY_LIMITED_INFORMATION;
+    const uint64_t suspiciousMask = AttackMetadataConstants::ACCESS_VM_READ |
+                                    AttackMetadataConstants::ACCESS_VM_WRITE |
+                                    AttackMetadataConstants::ACCESS_VM_OPERATION |
+                                    AttackMetadataConstants::ACCESS_DUP_HANDLE |
+                                    AttackMetadataConstants::ACCESS_QUERY_INFORMATION |
+                                    AttackMetadataConstants::ACCESS_QUERY_LIMITED_INFORMATION;
     if (access == 0 || (access & suspiciousMask) != 0) {
       return forFindingType("LsassCredentialAccess");
     }
