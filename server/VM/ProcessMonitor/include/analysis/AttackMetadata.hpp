@@ -4,8 +4,7 @@
 #include <string_view>
 
 #include <nlohmann/json.hpp>
-
-struct Finding;
+#include "Finding.hpp"
 
 struct AttackMetadata {
   std::string tactic;
@@ -29,4 +28,3 @@ void applyToJson(const AttackMetadata &metadata, nlohmann::json &eventJson);
 void applyToFinding(Finding &finding);
 
 } // namespace AttackMetadataCatalog
-

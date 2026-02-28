@@ -8,25 +8,16 @@
 #include <iostream>
 
 #include "Deadline.hpp"
+#include "ProcessMonitorConstants.hpp"
 #include "SafeKrabsParser.hpp"
 #include "Utils.hpp"
-
-namespace ProcessMonitorConstants {
-inline constexpr DWORD s_invalidPid = 0;
-inline constexpr DWORD s_allProcessesSnapshot = 0;
-inline constexpr ULONGLONG s_defaultAnyMask = 0;
-inline constexpr ULONGLONG s_defaultAllMask = 0;
-inline constexpr long long s_minWaitMs = 0;
-inline constexpr long long s_maxWaitMs = 0x7fffffff;
-inline constexpr std::wstring_view s_pidSeparator = L", ";
-} // namespace ProcessMonitorConstants
 
 static std::wstring s_joinPids(const std::set<DWORD> &pids) {
   std::wstring out;
   bool first = true;
   for (const DWORD pid : pids) {
     if (!first) {
-      out += ProcessMonitorConstants::s_pidSeparator;
+      out += ProcessMonitorConstants::PID_SEPARATOR;
     }
     out += std::to_wstring(pid);
     first = false;
@@ -62,7 +53,7 @@ bool ProcessMonitor::_pidAllowed(const EVENT_RECORD &record,
   }
 
   auto inTargets = [this](DWORD pid) {
-    return pid != ProcessMonitorConstants::s_invalidPid && m_targetPids.contains(pid);
+    return pid != ProcessMonitorConstants::INVALID_PID && m_targetPids.contains(pid);
   };
 
   if (inTargets(record.EventHeader.ProcessId)) {
@@ -263,7 +254,7 @@ void ProcessMonitor::_onUserEvent(const EVENT_RECORD &record,
 
 std::set<DWORD> ProcessMonitor::findPidsByName(const std::wstring &exeName) const {
   std::set<DWORD> pids;
-  HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, ProcessMonitorConstants::s_allProcessesSnapshot);
+  HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, ProcessMonitorConstants::ALL_PROCESSES_SNAPSHOT);
   if (snap == INVALID_HANDLE_VALUE) {
     return pids;
   }
@@ -305,7 +296,7 @@ static bool s_joinWithDeadline(std::jthread &t, const Deadline &deadline, const 
   }
 
   const auto rem = deadline.remaining_ms();
-  const DWORD waitMs = static_cast<DWORD>(std::clamp<long long>(rem.count(), ProcessMonitorConstants::s_minWaitMs, ProcessMonitorConstants::s_maxWaitMs));
+  const DWORD waitMs = static_cast<DWORD>(std::clamp<long long>(rem.count(), ProcessMonitorConstants::MIN_WAIT_MS, ProcessMonitorConstants::MAX_WAIT_MS));
   const HANDLE h = reinterpret_cast<HANDLE>(t.native_handle());
   const DWORD res = WaitForSingleObject(h, waitMs);
   if (res == WAIT_OBJECT_0) {
@@ -358,8 +349,8 @@ void ProcessMonitor::_enableKernelProviders() {
 
 void ProcessMonitor::_enableUserProviders() {
   m_user.addAnalystProviders(TRACE_LEVEL_INFORMATION,
-                             ProcessMonitorConstants::s_defaultAnyMask,
-                             ProcessMonitorConstants::s_defaultAllMask);
+                             ProcessMonitorConstants::DEFAULT_ANY_MASK,
+                             ProcessMonitorConstants::DEFAULT_ALL_MASK);
   m_user.start([this](const EVENT_RECORD &rec, const krabs::trace_context &ctx) {
     _onUserEvent(rec, ctx);
   });
