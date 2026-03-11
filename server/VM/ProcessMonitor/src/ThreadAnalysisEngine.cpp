@@ -8,6 +8,11 @@ ThreadAnalysisEngine::ThreadAnalysisEngine(ThreadCaches *c, EventWriter *w)
   ownedDetectors.emplace_back(std::make_unique<RemoteThreadCreationDetector>());
   ownedDetectors.emplace_back(std::make_unique<AsynchronousProcedureCallQueueingDetector>());
   ownedDetectors.emplace_back(std::make_unique<ThreadHijackDetector>());
+  ownedDetectors.emplace_back(std::make_unique<ThreatIntelInjectionDetector>());
+  ownedDetectors.emplace_back(std::make_unique<RegistryRunKeyPersistenceDetector>());
+  ownedDetectors.emplace_back(std::make_unique<ScheduledTaskPersistenceDetector>());
+  ownedDetectors.emplace_back(std::make_unique<ServicePersistenceDetector>());
+  ownedDetectors.emplace_back(std::make_unique<LsassCredentialAccessDetector>());
 
   detectors.reserve(ownedDetectors.size());
   for (auto &detector : ownedDetectors) {

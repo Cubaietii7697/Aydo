@@ -1,44 +1,15 @@
 #include "UserBlock.hpp"
 
-#include <array>
 #include <new>
 #include <windows.h>
 #include <algorithm>
-#include <iostream>
 #include <atomic>
+#include <iostream>
 
+#include "ProcessMonitorConstants.hpp"
+#include "ProviderProfiles.hpp"
+#include "UserBlockConstants.hpp"
 #include "Utils.hpp"
-
-namespace UserBlockConstants {
-inline constexpr long long s_minWaitMs = 0;
-inline constexpr long long s_maxWaitMs = 0x7fffffff;
-static constexpr const char *s_timeoutDetachMsg = "UserBlock: trace thread did not stop before deadline; detaching\n";
-static constexpr const char *s_sysmonUnavailableMsg = "UserBlock: provider 'Microsoft-Windows-Sysmon' not found; skipping\n";
-inline constexpr const wchar_t *s_sysmonProviderName = L"Microsoft-Windows-Sysmon";
-inline constexpr GUID s_sysmonProviderGuid = {
-    0x5770385f, 0xc22a, 0x43e0, {0xbf, 0x4c, 0x06, 0xf5, 0x69, 0x8f, 0xfb, 0xd9}};
-
-static constexpr auto s_apiCallProviderNames = std::to_array<const wchar_t *>({
-    L"Microsoft-Windows-DNS-Client",
-    L"Microsoft-Windows-WinHTTP",
-    L"Microsoft-Windows-WMI-Activity",
-    L"Microsoft-Windows-PowerShell",
-    L"Microsoft-Windows-DotNETRuntime",
-    L"Microsoft-Windows-Kernel-Audit-API-Calls",
-    L"Microsoft-Windows-TaskScheduler",
-    L"Microsoft-Windows-Windows Defender",
-    L"Microsoft-Windows-CodeIntegrity",
-    L"Microsoft-Windows-AppLocker",
-    L"Microsoft-Windows-SMBClient",
-    L"Microsoft-Windows-SMBServer",
-    L"Microsoft-Windows-WinRM",
-    L"Microsoft-Windows-TerminalServices-LocalSessionManager",
-    L"Microsoft-Windows-RemoteDesktopServices-RdpCoreTS",
-    L"Microsoft-Windows-CAPI2",
-    L"Microsoft-Windows-Bits-Client",
-    L"Microsoft-Windows-Installer",
-});
-} // namespace UserBlockConstants
 
 UserBlock::UserBlock(const std::wstring &userSessionName)
     : m_sessionName(userSessionName) {}
@@ -97,13 +68,9 @@ void UserBlock::addProvider(const wchar_t *name,
                             UCHAR level,
                             ULONGLONG any,
                             ULONGLONG all) {
-  GUID gid{};
-  if (s_tryParseGuidString(name, gid) || s_tryResolveProviderGuidByName(name, gid)) {
-    addProvider(gid, level, any, all);
-
-    return;
-  }
+  (void)_addProviderByName(name, level, any, all);
 }
+
 void UserBlock::addProvider(const GUID &id,
                             UCHAR level,
                             ULONGLONG any,
@@ -123,22 +90,50 @@ void UserBlock::addProvider(const GUID &id,
 void UserBlock::addApiCallsProvider(UCHAR level,
                                     ULONGLONG any,
                                     ULONGLONG all) {
-  for (const auto *providerName : UserBlockConstants::s_apiCallProviderNames) {
-    addProvider(providerName, level, any, all);
+  addAnalystProviders(level, any, all);
+}
+
+void UserBlock::addAnalystProviders(UCHAR level,
+                                    ULONGLONG any,
+                                    ULONGLONG all) {
+  m_providers.clear();
+  m_loggedMissingProviders.clear();
+  m_providerStats = UserProviderEnableStats{};
+
+  for (const auto *providerName : ProviderProfiles::getAnalystUserProviders()) {
+    ++m_providerStats.requested;
+    if (ProviderProfiles::isForbiddenProvider(providerName)) {
+      ++m_providerStats.unresolved;
+      _logMissingProviderOnce(providerName);
+      continue;
+    }
+
+    if (_addProviderByName(providerName, level, any, all)) {
+      ++m_providerStats.resolved;
+      continue;
+    }
+
+    ++m_providerStats.unresolved;
+    _logMissingProviderOnce(providerName);
   }
 }
 
 bool UserBlock::addSysmonProvider(UCHAR level,
                                   ULONGLONG any,
                                   ULONGLONG all) {
-  const size_t providerCountBefore = m_providers.size();
-  addProvider(UserBlockConstants::s_sysmonProviderGuid, level, any, all);
-  addProvider(UserBlockConstants::s_sysmonProviderName, level, any, all);
-  const bool added = m_providers.size() > providerCountBefore;
-  if (!added) {
-    OutputDebugStringA(UserBlockConstants::s_sysmonUnavailableMsg);
+  ++m_providerStats.requested;
+  if (_addProviderByName(ProcessMonitorConstants::SYSMON_PROVIDER_NAME.data(), level, any, all)) {
+    ++m_providerStats.resolved;
+    return true;
   }
-  return added;
+
+  ++m_providerStats.unresolved;
+  OutputDebugStringA(UserBlockConstants::SYSMON_UNAVAILABLE_MSG);
+  return false;
+}
+
+UserProviderEnableStats UserBlock::getProviderEnableStats() const {
+  return m_providerStats;
 }
 
 void UserBlock::start(Callback on_event) {
@@ -147,29 +142,34 @@ void UserBlock::start(Callback on_event) {
   m_trace = std::make_unique<krabs::user_trace>(m_sessionName.c_str());
 
   m_cb = std::move(on_event);
+  m_providerStats.enabled = 0;
+  m_providerStats.failed_enable = 0;
 
-  static std::atomic<size_t> s_logged{0};
-  for (auto const &pg : m_providers) {
+  static std::atomic<std::size_t> s_logged{0};
+  for (auto const &[providerId, providerPtr] : m_providers) {
     try {
-      auto &p = *pg.second;
+      auto &p = *providerPtr;
       p.add_on_event_callback(m_cb);
       m_trace->enable(p);
-      if (s_logged.fetch_add(1, std::memory_order_relaxed) < UserBlockConstants::s_apiCallProviderNames.size() + 8) {
-        const GUID &gid = pg.first;
+      ++m_providerStats.enabled;
+
+      if (s_logged.fetch_add(1, std::memory_order_relaxed) < UserBlockConstants::PROVIDER_ENABLE_LOG_LIMIT) {
         wchar_t buf[64]{};
-        StringFromGUID2(gid, buf, static_cast<int>(std::size(buf)));
+        StringFromGUID2(providerId, buf, static_cast<int>(std::size(buf)));
         std::string msg = "UserBlock: enabled provider ";
         msg += Utils::narrow_utf8(buf);
         msg += "\n";
         OutputDebugStringA(msg.c_str());
       }
     } catch (const std::exception &e) {
+      ++m_providerStats.failed_enable;
       std::string msg = std::string("UserBlock: enable failed: ") + e.what() + "\n";
       OutputDebugStringA(msg.c_str());
       wchar_t buf[64]{};
-      StringFromGUID2(pg.first, buf, static_cast<int>(std::size(buf)));
+      StringFromGUID2(providerId, buf, static_cast<int>(std::size(buf)));
       std::wcout << L"UserBlock: enable failed for provider " << buf << L"\n";
     } catch (...) {
+      ++m_providerStats.failed_enable;
       OutputDebugStringA("UserBlock: enable failed: unknown exception\n");
       std::wcout << L"UserBlock: enable failed: unknown exception\n";
     }
@@ -178,7 +178,11 @@ void UserBlock::start(Callback on_event) {
   m_thread = std::thread([this] {
     try {
       m_trace->start();
+    } catch (const std::exception &e) {
+      std::string msg = std::string("UserBlock: trace start failed: ") + e.what() + "\n";
+      OutputDebugStringA(msg.c_str());
     } catch (...) {
+      OutputDebugStringA("UserBlock: trace start failed: unknown exception\n");
     }
   });
 }
@@ -202,13 +206,13 @@ bool UserBlock::stopWithDeadline(const Deadline &deadline) {
   bool ok = true;
   if (m_thread.joinable()) {
     const auto rem = deadline.remaining_ms();
-    const DWORD waitMs = static_cast<DWORD>(std::clamp<long long>(rem.count(), UserBlockConstants::s_minWaitMs, UserBlockConstants::s_maxWaitMs));
+    const DWORD waitMs = static_cast<DWORD>(std::clamp<long long>(rem.count(), UserBlockConstants::MIN_WAIT_MS, UserBlockConstants::MAX_WAIT_MS));
     const HANDLE h = reinterpret_cast<HANDLE>(m_thread.native_handle());
     const DWORD res = WaitForSingleObject(h, waitMs);
     if (res == WAIT_OBJECT_0) {
       m_thread.join();
     } else {
-      OutputDebugStringA(UserBlockConstants::s_timeoutDetachMsg);
+      OutputDebugStringA(UserBlockConstants::TIMEOUT_DETACH_MSG);
       m_thread.detach();
       ok = false;
     }
@@ -217,4 +221,32 @@ bool UserBlock::stopWithDeadline(const Deadline &deadline) {
   m_trace.reset();
   m_cb = Callback{};
   return ok;
+}
+
+bool UserBlock::_addProviderByName(const wchar_t *name,
+                                   UCHAR level,
+                                   ULONGLONG any,
+                                   ULONGLONG all) {
+  GUID gid{};
+  if (s_tryParseGuidString(name, gid) || s_tryResolveProviderGuidByName(name, gid)) {
+    addProvider(gid, level, any, all);
+    return true;
+  }
+  return false;
+}
+
+void UserBlock::_logMissingProviderOnce(const wchar_t *name) {
+  if (!name || !*name) {
+    return;
+  }
+  std::wstring providerName{name};
+  if (m_loggedMissingProviders.contains(providerName)) {
+    return;
+  }
+  m_loggedMissingProviders.insert(providerName);
+
+  std::string msg = "UserBlock: provider unavailable or not registered (continuing): ";
+  msg += Utils::narrow_utf8(providerName);
+  msg += "\n";
+  OutputDebugStringA(msg.c_str());
 }

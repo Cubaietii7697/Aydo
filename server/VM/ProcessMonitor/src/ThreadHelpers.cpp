@@ -2,12 +2,10 @@
 
 #include <limits>
 
+#include "ThreadHelpersConstants.hpp"
 #include "Utils.hpp"
 
 namespace ThreadHelpers {
-
-const int g_openProcessEventId = 5;
-const int g_openThreadEventId = 6;
 
 uint64_t packPids(uint32_t src, uint32_t tgt) {
   // 32 bits
@@ -160,6 +158,17 @@ std::optional<std::string> getStr(const NormalizedEvent &e, std::string_view key
   return std::nullopt;
 }
 
+std::optional<std::string> getFirstStr(
+    const NormalizedEvent &e,
+    std::initializer_list<std::string_view> keys) {
+  for (const auto key : keys) {
+    if (auto value = getStr(e, key)) {
+      return value;
+    }
+  }
+  return std::nullopt;
+}
+
 bool containsI(std::string_view hay, std::string_view needle) {
   auto lower = [](char c) { return char((c >= 'A' && c <= 'Z') ? (c - 'A' + 'a') : c); };
   if (needle.empty()) {
@@ -226,6 +235,25 @@ std::optional<uint32_t> getTargetTid(const NormalizedEvent &e) {
   return getFirstU32(e, {"TargetTid", "TargetThreadId", "TargetThreatId", "TThreadId"});
 }
 
+std::optional<uint64_t> getDesiredAccess(const NormalizedEvent &e) {
+  if (auto v = getU64(e, "DesiredAccess")) {
+    return v;
+  }
+  return getU64(e, "GrantedAccess");
+}
+
+std::optional<std::string> getObjectName(const NormalizedEvent &e) {
+  return getFirstStr(e, {"ObjectName", "TargetObject", "RegName", "KeyName", "Path", "FileName", "TaskName"});
+}
+
+std::optional<std::string> getImage(const NormalizedEvent &e) {
+  return getFirstStr(e, {"Image", "ImagePath", "ProcessPath", "ProcessName", "ImageFileName"});
+}
+
+std::optional<std::string> getTargetImage(const NormalizedEvent &e) {
+  return getFirstStr(e, {"TargetImage", "TargetProcessName", "TargetProcessPath", "Image"});
+}
+
 uint32_t actorPidOrFallback(const NormalizedEvent &e) {
   auto src = getSourcePid(e);
   return src.value_or(static_cast<uint32_t>(e.pid));
@@ -233,6 +261,10 @@ uint32_t actorPidOrFallback(const NormalizedEvent &e) {
 
 bool isKernelAuditApiProvider(const NormalizedEvent &e) {
   return containsI(e.provider, "Microsoft-Windows-Kernel-Audit-API-Calls");
+}
+
+bool isThreatIntelProvider(const NormalizedEvent &e) {
+  return containsI(e.provider, "Microsoft-Windows-Threat-Intelligence");
 }
 
 bool hasSuccessfulReturnCode(const NormalizedEvent &e) {
@@ -289,7 +321,7 @@ bool isProcessAccess(const NormalizedEvent &e) {
 
   // Provider-level fallback when schema names are generic "Info".
   if (isKernelAuditApiProvider(e) &&
-      (e.eventId == g_openProcessEventId || e.eventId == g_openThreadEventId) &&
+      (e.eventId == ThreadHelpersConstants::OPEN_PROCESS_EVENT_ID || e.eventId == ThreadHelpersConstants::OPEN_THREAD_EVENT_ID) &&
       hasSuccessfulReturnCode(e)) {
     return true;
   }
@@ -311,6 +343,76 @@ bool isApcQueue(const NormalizedEvent &e) {
   }
 
   return hasFieldNamedLike(e, "Apc");
+}
+
+bool looksLikeRegistryRunKeyPersistence(const NormalizedEvent &e) {
+  const auto eventName = bestName(e);
+  const auto objectName = getObjectName(e).value_or({});
+
+  if (!containsI(objectName, "currentversion\\run") &&
+      !containsI(objectName, "currentversion\\runonce")) {
+    return false;
+  }
+
+  if (containsI(eventName, "setvalue") || containsI(eventName, "create") || containsI(eventName, "write")) {
+    return true;
+  }
+
+  if (containsI(e.provider, "registry")) {
+    return true;
+  }
+
+  return containsI(objectName, "software\\microsoft\\windows");
+}
+
+bool looksLikeScheduledTaskPersistence(const NormalizedEvent &e) {
+  const auto eventName = bestName(e);
+  const auto objectName = getObjectName(e).value_or({});
+  const auto taskName = getStr(e, "TaskName").value_or({});
+
+  if (containsI(e.provider, "TaskScheduler") || containsI(e.provider, "Task Scheduler")) {
+    if (containsI(eventName, "registertask") ||
+        containsI(eventName, "task created") ||
+        containsI(eventName, "task updated") ||
+        containsI(eventName, "create")) {
+      return true;
+    }
+  }
+
+  if (containsI(taskName, "\\")) {
+    return true;
+  }
+
+  return containsI(objectName, "\\windows\\system32\\tasks\\");
+}
+
+bool looksLikeServicePersistence(const NormalizedEvent &e) {
+  const auto eventName = bestName(e);
+  const auto objectName = getObjectName(e).value_or({});
+
+  if (containsI(e.provider, "Services")) {
+    if (containsI(eventName, "createservice") ||
+        containsI(eventName, "changeserviceconfig") ||
+        containsI(eventName, "starttype")) {
+      return true;
+    }
+  }
+
+  return containsI(objectName, "\\system\\currentcontrolset\\services\\");
+}
+
+bool isLsassImage(std::string_view image) {
+  return containsI(image, "lsass.exe");
+}
+
+bool isSuspiciousProcessAccessMask(uint64_t accessMask) {
+  const uint64_t suspicious = ThreadHelpersConstants::ACCESS_VM_READ |
+                              ThreadHelpersConstants::ACCESS_VM_WRITE |
+                              ThreadHelpersConstants::ACCESS_VM_OPERATION |
+                              ThreadHelpersConstants::ACCESS_DUP_HANDLE |
+                              ThreadHelpersConstants::ACCESS_QUERY_INFO |
+                              ThreadHelpersConstants::ACCESS_QUERY_LIMITED_INFO;
+  return accessMask == 0 || (accessMask & suspicious) != 0;
 }
 
 std::chrono::time_point<std::chrono::system_clock> eventTsOrNow(const NormalizedEvent &e) {

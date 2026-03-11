@@ -9,38 +9,16 @@
 #include <sstream>
 
 #include "Deadline.hpp"
+#include "ProcessMonitorConstants.hpp"
 #include "SafeKrabsParser.hpp"
 #include "Utils.hpp"
-
-namespace ProcessMonitorConstants {
-inline constexpr DWORD s_invalidPid = 0;
-inline constexpr DWORD s_allProcessesSnapshot = 0;
-inline constexpr ULONGLONG s_defaultAnyMask = 0;
-inline constexpr ULONGLONG s_defaultAllMask = 0;
-inline constexpr long long s_minWaitMs = 0;
-inline constexpr long long s_maxWaitMs = 0x7fffffff;
-inline constexpr std::wstring_view s_sysmonProviderName = L"Microsoft-Windows-Sysmon";
-inline constexpr GUID s_sysmonProviderGuid = {
-    0x5770385f, 0xc22a, 0x43e0, {0xbf, 0x4c, 0x06, 0xf5, 0x69, 0x8f, 0xfb, 0xd9}};
-inline constexpr ULONGLONG s_sysmonKeyword = 0x8000000000000000ULL;
-inline constexpr std::wstring_view s_pidSeparator = L", ";
-inline constexpr std::wstring_view s_processListPrefix = L"process : ";
-inline constexpr std::wstring_view s_processNoneValue = L"none";
-inline constexpr std::wstring_view s_processStartedSuffix = L"> is now working";
-inline constexpr std::wstring_view s_processStoppedSuffix = L"> got stop";
-inline constexpr std::wstring_view s_sysmonEnabledConsoleMsg = L"Sysmon provider: enabled";
-inline constexpr std::wstring_view s_sysmonDisabledConsoleMsg = L"Sysmon provider: unavailable";
-inline constexpr auto s_targetPidRefreshInterval = std::chrono::milliseconds(1000);
-static constexpr const char *s_sysmonUnavailableMsg = "ProcessMonitor: Sysmon provider unavailable; continuing without Sysmon\n";
-inline constexpr std::uint32_t s_maxSysmonDebugLogs = 10;
-} // namespace ProcessMonitorConstants
 
 static std::wstring s_joinPids(const std::set<DWORD> &pids) {
   std::wstring out;
   bool first = true;
   for (const DWORD pid : pids) {
     if (!first) {
-      out += ProcessMonitorConstants::s_pidSeparator;
+      out += ProcessMonitorConstants::PID_SEPARATOR;
     }
     out += std::to_wstring(pid);
     first = false;
@@ -85,7 +63,7 @@ void ProcessMonitor::_refreshTargetPidsIfNeeded(bool forceRefresh,
     std::scoped_lock lk(m_targetPidsMtx);
     if (!forceRefresh &&
         m_lastTargetPidRefresh.time_since_epoch().count() != 0 &&
-        (now - m_lastTargetPidRefresh) < ProcessMonitorConstants::s_targetPidRefreshInterval) {
+        (now - m_lastTargetPidRefresh) < ProcessMonitorConstants::TARGET_PID_REFRESH_INTERVAL) {
       return;
     }
     m_lastTargetPidRefresh = now;
@@ -104,20 +82,20 @@ void ProcessMonitor::_refreshTargetPidsIfNeeded(bool forceRefresh,
   }
 
   if (announceChanges && changed) {
-    std::wcout << ProcessMonitorConstants::s_processListPrefix
-               << (latest.empty() ? std::wstring(ProcessMonitorConstants::s_processNoneValue)
+    std::wcout << ProcessMonitorConstants::PROCESS_LIST_PREFIX
+               << (latest.empty() ? std::wstring(ProcessMonitorConstants::PROCESS_NONE_VALUE)
                                   : s_joinPids(latest))
                << std::endl;
 
     for (const DWORD pid : previous) {
       if (!latest.contains(pid)) {
-        std::wcout << L"process <" << pid << ProcessMonitorConstants::s_processStoppedSuffix << std::endl;
+        std::wcout << L"process <" << pid << ProcessMonitorConstants::PROCESS_STOPPED_SUFFIX << std::endl;
       }
     }
 
     for (const DWORD pid : latest) {
       if (!previous.contains(pid)) {
-        std::wcout << L"process <" << pid << ProcessMonitorConstants::s_processStartedSuffix << std::endl;
+        std::wcout << L"process <" << pid << ProcessMonitorConstants::PROCESS_STARTED_SUFFIX << std::endl;
       }
     }
   }
@@ -149,7 +127,7 @@ void ProcessMonitor::_emitProviderSummary() const {
   }
   oss << "\n";
   OutputDebugStringA(oss.str().c_str());
-   std::cout << oss.str();
+  std::cout << oss.str();
 }
 
 bool ProcessMonitor::_pidAllowed(const EVENT_RECORD &record,
@@ -157,7 +135,7 @@ bool ProcessMonitor::_pidAllowed(const EVENT_RECORD &record,
   _refreshTargetPidsIfNeeded(false, false);
 
   // Policy: ingest all Sysmon events when Sysmon provider is active.
-  if (InlineIsEqualGUID(record.EventHeader.ProviderId, ProcessMonitorConstants::s_sysmonProviderGuid)) {
+  if (InlineIsEqualGUID(record.EventHeader.ProviderId, ProcessMonitorConstants::SYSMON_PROVIDER_GUID)) {
     return true;
   }
 
@@ -167,7 +145,7 @@ bool ProcessMonitor::_pidAllowed(const EVENT_RECORD &record,
     try {
       const auto providerName = schema.provider_name();
       if (providerName != nullptr &&
-          _wcsicmp(providerName, ProcessMonitorConstants::s_sysmonProviderName.data()) == 0) {
+          _wcsicmp(providerName, ProcessMonitorConstants::SYSMON_PROVIDER_NAME.data()) == 0) {
         return true;
       }
     } catch (...) {
@@ -183,7 +161,7 @@ bool ProcessMonitor::_pidAllowed(const EVENT_RECORD &record,
   }
 
   auto inTargets = [&targetPids](DWORD pid) {
-    return pid != ProcessMonitorConstants::s_invalidPid && targetPids.contains(pid);
+    return pid != ProcessMonitorConstants::INVALID_PID && targetPids.contains(pid);
   };
 
   if (inTargets(record.EventHeader.ProcessId)) {
@@ -252,11 +230,38 @@ void ProcessMonitor::_analyzeRecord(const EVENT_RECORD &record,
     auto tryU64 = [&](const wchar_t *name) -> std::optional<uint64_t> {
       return parser.tryParse<uint64_t>(name);
     };
+    auto tryWStr = [&](const wchar_t *name) -> std::optional<std::wstring> {
+      return parser.tryParse<std::wstring>(name);
+    };
 
     auto setFirstU32 = [&](std::string_view dst, std::initializer_list<const wchar_t *> aliases) {
       for (const auto *a : aliases) {
         if (auto v = tryU32(a)) {
           ne.fields[std::string(dst)] = *v;
+          return true;
+        }
+        if (parser.isPoisoned()) {
+          return false;
+        }
+      }
+      return false;
+    };
+    auto setFirstU64 = [&](std::string_view dst, std::initializer_list<const wchar_t *> aliases) {
+      for (const auto *a : aliases) {
+        if (auto v = tryU64(a)) {
+          ne.fields[std::string(dst)] = *v;
+          return true;
+        }
+        if (parser.isPoisoned()) {
+          return false;
+        }
+      }
+      return false;
+    };
+    auto setFirstStr = [&](std::string_view dst, std::initializer_list<const wchar_t *> aliases) {
+      for (const auto *a : aliases) {
+        if (auto v = tryWStr(a)) {
+          ne.fields[std::string(dst)] = Utils::narrow_utf8(*v);
           return true;
         }
         if (parser.isPoisoned()) {
@@ -282,10 +287,38 @@ void ProcessMonitor::_analyzeRecord(const EVENT_RECORD &record,
       setFirstU32("TThreadId", {L"TThreadId"});
     }
     if (!parser.isPoisoned()) {
-      setFirstU32("DesiredAccess", {L"DesiredAccess"});
+      if (!setFirstU64("DesiredAccess", {L"DesiredAccess", L"GrantedAccess"})) {
+        setFirstU32("DesiredAccess", {L"DesiredAccess", L"GrantedAccess"});
+      }
+    }
+    if (!parser.isPoisoned()) {
+      if (!setFirstU64("GrantedAccess", {L"GrantedAccess", L"DesiredAccess"})) {
+        setFirstU32("GrantedAccess", {L"GrantedAccess", L"DesiredAccess"});
+      }
     }
     if (!parser.isPoisoned()) {
       setFirstU32("ReturnCode", {L"ReturnCode", L"ReturnValue"});
+    }
+    if (!parser.isPoisoned()) {
+      setFirstStr("Image", {L"Image", L"ImagePath", L"ProcessPath", L"ProcessName", L"ImageFileName", L"NewProcessName"});
+    }
+    if (!parser.isPoisoned()) {
+      setFirstStr("SourceImage", {L"SourceImage", L"CallerProcessName", L"SourceProcessName"});
+    }
+    if (!parser.isPoisoned()) {
+      setFirstStr("TargetImage", {L"TargetImage", L"TargetProcessName", L"TargetProcessPath"});
+    }
+    if (!parser.isPoisoned()) {
+      setFirstStr("ObjectName", {L"ObjectName", L"TargetObject", L"RegName", L"KeyName", L"Path"});
+    }
+    if (!parser.isPoisoned()) {
+      setFirstStr("TaskName", {L"TaskName"});
+    }
+    if (!parser.isPoisoned()) {
+      setFirstStr("ServiceName", {L"ServiceName"});
+    }
+    if (!parser.isPoisoned()) {
+      setFirstStr("EventType", {L"EventType"});
     }
 
     if (!parser.isPoisoned()) {
@@ -330,7 +363,7 @@ void ProcessMonitor::_onUserEvent(const EVENT_RECORD &record,
 
 std::set<DWORD> ProcessMonitor::findPidsByName(const std::wstring &exeName) const {
   std::set<DWORD> pids;
-  HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, ProcessMonitorConstants::s_allProcessesSnapshot);
+  HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, ProcessMonitorConstants::ALL_PROCESSES_SNAPSHOT);
   if (snap == INVALID_HANDLE_VALUE) {
     return pids;
   }
@@ -372,7 +405,7 @@ static bool s_joinWithDeadline(std::jthread &t, const Deadline &deadline, const 
   }
 
   const auto rem = deadline.remaining_ms();
-  const DWORD waitMs = static_cast<DWORD>(std::clamp<long long>(rem.count(), ProcessMonitorConstants::s_minWaitMs, ProcessMonitorConstants::s_maxWaitMs));
+  const DWORD waitMs = static_cast<DWORD>(std::clamp<long long>(rem.count(), ProcessMonitorConstants::MIN_WAIT_MS, ProcessMonitorConstants::MAX_WAIT_MS));
   const HANDLE h = reinterpret_cast<HANDLE>(t.native_handle());
   const DWORD res = WaitForSingleObject(h, waitMs);
   if (res == WAIT_OBJECT_0) {
@@ -427,17 +460,17 @@ void ProcessMonitor::_enableKernelProviders() {
 }
 
 void ProcessMonitor::_enableUserProviders() {
-  m_user.addApiCallsProvider(TRACE_LEVEL_INFORMATION,
-                             ProcessMonitorConstants::s_defaultAnyMask,
-                             ProcessMonitorConstants::s_defaultAllMask);
+  m_user.addAnalystProviders(TRACE_LEVEL_INFORMATION,
+                             ProcessMonitorConstants::DEFAULT_ANY_MASK,
+                             ProcessMonitorConstants::DEFAULT_ALL_MASK);
   const bool sysmonEnabled = m_user.addSysmonProvider(TRACE_LEVEL_INFORMATION,
-                                                      ProcessMonitorConstants::s_sysmonKeyword,
-                                                      ProcessMonitorConstants::s_defaultAllMask);
-  std::wcout << (sysmonEnabled ? ProcessMonitorConstants::s_sysmonEnabledConsoleMsg
-                               : ProcessMonitorConstants::s_sysmonDisabledConsoleMsg)
+                                                      ProcessMonitorConstants::SYSMON_KEYWORD,
+                                                      ProcessMonitorConstants::DEFAULT_ALL_MASK);
+  std::wcout << (sysmonEnabled ? ProcessMonitorConstants::SYSMON_ENABLED_CONSOLE_MSG
+                               : ProcessMonitorConstants::SYSMON_DISABLED_CONSOLE_MSG)
              << std::endl;
   if (!sysmonEnabled) {
-    OutputDebugStringA(ProcessMonitorConstants::s_sysmonUnavailableMsg);
+    OutputDebugStringA(ProcessMonitorConstants::SYSMON_UNAVAILABLE_MSG);
   }
   m_user.start([this](const EVENT_RECORD &rec, const krabs::trace_context &ctx) {
     _onUserEvent(rec, ctx);
@@ -448,9 +481,9 @@ void ProcessMonitor::logEvent(const EVENT_RECORD &record,
                               const krabs::trace_context &ctx) {
   _recordProviderCount(record.EventHeader.ProviderId);
 
-  if (InlineIsEqualGUID(record.EventHeader.ProviderId, ProcessMonitorConstants::s_sysmonProviderGuid)) {
+  if (InlineIsEqualGUID(record.EventHeader.ProviderId, ProcessMonitorConstants::SYSMON_PROVIDER_GUID)) {
     const auto prev = m_sysmonDebugLogged.fetch_add(1, std::memory_order_relaxed);
-    if (prev < ProcessMonitorConstants::s_maxSysmonDebugLogs) {
+    if (prev < ProcessMonitorConstants::MAX_SYSMON_DEBUG_LOGS) {
       const auto providerStr = s_guidToString(record.EventHeader.ProviderId);
       const auto evtId = static_cast<unsigned>(record.EventHeader.EventDescriptor.Id);
       const std::string msg = std::string("Sysmon event: provider=") + providerStr + " id=" + std::to_string(evtId) + "\n";

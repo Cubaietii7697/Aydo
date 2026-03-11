@@ -12,6 +12,23 @@ void ThreadCaches::update(const NormalizedEvent &e) {
   const auto tgtPid = ThreadHelpers::getTargetPid(e);
   const auto tgtTid = ThreadHelpers::getTargetTid(e);
 
+  if (auto image = ThreadHelpers::getStr(e, "Image"); image && !image->empty()) {
+    rememberProcessImage(e.pid, *image, now);
+    if (auto processPid = ThreadHelpers::getU32(e, "ProcessId")) {
+      rememberProcessImage(static_cast<DWORD>(*processPid), *image, now);
+    }
+  }
+  if (srcPid) {
+    if (auto sourceImage = ThreadHelpers::getStr(e, "SourceImage"); sourceImage && !sourceImage->empty()) {
+      rememberProcessImage(static_cast<DWORD>(*srcPid), *sourceImage, now);
+    }
+  }
+  if (tgtPid) {
+    if (auto targetImage = ThreadHelpers::getStr(e, "TargetImage"); targetImage && !targetImage->empty()) {
+      rememberProcessImage(static_cast<DWORD>(*tgtPid), *targetImage, now);
+    }
+  }
+
   // Track owner mapping from kernel thread-start events.
   if (ThreadHelpers::isThreadStart(e) && tgtTid && *tgtTid != 0) {
     auto &st = byTid[*tgtTid];
@@ -63,6 +80,27 @@ void ThreadCaches::update(const NormalizedEvent &e) {
       w.lastApcQueue = now;
     }
   }
+}
+
+void ThreadCaches::rememberProcessImage(
+    DWORD pid,
+    const std::string &image,
+    std::chrono::time_point<std::chrono::system_clock> now) {
+  if (pid == 0 || image.empty()) {
+    return;
+  }
+  m_processImageByPid[pid] = std::make_pair(image, now);
+}
+
+std::optional<std::string> ThreadCaches::findProcessImage(DWORD pid) const {
+  if (pid == 0) {
+    return std::nullopt;
+  }
+  auto it = m_processImageByPid.find(pid);
+  if (it == m_processImageByPid.end()) {
+    return std::nullopt;
+  }
+  return it->second.first;
 }
 
 bool ThreadCaches::hasRecentProcessAccess(
@@ -120,7 +158,7 @@ void ThreadCaches::cleanup(std::chrono::time_point<std::chrono::system_clock> no
     if (last.time_since_epoch().count() == 0) {
       return true;
     }
-    return (now - last) > s_TID_TTL;
+    return (now - last) > TID_TTL;
   });
 
   std::erase_if(crossProcWindows, [&](const auto &kv) {
@@ -129,6 +167,11 @@ void ThreadCaches::cleanup(std::chrono::time_point<std::chrono::system_clock> no
     if (last.time_since_epoch().count() == 0) {
       return true;
     }
-    return (now - last) > s_XPROC_TTL;
+    return (now - last) > XPROC_TTL;
+  });
+
+  std::erase_if(m_processImageByPid, [&](const auto &kv) {
+    return (now - kv.second.second) > XPROC_TTL;
   });
 }
+
