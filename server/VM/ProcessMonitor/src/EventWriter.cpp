@@ -1043,18 +1043,21 @@ void EventWriter::_writeEventJson(const EVENT_RECORD &rec,
         !fil.empty()) {
       j["file"] = std::move(fil);
     }
-    _enrichSigmaFields(j);
-
-    const AttackMetadata attackMetadata = AttackMetadataCatalog::forEventJson(j);
-    AttackMetadataCatalog::applyToJson(attackMetadata, j);
   } catch (const std::exception &) {
     OutputDebugStringA("krabs: fatal exception in _writeEventJson envelope\n");
   }
 
+  writeEventJson(std::move(j));
+}
+
+void EventWriter::writeEventJson(nlohmann::json eventJson) {
   try {
-    _writeOut(j);
+    _enrichSigmaFields(eventJson);
+    const AttackMetadata attackMetadata = AttackMetadataCatalog::forEventJson(eventJson);
+    AttackMetadataCatalog::applyToJson(attackMetadata, eventJson);
+    _writeOut(eventJson);
   } catch (const std::exception &) {
-    OutputDebugStringA("_writeEventJson: exception in _writeOut\n");
+    OutputDebugStringA("EventWriter::writeEventJson: exception in _writeOut\n");
   }
 }
 

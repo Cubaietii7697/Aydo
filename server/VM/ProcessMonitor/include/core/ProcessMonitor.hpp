@@ -78,6 +78,7 @@ private:
                       const krabs::trace_context &ctx);
   void _enableKernelProviders();
   void _enableUserProviders();
+  void _enableSysmonChannel(std::stop_token stopToken);
   void _onKernelEvent(const EVENT_RECORD &record, const krabs::trace_context &ctx);
   void _onUserEvent(const EVENT_RECORD &record, const krabs::trace_context &ctx);
   bool _pidAllowed(const EVENT_RECORD &record, const krabs::trace_context &ctx);
