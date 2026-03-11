@@ -1,5 +1,9 @@
-#include "kernelBlock.hpp"
+#include "KernelBlock.hpp"
 #include <stdexcept>
+#include <windows.h>
+#include <algorithm>
+#include "KernelBlockConstants.hpp"
+
 KernelBlock::KernelBlock(const std::wstring &userSessionName)
     : m_sessionName(userSessionName) {
 }
@@ -26,7 +30,7 @@ void KernelBlock::start(const Callback &cb) {
   m_trace = std::make_unique<krabs::kernel_trace>(m_sessionName);
 
   for (auto const &up : m_provs) {
-    up->attach(*m_trace, m_cb);
+    up->_attach(*m_trace, m_cb);
   }
 
   m_thread = std::thread([this] {
@@ -52,4 +56,32 @@ void KernelBlock::stop() {
   m_provs.clear();
   m_trace.reset();
   m_cb = Callback{};
+}
+
+bool KernelBlock::stopWithDeadline(const Deadline &deadline) {
+  if (!m_trace) {
+    return true;
+  }
+
+  m_trace->stop();
+
+  bool ok = true;
+  if (m_thread.joinable()) {
+    const auto rem = deadline.remaining_ms();
+    const DWORD waitMs = static_cast<DWORD>(std::clamp<long long>(rem.count(), KernelBlockConstants::MIN_WAIT_MS, KernelBlockConstants::MAX_WAIT_MS));
+    const HANDLE h = reinterpret_cast<HANDLE>(m_thread.native_handle());
+    const DWORD res = WaitForSingleObject(h, waitMs);
+    if (res == WAIT_OBJECT_0) {
+      m_thread.join();
+    } else {
+      OutputDebugStringA(KernelBlockConstants::TIMEOUT_DETACH_MSG);
+      m_thread.detach();
+      ok = false;
+    }
+  }
+
+  m_provs.clear();
+  m_trace.reset();
+  m_cb = Callback{};
+  return ok;
 }

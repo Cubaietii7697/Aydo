@@ -91,7 +91,7 @@
     <IncludePath>C:\Users\tzema\Downloads\yara-x-main\yara-x-main\target\x86_64-pc-windows-msvc\release\include;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Label="Vcpkg">
-    <VcpkgEnableManifest>true</VcpkgEnableManifest>
+    <VcpkgEnableManifest>false</VcpkgEnableManifest>
   </PropertyGroup>
   <PropertyGroup Label="Vcpkg" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <VcpkgUseStatic>true</VcpkgUseStatic>
