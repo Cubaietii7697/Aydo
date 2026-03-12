@@ -350,6 +350,30 @@ bool closeVM(const std::string &vmRunPath, const std::string &sandboxVmx,
       std::chrono::milliseconds(VM_SHUTDOWN_GRACE_MS));
 }
 
+bool closeVMWithExecutor(const std::string &vmRunPath,
+                         const std::string &sandboxVmx,
+                         const CommandExecutor &executor,
+                         std::chrono::seconds fallbackDelay) {
+  std::cout << "[6.1/7] Stop VM (soft)" << std::endl;
+  {
+    const std::string softCmd =
+        std::format(R"({} -T ws stop {} soft)", vmRunPath, sandboxVmx);
+    if (executor(softCmd) == 0) {
+      return true;
+    }
+  }
+
+  if (fallbackDelay > std::chrono::seconds::zero()) {
+    std::this_thread::sleep_for(fallbackDelay);
+  }
+
+  std::cout << "[6.2/7] Stop VM (hard)" << std::endl;
+  {
+    const std::string hardCmd =
+        std::format(R"({} -T ws stop {} hard)", vmRunPath, sandboxVmx);
+    return executor(hardCmd) == 0;
+  }
+}
 
 std::string ensureQuoted(const std::string &s) {
   if (!s.empty() && s.front() == '"' && s.back() == '"') {

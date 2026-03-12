@@ -1,9 +1,12 @@
 #pragma once
 #include <chrono>
+#include <functional>
 #include <string>
 #include <string_view>
 
 namespace Utills {
+
+using CommandExecutor = std::function<int(const std::string &cmd)>;
 
 void printBanner(bool isClosing = false);
 
@@ -32,6 +35,11 @@ std::string dequote(std::string s);
 bool guestPathExists(const std::string &vmRunPath,
                      const std::string &sandboxVmx,
                      std::string_view guestPath);
+
+bool closeVMWithExecutor(const std::string &vmRunPath,
+                         const std::string &sandboxVmx,
+                         const CommandExecutor &executor,
+                         std::chrono::seconds fallbackDelay = std::chrono::seconds::zero());
 
 bool closeVM(const std::string &vmRunPath, const std::string &sandboxVmx, const std::string &sandboxId);
 

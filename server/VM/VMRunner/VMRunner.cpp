@@ -3,12 +3,79 @@
 #include <format>
 #include <iostream>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <utility>
+#include <vector>
 
 #include "Constants.hpp"
 #include "LogName.hpp"
 #include "Utills.hpp"
+
+static bool reportSelfTest(bool condition, std::string_view name) {
+  if (condition) {
+    std::cout << "[PASS] " << name << std::endl;
+    return true;
+  }
+
+  std::cerr << "[FAIL] " << name << std::endl;
+  return false;
+}
+
+static int runSelfTests() {
+  auto runCloseVMCase =
+      [](std::string_view name,
+         const std::vector<int> &returnCodes,
+         bool expectedSuccess,
+         size_t expectedCommandCount) {
+        std::vector<std::string> commands;
+        size_t nextReturnCode = 0;
+        const bool success = Utills::closeVMWithExecutor(
+            "vmrun",
+            "\"sandbox.vmx\"",
+            [&](const std::string &cmd) -> int {
+              commands.push_back(cmd);
+              if (nextReturnCode < returnCodes.size()) {
+                return returnCodes[nextReturnCode++];
+              }
+
+              return 1;
+            });
+
+        const bool hasSoftStop =
+            !commands.empty() &&
+            commands[0].find(" soft") != std::string::npos;
+        const bool hasHardStop =
+            expectedCommandCount < 2 ||
+            (commands.size() >= 2 &&
+             commands[1].find(" hard") != std::string::npos);
+
+        return reportSelfTest(
+            success == expectedSuccess &&
+                commands.size() == expectedCommandCount &&
+                hasSoftStop && hasHardStop,
+            name);
+      };
+
+  bool allPassed = true;
+  allPassed &= runCloseVMCase(
+      "closeVM succeeds after a soft stop",
+      {0},
+      true,
+      1);
+  allPassed &= runCloseVMCase(
+      "closeVM falls back to a hard stop",
+      {1, 0},
+      true,
+      2);
+  allPassed &= runCloseVMCase(
+      "closeVM reports failure when both stop commands fail",
+      {1, 1},
+      false,
+      2);
+
+  return allPassed ? EXIT_SUCCESS : EXIT_FAILURE;
+}
 
 class ScopedStepTimer {
  public:
@@ -29,6 +96,10 @@ class ScopedStepTimer {
 };
 
 int main(int argc, char *argv[]) {
+  if (argc == 2 && std::string_view(argv[1]) == "--self-test") {
+    return runSelfTests();
+  }
+
   // Args: <exe> <sandbox_id> <payload_host_path> [runTimeSec]
   if (argc < 3 || argc > 4) {
     std::cerr << "Usage: " << argv[0] << " <sandbox_id> <virus_path> [runTime]" << std::endl;
