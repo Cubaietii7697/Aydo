@@ -10,7 +10,8 @@ void printBanner(bool isClosing = false);
 int executeAndWaitRC(const std::string &cmd,
                      std::string *out = nullptr,
                      std::string *err = nullptr,
-                     std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
+                     std::chrono::milliseconds timeout = std::chrono::milliseconds::max(),
+                     bool echoOutput = true);
 
 bool waitForTools(const std::string &vmRunPath,
                   const std::string &sandboxPath,
