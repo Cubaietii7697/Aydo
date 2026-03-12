@@ -445,3 +445,5 @@ x64/
 *.env
 *.sqlite
 *.vcxproj
+.claude/
+CLAUDE.md
