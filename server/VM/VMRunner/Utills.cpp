@@ -277,8 +277,14 @@ static std::string normalizeVmPathForComparison(std::string path) {
   return path;
 }
 
-static bool isVmRunning(const std::string &vmRunPath,
-                        const std::string &sandboxVmx) {
+enum class VmPowerState {
+  Running,
+  Stopped,
+  Unknown
+};
+
+static VmPowerState getVmPowerState(const std::string &vmRunPath,
+                                    const std::string &sandboxVmx) {
   std::string out;
   std::string err;
   const std::string cmd = std::format(R"({} -T ws list)", vmRunPath);
@@ -292,7 +298,7 @@ static bool isVmRunning(const std::string &vmRunPath,
     if (!err.empty()) {
       std::cerr << err;
     }
-    return false;
+    return VmPowerState::Unknown;
   }
 
   const std::string expected = normalizeVmPathForComparison(sandboxVmx);
@@ -300,10 +306,10 @@ static bool isVmRunning(const std::string &vmRunPath,
   std::string line;
   while (std::getline(stream, line)) {
     if (normalizeVmPathForComparison(line) == expected) {
-      return true;
+      return VmPowerState::Running;
     }
   }
-  return false;
+  return VmPowerState::Stopped;
 }
 
 static bool waitForVmToStop(const std::string &vmRunPath,
@@ -313,12 +319,12 @@ static bool waitForVmToStop(const std::string &vmRunPath,
                                 std::chrono::milliseconds(500)) {
   const auto deadline = std::chrono::steady_clock::now() + timeout;
   while (std::chrono::steady_clock::now() < deadline) {
-    if (!isVmRunning(vmRunPath, sandboxVmx)) {
+    if (getVmPowerState(vmRunPath, sandboxVmx) == VmPowerState::Stopped) {
       return true;
     }
     std::this_thread::sleep_for(pollInterval);
   }
-  return !isVmRunning(vmRunPath, sandboxVmx);
+  return getVmPowerState(vmRunPath, sandboxVmx) == VmPowerState::Stopped;
 }
 
 bool closeVM(const std::string &vmRunPath, const std::string &sandboxVmx,
@@ -328,11 +334,15 @@ bool closeVM(const std::string &vmRunPath, const std::string &sandboxVmx,
   const std::string softCmd =
       std::format(R"({} -T ws stop {} soft)", vmRunPath, sandboxVmx);
   const int softRc = Utills::executeAndWaitRC(softCmd);
-  if ((softRc == 0 || !isVmRunning(vmRunPath, sandboxVmx)) &&
+  if (softRc == 0 &&
       waitForVmToStop(
           vmRunPath,
           sandboxVmx,
           std::chrono::milliseconds(VM_SHUTDOWN_GRACE_MS))) {
+    return true;
+  }
+  if (softRc != 0 &&
+      getVmPowerState(vmRunPath, sandboxVmx) == VmPowerState::Stopped) {
     return true;
   }
 
@@ -340,7 +350,8 @@ bool closeVM(const std::string &vmRunPath, const std::string &sandboxVmx,
   const std::string hardCmd =
       std::format(R"({} -T ws stop {} hard)", vmRunPath, sandboxVmx);
   const int hardRc = Utills::executeAndWaitRC(hardCmd);
-  if (hardRc != 0 && isVmRunning(vmRunPath, sandboxVmx)) {
+  if (hardRc != 0 &&
+      getVmPowerState(vmRunPath, sandboxVmx) != VmPowerState::Stopped) {
     return false;
   }
 

@@ -158,3 +158,7 @@ Also, you have to download [clamav](https://github.com/Cisco-Talos/clamav) to ex
 ## License
 
 MIT
+
+## Desktop App (Electron)
+
+The desktop console lives in `apps/desktop`. See `apps/desktop/README.md` for Bun-only run, build, and packaging instructions.

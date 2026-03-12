@@ -139,6 +139,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Controllers\Auth.cpp" />
+    <ClCompile Include="Controllers\Health.cpp" />
     <ClCompile Include="Controllers\Sandbox.cpp" />
     <ClCompile Include="DatabaseSetup.cpp" />
     <ClCompile Include="JWT.cpp" />
@@ -155,6 +156,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Controllers\Auth.hpp" />
+    <ClInclude Include="Controllers\Health.hpp" />
     <ClInclude Include="Controllers\Sandbox.hpp" />
     <ClInclude Include="Constants.hpp" />
     <ClInclude Include="DatabaseSetup.hpp" />
