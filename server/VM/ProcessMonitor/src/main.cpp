@@ -58,7 +58,7 @@ int wmain(int argc, wchar_t *argv[]) {
   };
 
   try {
-    std::wcout << MainConstants::START_BANNER_PREFIX
+    std::wcout << L"Starting ProcessMonitor"
                << L": target='" << targetExe
                << L"', output='" << outputPath
                << L"', trace_seconds=" << traceDurationSeconds << std::endl;

@@ -20,5 +20,4 @@ inline constexpr std::wstring_view SELF_TEST_FLAG = L"--self-test";
 inline constexpr std::wstring_view SELF_TEST_LIVE_FLAG = L"--self-test-live";
 inline constexpr std::wstring_view KERNEL_SESSION_NAME = L"NTKernelLogger";
 inline constexpr std::wstring_view USER_SESSION_NAME = L"NTUserLogger";
-inline constexpr std::wstring_view START_BANNER_PREFIX = L"Starting ProcessMonitor";
 } // namespace MainConstants
