@@ -53,16 +53,21 @@ inline const std::unordered_set<std::string> TABLES = {
     "Task",
     "Opcode",
     "Keywords",
+    "RuleName",
+    "UtcTime",
 
     // process / image metadata
     "Image",
     "ImageLoaded",
     "SourceImage",
     "TargetImage",
+    "ProcessGuid",
+    "ParentProcessGuid",
     "ProcessName",
     "ParentProcessName",
     "ParentImage",
     "ParentCommandLine",
+    "CurrentDirectory",
     "CommandLine",
     "NewProcessName",
     "OriginalFilename",
@@ -95,6 +100,9 @@ inline const std::unordered_set<std::string> TABLES = {
     "TicketOptions",
     "TicketEncryptionType",
     "GrantedAccess",
+    "LogonGuid",
+    "LogonId",
+    "TerminalSessionId",
 
     // object / registry / service changes
     "ObjectServer",
@@ -205,16 +213,21 @@ CREATE TABLE IF NOT EXISTS Events (
     Task               INTEGER,
     Opcode             INTEGER,
     Keywords           TEXT,
+    RuleName           TEXT,
+    UtcTime            TEXT,
 
     -- process / image metadata
     Image              TEXT,
     ImageLoaded        TEXT,
     SourceImage        TEXT,
     TargetImage        TEXT,
+    ProcessGuid        TEXT,
+    ParentProcessGuid  TEXT,
     ProcessName        TEXT,
     ParentProcessName  TEXT,
     ParentImage        TEXT,
     ParentCommandLine  TEXT,
+    CurrentDirectory   TEXT,
     CommandLine        TEXT,
     NewProcessName     TEXT,
     OriginalFilename   TEXT,
@@ -247,6 +260,9 @@ CREATE TABLE IF NOT EXISTS Events (
     TicketOptions      TEXT,
     TicketEncryptionType TEXT,
     GrantedAccess      TEXT,
+    LogonGuid          TEXT,
+    LogonId            TEXT,
+    TerminalSessionId  TEXT,
 
     -- object / registry / service changes
     ObjectServer       TEXT,

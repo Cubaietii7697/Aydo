@@ -1,11 +1,13 @@
 #include "EventWriter.hpp"
 
 #include <tdh.h>
+#include <array>
 #include <format>
 #include <iomanip>
 #include <objbase.h>
 #include <sstream>
 #include <stdexcept>
+#include <unordered_set>
 
 #include "Constants.hpp"
 #include "EventWriterConstants.hpp"
@@ -13,6 +15,21 @@
 #include "SqlRequests.hpp"
 #include "Utils.hpp"
 #include "AttackMetadata.hpp"
+
+namespace EventWriterMigrationConstants {
+inline constexpr std::array<const char *, 8> s_coreSysmonColumns = {
+    "ProcessGuid",
+    "ParentProcessGuid",
+    "RuleName",
+    "UtcTime",
+    "CurrentDirectory",
+    "LogonGuid",
+    "LogonId",
+    "TerminalSessionId",
+};
+
+inline constexpr const char *s_eventsTableInfoSql = "PRAGMA table_info(Events);";
+} // namespace EventWriterMigrationConstants
 
 static void s_execSql(sqlite3 *db, const char *sql, const char *tag) {
   if (!db || !sql) {
@@ -194,9 +211,60 @@ void EventWriter::_initSqliteSchema() {
   }
 
   s_execSql(m_db, SqlRequests::TABLES_CREATE, "sqlite3_exec(TABLES_CREATE)");
+  _ensureEventsColumns();
   // Always attempt Findings DDL independently in case legacy Events schema migration fails.
   s_ensureFindingsSchema(m_db);
   s_ensureAttackColumns(m_db);
+}
+
+void EventWriter::_ensureEventsColumns() {
+  if (!m_db) {
+    return;
+  }
+
+  sqlite3_stmt *stmt = nullptr;
+  if (sqlite3_prepare_v2(m_db,
+                         EventWriterMigrationConstants::s_eventsTableInfoSql,
+                         EventWriterConstants::SQLITE_AUTO_LENGTH,
+                         &stmt,
+                         nullptr) != SQLITE_OK ||
+      !stmt) {
+    if (stmt) {
+      sqlite3_finalize(stmt);
+    }
+
+    OutputDebugStringA("_ensureEventsColumns: PRAGMA table_info(Events) prepare failed\n");
+    return;
+  }
+
+  std::unordered_set<std::string> existingColumns;
+  while (sqlite3_step(stmt) == SQLITE_ROW) {
+    const auto *name = sqlite3_column_text(stmt, EventWriterConstants::PRAGMA_TABLE_INFO_NAME_COLUMN_INDEX);
+    if (name) {
+      existingColumns.emplace(reinterpret_cast<const char *>(name));
+    }
+  }
+  sqlite3_finalize(stmt);
+
+  for (const auto *columnName : EventWriterMigrationConstants::s_coreSysmonColumns) {
+    if (existingColumns.contains(columnName)) {
+      continue;
+    }
+
+    const std::string alterSql = std::format("ALTER TABLE Events ADD COLUMN \"{}\" TEXT;", columnName);
+    char *errMsg = nullptr;
+    const int rc = sqlite3_exec(m_db, alterSql.c_str(), nullptr, nullptr, &errMsg);
+    if (rc != SQLITE_OK) {
+      std::string msg = std::format("_ensureEventsColumns: failed adding '{}' rc={}", columnName, rc);
+      if (errMsg) {
+        msg += ", err=";
+        msg += errMsg;
+        sqlite3_free(errMsg);
+      }
+      msg += "\n";
+      OutputDebugStringA(msg.c_str());
+    }
+  }
 }
 
 bool EventWriter::_bindJsonValues(sqlite3_stmt *stmt,
@@ -916,7 +984,11 @@ void EventWriter::_writeEventJson(const EVENT_RECORD &rec,
       OutputDebugStringA("krabs: unknown exception in _writeEventJson (names only)\n");
     }
 
-    j["provider"] = Utils::narrow_utf8(providerW);
+    std::string providerUtf8 = Utils::narrow_utf8(providerW);
+    if (providerUtf8.empty()) {
+      providerUtf8 = Utils::guidToString(rec.EventHeader.ProviderId);
+    }
+    j["provider"] = providerUtf8;
     j["task_name"] = Utils::narrow_utf8(taskW);
 
     //
@@ -971,18 +1043,21 @@ void EventWriter::_writeEventJson(const EVENT_RECORD &rec,
         !fil.empty()) {
       j["file"] = std::move(fil);
     }
-    _enrichSigmaFields(j);
-
-    const AttackMetadata attackMetadata = AttackMetadataCatalog::forEventJson(j);
-    AttackMetadataCatalog::applyToJson(attackMetadata, j);
   } catch (const std::exception &) {
     OutputDebugStringA("krabs: fatal exception in _writeEventJson envelope\n");
   }
 
+  writeEventJson(std::move(j));
+}
+
+void EventWriter::writeEventJson(nlohmann::json eventJson) {
   try {
-    _writeOut(j);
+    _enrichSigmaFields(eventJson);
+    const AttackMetadata attackMetadata = AttackMetadataCatalog::forEventJson(eventJson);
+    AttackMetadataCatalog::applyToJson(attackMetadata, eventJson);
+    _writeOut(eventJson);
   } catch (const std::exception &) {
-    OutputDebugStringA("_writeEventJson: exception in _writeOut\n");
+    OutputDebugStringA("EventWriter::writeEventJson: exception in _writeOut\n");
   }
 }
 
@@ -1109,6 +1184,8 @@ void EventWriter::_enrichSigmaFields(nlohmann::json &j) const {
   ensureCopy("Provider", {"Provider", "provider"});
   ensureCopy("Channel", {"Channel", "channel", "ChannelName"});
   ensureCopy("EventTime", {"EventTime", "ts"});
+  ensureCopy("RuleName", {"RuleName", "Rule"});
+  ensureCopy("UtcTime", {"UtcTime", "Timestamp"});
 
   //
   // B) Process/Image fields (Sigma canonical columns)
@@ -1150,6 +1227,9 @@ void EventWriter::_enrichSigmaFields(nlohmann::json &j) const {
                                    "ParentImage", "ParentImageName"});
   ensureCopy("ParentCommandLine", {"ParentCommandLine", "ParentCommandline",
                                    "ParentCommandLineParams", "ParentCommandLineParameters"});
+  ensureCopy("ProcessGuid", {"ProcessGuid", "ProcessGUID"});
+  ensureCopy("ParentProcessGuid", {"ParentProcessGuid", "ParentProcessGUID"});
+  ensureCopy("CurrentDirectory", {"CurrentDirectory"});
 
   // Optional but high value: if we have PPID and ParentImage missing, resolve it.
   if ((!j.contains("ParentImage") || j["ParentImage"].is_null()) ||
@@ -1209,6 +1289,9 @@ void EventWriter::_enrichSigmaFields(nlohmann::json &j) const {
 
   ensureCopy("SubjectUserName", {"SubjectUserName", "UserName", "User", "user", "AccountName"});
   ensureCopy("TargetUserName", {"TargetUserName", "TargetUser", "TargetAccountName", "AccountName"});
+  ensureCopy("LogonGuid", {"LogonGuid", "LogonGUID"});
+  ensureCopy("LogonId", {"LogonId"});
+  ensureCopy("TerminalSessionId", {"TerminalSessionId", "SessionId"});
 
   //
   // F) Existing "pair sync / lowercase" compatibility (keep yours)

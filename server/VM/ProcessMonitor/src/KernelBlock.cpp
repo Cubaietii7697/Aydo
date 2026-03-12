@@ -2,6 +2,7 @@
 #include <stdexcept>
 #include <windows.h>
 #include <algorithm>
+#include <string>
 #include "KernelBlockConstants.hpp"
 
 KernelBlock::KernelBlock(const std::wstring &userSessionName)
@@ -36,9 +37,11 @@ void KernelBlock::start(const Callback &cb) {
   m_thread = std::thread([this] {
     try {
       m_trace->start();
+    } catch (const std::exception &e) {
+      std::string msg = std::string("KernelBlock: trace start failed: ") + e.what() + "\n";
+      OutputDebugStringA(msg.c_str());
     } catch (...) {
-
-      throw;
+      OutputDebugStringA("KernelBlock: trace start failed: unknown exception\n");
     }
   });
 }

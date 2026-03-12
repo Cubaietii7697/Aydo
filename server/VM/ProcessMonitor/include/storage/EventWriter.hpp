@@ -24,6 +24,7 @@ public:
 
   void flush();
   void operator()(const EVENT_RECORD &rec, const krabs::trace_context &ctx);
+  void writeEventJson(nlohmann::json eventJson);
 
   void setFormat(WireFormat f, bool lengthPrefixed = true) {
     std::scoped_lock<std::mutex> lk(m_mtx);
@@ -44,6 +45,7 @@ private:
                                 std::vector<nlohmann::json> &values) const;
   void _writeToSqlite(const nlohmann::json &j);
   void _initSqliteSchema();
+  void _ensureEventsColumns();
   void _writeOut(const nlohmann::json &j);
 
   void _fillPropsViaTdh(nlohmann::json &props,

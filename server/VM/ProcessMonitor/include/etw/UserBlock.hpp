@@ -5,6 +5,7 @@
 #include <string>
 #include <thread>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 #include "Deadline.hpp"
@@ -28,6 +29,9 @@ public:
   void addApiCallsProvider(UCHAR level,
                            ULONGLONG any,
                            ULONGLONG all);
+  bool addSysmonProvider(UCHAR level,
+                         ULONGLONG any,
+                         ULONGLONG all);
   void addAnalystProviders(UCHAR level,
                            ULONGLONG any,
                            ULONGLONG all);
@@ -55,7 +59,7 @@ private:
 
 private:
   std::unique_ptr<krabs::user_trace> m_trace;
-  std::vector<std::unique_ptr<krabs::provider<>>> m_providers;
+  std::vector<std::pair<GUID, std::unique_ptr<krabs::provider<>>>> m_providers;
   std::unordered_set<std::wstring> m_loggedMissingProviders;
   UserProviderEnableStats m_providerStats{};
   std::wstring m_sessionName;

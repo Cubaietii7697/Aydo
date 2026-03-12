@@ -3,7 +3,10 @@
 #include <new>
 #include <windows.h>
 #include <algorithm>
+#include <atomic>
+#include <iostream>
 
+#include "ProcessMonitorConstants.hpp"
 #include "ProviderProfiles.hpp"
 #include "UserBlockConstants.hpp"
 #include "Utils.hpp"
@@ -81,7 +84,7 @@ void UserBlock::addProvider(const GUID &id,
   if (all) {
     p->all(all);
   }
-  m_providers.emplace_back(std::move(p));
+  m_providers.emplace_back(id, std::move(p));
 }
 
 void UserBlock::addApiCallsProvider(UCHAR level,
@@ -94,6 +97,7 @@ void UserBlock::addAnalystProviders(UCHAR level,
                                     ULONGLONG any,
                                     ULONGLONG all) {
   m_providers.clear();
+  m_loggedMissingProviders.clear();
   m_providerStats = UserProviderEnableStats{};
 
   for (const auto *providerName : ProviderProfiles::getAnalystUserProviders()) {
@@ -114,6 +118,20 @@ void UserBlock::addAnalystProviders(UCHAR level,
   }
 }
 
+bool UserBlock::addSysmonProvider(UCHAR level,
+                                  ULONGLONG any,
+                                  ULONGLONG all) {
+  ++m_providerStats.requested;
+  if (_addProviderByName(ProcessMonitorConstants::SYSMON_PROVIDER_NAME.data(), level, any, all)) {
+    ++m_providerStats.resolved;
+    return true;
+  }
+
+  ++m_providerStats.unresolved;
+  OutputDebugStringA(UserBlockConstants::SYSMON_UNAVAILABLE_MSG);
+  return false;
+}
+
 UserProviderEnableStats UserBlock::getProviderEnableStats() const {
   return m_providerStats;
 }
@@ -127,20 +145,44 @@ void UserBlock::start(Callback on_event) {
   m_providerStats.enabled = 0;
   m_providerStats.failed_enable = 0;
 
-  for (auto const &p : m_providers) {
+  static std::atomic<std::size_t> s_logged{0};
+  for (auto const &[providerId, providerPtr] : m_providers) {
     try {
-      p->add_on_event_callback(m_cb);
-      m_trace->enable(*p);
+      auto &p = *providerPtr;
+      p.add_on_event_callback(m_cb);
+      m_trace->enable(p);
       ++m_providerStats.enabled;
+
+      if (s_logged.fetch_add(1, std::memory_order_relaxed) < UserBlockConstants::PROVIDER_ENABLE_LOG_LIMIT) {
+        wchar_t buf[64]{};
+        StringFromGUID2(providerId, buf, static_cast<int>(std::size(buf)));
+        std::string msg = "UserBlock: enabled provider ";
+        msg += Utils::narrow_utf8(buf);
+        msg += "\n";
+        OutputDebugStringA(msg.c_str());
+      }
+    } catch (const std::exception &e) {
+      ++m_providerStats.failed_enable;
+      std::string msg = std::string("UserBlock: enable failed: ") + e.what() + "\n";
+      OutputDebugStringA(msg.c_str());
+      wchar_t buf[64]{};
+      StringFromGUID2(providerId, buf, static_cast<int>(std::size(buf)));
+      std::wcout << L"UserBlock: enable failed for provider " << buf << L"\n";
     } catch (...) {
       ++m_providerStats.failed_enable;
+      OutputDebugStringA("UserBlock: enable failed: unknown exception\n");
+      std::wcout << L"UserBlock: enable failed: unknown exception\n";
     }
   }
 
   m_thread = std::thread([this] {
     try {
       m_trace->start();
+    } catch (const std::exception &e) {
+      std::string msg = std::string("UserBlock: trace start failed: ") + e.what() + "\n";
+      OutputDebugStringA(msg.c_str());
     } catch (...) {
+      OutputDebugStringA("UserBlock: trace start failed: unknown exception\n");
     }
   });
 }
