@@ -11,4 +11,3 @@ export interface AntivirusEngine {
   onEvent(listener: (event: AvEvent) => void): () => void;
   isConnected(): boolean;
 }
-

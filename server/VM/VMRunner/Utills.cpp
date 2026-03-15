@@ -13,6 +13,7 @@
 #include <sstream>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "Constants.hpp"
@@ -62,7 +63,8 @@ static void readPipeToString(HANDLE hPipe, std::string &out) {
 int executeAndWaitRC(const std::string &cmdUtf8,
                      std::string *out,
                      std::string *err,
-                     std::chrono::milliseconds timeout) {
+                     std::chrono::milliseconds timeout,
+                     bool echoOutput) {
   SECURITY_ATTRIBUTES sa{};
   sa.nLength = sizeof(sa);
   sa.bInheritHandle = TRUE;
@@ -149,10 +151,12 @@ int executeAndWaitRC(const std::string &cmdUtf8,
   tOut.join();
   tErr.join();
 
-  if (!outBuf.empty())
-    std::cout << outBuf;
-  if (!errBuf.empty())
-    std::cerr << errBuf;
+  if (echoOutput) {
+    if (!outBuf.empty())
+      std::cout << outBuf;
+    if (!errBuf.empty())
+      std::cerr << errBuf;
+  }
 
   if (out)
     *out = std::move(outBuf);
@@ -261,25 +265,125 @@ bool guestPathExists(const std::string &vmRunPath,
   return runPSInGuest(vmRunPath, sandboxVmx, cmd) == 0;
 }
 
+static std::string normalizeVmPathForComparison(std::string path) {
+  path = dequote(std::move(path));
+  std::replace(path.begin(), path.end(), '/', '\\');
+  for (size_t i = 1; i < path.size(); ++i) {
+    if (path[i] == '\\' && path[i - 1] == '\\')
+      path.erase(i--, 1);
+  }
+  std::transform(path.begin(), path.end(), path.begin(),
+                 [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+  return path;
+}
+
+enum class VmPowerState {
+  Running,
+  Stopped,
+  Unknown
+};
+
+static VmPowerState getVmPowerState(const std::string &vmRunPath,
+                                    const std::string &sandboxVmx) {
+  std::string out;
+  std::string err;
+  const std::string cmd = std::format(R"({} -T ws list)", vmRunPath);
+  const int rc = executeAndWaitRC(
+      cmd,
+      &out,
+      &err,
+      std::chrono::seconds(10),
+      false);
+  if (rc != 0) {
+    if (!err.empty()) {
+      std::cerr << err;
+    }
+    return VmPowerState::Unknown;
+  }
+
+  const std::string expected = normalizeVmPathForComparison(sandboxVmx);
+  std::istringstream stream(out);
+  std::string line;
+  while (std::getline(stream, line)) {
+    if (normalizeVmPathForComparison(line) == expected) {
+      return VmPowerState::Running;
+    }
+  }
+  return VmPowerState::Stopped;
+}
+
+static bool waitForVmToStop(const std::string &vmRunPath,
+                            const std::string &sandboxVmx,
+                            std::chrono::milliseconds timeout,
+                            std::chrono::milliseconds pollInterval =
+                                std::chrono::milliseconds(500)) {
+  const auto deadline = std::chrono::steady_clock::now() + timeout;
+  while (std::chrono::steady_clock::now() < deadline) {
+    if (getVmPowerState(vmRunPath, sandboxVmx) == VmPowerState::Stopped) {
+      return true;
+    }
+    std::this_thread::sleep_for(pollInterval);
+  }
+  return getVmPowerState(vmRunPath, sandboxVmx) == VmPowerState::Stopped;
+}
+
 bool closeVM(const std::string &vmRunPath, const std::string &sandboxVmx,
              const std::string &sandboxId) {
-  bool rs = false;
+  (void)sandboxId;
+  std::cout << "[6.1/7] Stop VM (soft)" << std::endl;
+  const std::string softCmd =
+      std::format(R"({} -T ws stop {} soft)", vmRunPath, sandboxVmx);
+  const int softRc = Utills::executeAndWaitRC(softCmd);
+  if (softRc == 0 &&
+      waitForVmToStop(
+          vmRunPath,
+          sandboxVmx,
+          std::chrono::milliseconds(VM_SHUTDOWN_GRACE_MS))) {
+    return true;
+  }
+  if (softRc != 0 &&
+      getVmPowerState(vmRunPath, sandboxVmx) == VmPowerState::Stopped) {
+    return true;
+  }
+
+  std::cout << "[6.2/7] Stop VM (hard)" << std::endl;
+  const std::string hardCmd =
+      std::format(R"({} -T ws stop {} hard)", vmRunPath, sandboxVmx);
+  const int hardRc = Utills::executeAndWaitRC(hardCmd);
+  if (hardRc != 0 &&
+      getVmPowerState(vmRunPath, sandboxVmx) != VmPowerState::Stopped) {
+    return false;
+  }
+
+  return waitForVmToStop(
+      vmRunPath,
+      sandboxVmx,
+      std::chrono::milliseconds(VM_SHUTDOWN_GRACE_MS));
+}
+
+bool closeVMWithExecutor(const std::string &vmRunPath,
+                         const std::string &sandboxVmx,
+                         const CommandExecutor &executor,
+                         std::chrono::seconds fallbackDelay) {
   std::cout << "[6.1/7] Stop VM (soft)" << std::endl;
   {
-    const std::string cmd =
+    const std::string softCmd =
         std::format(R"({} -T ws stop {} soft)", vmRunPath, sandboxVmx);
-    rs = Utills::executeAndWaitRC(cmd);
-    std::this_thread::sleep_for(std::chrono::seconds(STEPS_INTERVAL_S));
+    if (executor(softCmd) == 0) {
+      return true;
+    }
+  }
+
+  if (fallbackDelay > std::chrono::seconds::zero()) {
+    std::this_thread::sleep_for(fallbackDelay);
   }
 
   std::cout << "[6.2/7] Stop VM (hard)" << std::endl;
   {
-    const std::string cmd =
+    const std::string hardCmd =
         std::format(R"({} -T ws stop {} hard)", vmRunPath, sandboxVmx);
-    rs = rs || Utills::executeAndWaitRC(cmd);
+    return executor(hardCmd) == 0;
   }
-
-  return rs;
 }
 
 std::string ensureQuoted(const std::string &s) {

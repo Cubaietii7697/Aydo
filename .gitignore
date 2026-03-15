@@ -445,6 +445,8 @@ config.json
 *.env
 *.sqlite
 *.vcxproj
+.claude/
+CLAUDE.md
 
 # Electron desktop (Bun)
 apps/desktop/dist/

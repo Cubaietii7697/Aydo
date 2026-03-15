@@ -3,13 +3,103 @@
 #include <format>
 #include <iostream>
 #include <string>
+#include <string_view>
 #include <thread>
+#include <utility>
+#include <vector>
 
 #include "Constants.hpp"
 #include "LogName.hpp"
 #include "Utills.hpp"
 
+static bool reportSelfTest(bool condition, std::string_view name) {
+  if (condition) {
+    std::cout << "[PASS] " << name << std::endl;
+    return true;
+  }
+
+  std::cerr << "[FAIL] " << name << std::endl;
+  return false;
+}
+
+static int runSelfTests() {
+  auto runCloseVMCase =
+      [](std::string_view name,
+         const std::vector<int> &returnCodes,
+         bool expectedSuccess,
+         size_t expectedCommandCount) {
+        std::vector<std::string> commands;
+        size_t nextReturnCode = 0;
+        const bool success = Utills::closeVMWithExecutor(
+            "vmrun",
+            "\"sandbox.vmx\"",
+            [&](const std::string &cmd) -> int {
+              commands.push_back(cmd);
+              if (nextReturnCode < returnCodes.size()) {
+                return returnCodes[nextReturnCode++];
+              }
+
+              return 1;
+            });
+
+        const bool hasSoftStop =
+            !commands.empty() &&
+            commands[0].find(" soft") != std::string::npos;
+        const bool hasHardStop =
+            expectedCommandCount < 2 ||
+            (commands.size() >= 2 &&
+             commands[1].find(" hard") != std::string::npos);
+
+        return reportSelfTest(
+            success == expectedSuccess &&
+                commands.size() == expectedCommandCount &&
+                hasSoftStop && hasHardStop,
+            name);
+      };
+
+  bool allPassed = true;
+  allPassed &= runCloseVMCase(
+      "closeVM succeeds after a soft stop",
+      {0},
+      true,
+      1);
+  allPassed &= runCloseVMCase(
+      "closeVM falls back to a hard stop",
+      {1, 0},
+      true,
+      2);
+  allPassed &= runCloseVMCase(
+      "closeVM reports failure when both stop commands fail",
+      {1, 1},
+      false,
+      2);
+
+  return allPassed ? EXIT_SUCCESS : EXIT_FAILURE;
+}
+
+class ScopedStepTimer {
+ public:
+  explicit ScopedStepTimer(std::string label)
+      : label_(std::move(label)),
+        start_(std::chrono::steady_clock::now()) {}
+
+  ~ScopedStepTimer() {
+    const auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - start_);
+    std::cout << "    [timing] " << label_ << ": "
+              << elapsedMs.count() << "ms" << std::endl;
+  }
+
+ private:
+  std::string label_;
+  std::chrono::steady_clock::time_point start_;
+};
+
 int main(int argc, char *argv[]) {
+  if (argc == 2 && std::string_view(argv[1]) == "--self-test") {
+    return runSelfTests();
+  }
+
   // Args: <exe> <sandbox_id> <payload_host_path> [runTimeSec]
   if (argc < 3 || argc > 4) {
     std::cerr << "Usage: " << argv[0] << " <sandbox_id> <virus_path> [runTime]" << std::endl;
@@ -67,8 +157,10 @@ int main(int argc, char *argv[]) {
 
   const std::string hostLogPath =
       (hostShared / std::filesystem::path(SHARE_FILE_NAME)).string();
+  const auto totalStart = std::chrono::steady_clock::now();
   std::cout << "[1.0/7] Clone linked VM if needed" << std::endl;
   {
+    ScopedStepTimer timer("clone linked VM");
     // Create linked clone if it does not exist yet
     if (!std::filesystem::exists(sandboxVmxRaw)) {
       const std::string cmd = std::format(
@@ -88,7 +180,12 @@ int main(int argc, char *argv[]) {
 
   std::cout << "[1.1/7] Start VM" << std::endl;
   {
-    const std::string cmd = std::format(R"({} -T ws start {})", vmRunPath, sandboxVmx);
+    ScopedStepTimer timer("start VM");
+    const std::string cmd = std::format(
+        R"({} -T ws start {} {})",
+        vmRunPath,
+        sandboxVmx,
+        VM_START_MODE);
     int rc = Utills::executeAndWaitRC(cmd);
     if (rc != 0) {
       std::cerr << "\tFAIL start rc=" << rc << std::endl;
@@ -98,18 +195,19 @@ int main(int argc, char *argv[]) {
   }
 
   std::cout << "[1.1.b/7] Configure Shared Folder" << std::endl;
-  if (!sharedFolderName.empty()) {
-    {
-      const std::string cmd = std::format(
-          R"({} -T ws removeSharedFolder {} {})",
-          vmRunPath,
-          sandboxVmx,
-          sharedFolderName);
-      // ignore rc
-      (void)Utills::executeAndWaitRC(cmd);
-    }
+  {
+    ScopedStepTimer timer("configure shared folder");
+    if (!sharedFolderName.empty()) {
+      {
+        const std::string cmd = std::format(
+            R"({} -T ws removeSharedFolder {} {})",
+            vmRunPath,
+            sandboxVmx,
+            sharedFolderName);
+        // ignore rc
+        (void)Utills::executeAndWaitRC(cmd);
+      }
 
-    {
       const std::string cmd = std::format(
           R"({} -T ws addSharedFolder {} {} {})",
           vmRunPath,
@@ -119,20 +217,36 @@ int main(int argc, char *argv[]) {
       int rc = Utills::executeAndWaitRC(cmd);
       if (rc != 0) {
         std::cerr << "\tFAIL addSharedFolder rc=" << rc << std::endl;
+        Utills::closeVM(vmRunPath, sandboxVmx, sandboxId);
         return EXIT_FAILURE;
       }
+    } else {
+      std::cerr << "\tFAIL: could not derive shared folder name from GUEST_SHARED_DIR='"
+                << GUEST_SHARED_DIR << "'" << std::endl;
+      Utills::closeVM(vmRunPath, sandboxVmx, sandboxId);
+      return EXIT_FAILURE;
     }
   }
 
-  std::cout << "[1.2/7] Wait for VMware Tools" << std::endl;
-  if (!Utills::waitForTools(vmRunPath, sandboxVmx)) {
-    std::cerr << "\tFAIL: VMware Tools not ready" << std::endl;
-    return EXIT_FAILURE;
+  std::cout << "[1.2/7] Wait for VMware Tools (" << VM_TOOLS_MAX_RETRIES
+            << " retries x " << VM_TOOLS_SLEEP_MS << "ms)" << std::endl;
+  {
+    ScopedStepTimer timer("wait for VMware Tools");
+    if (!Utills::waitForTools(
+            vmRunPath,
+            sandboxVmx,
+            static_cast<int>(VM_TOOLS_MAX_RETRIES),
+            static_cast<int>(VM_TOOLS_SLEEP_MS))) {
+      std::cerr << "\tFAIL: VMware Tools not ready" << std::endl;
+      Utills::closeVM(vmRunPath, sandboxVmx, sandboxId);
+      return EXIT_FAILURE;
+    }
   }
 
   // Shared folders must be enabled on a powered-on VM for the guest
   std::cout << "[1.3/7] Enable shared folders in guest" << std::endl;
   {
+    ScopedStepTimer timer("enable shared folders");
     const std::string enableCmd = std::format(
         R"({} -T ws enableSharedFolders {})",
         vmRunPath,
@@ -164,6 +278,7 @@ int main(int argc, char *argv[]) {
 
   std::cout << "[2.0/7] Create guest work dir: " << guestWorkDir << std::endl;
   {
+    ScopedStepTimer timer("create guest work dir");
     const std::string existsCmd = std::format(
         R"({} -T ws -gu {} -gp {} directoryExistsInGuest {} {})",
         vmRunPath,
@@ -196,6 +311,7 @@ int main(int argc, char *argv[]) {
   /************************** copy files *******************************/
   std::cout << "[2.1/7] Copy monitor -> guest" << std::endl;
   {
+    ScopedStepTimer timer("copy monitor");
     const std::string cmd = std::format(R"({} -T ws -gu {} -gp {} CopyFileFromHostToGuest {} {} {})",
                                         vmRunPath, std::string(GUEST_USER), std::string(GUEST_PASS),
                                         sandboxVmx,
@@ -210,6 +326,7 @@ int main(int argc, char *argv[]) {
   }
   std::cout << "[2.2/7] Copy suspicious -> guest" << std::endl;
   {
+    ScopedStepTimer timer("copy suspicious payload");
     const std::string cmd = std::format(R"({} -T ws -gu {} -gp {} CopyFileFromHostToGuest {} {} {})",
                                         vmRunPath, std::string(GUEST_USER), std::string(GUEST_PASS),
                                         sandboxVmx,
@@ -224,6 +341,7 @@ int main(int argc, char *argv[]) {
   }
   std::cout << "[2.3/7] Copy dllinjector -> guest" << std::endl;
   {
+    ScopedStepTimer timer("copy DLL injector");
     const std::string cmd = std::format(R"({} -T ws -gu {} -gp {} CopyFileFromHostToGuest {} {} {})",
                                         vmRunPath, std::string(GUEST_USER), std::string(GUEST_PASS),
                                         sandboxVmx,
@@ -238,6 +356,7 @@ int main(int argc, char *argv[]) {
   }
   std::cout << "[2.4/7] Copy processRunner -> guest" << std::endl;
   {
+    ScopedStepTimer timer("copy process runner");
     const std::string cmd = std::format(R"({} -T ws -gu {} -gp {} CopyFileFromHostToGuest {} {} {})",
                                         vmRunPath, std::string(GUEST_USER), std::string(GUEST_PASS),
                                         sandboxVmx,
@@ -254,6 +373,7 @@ int main(int argc, char *argv[]) {
   /************************** start mointor *******************************/
   std::cout << "[3.0/7] Start monitor in guest" << std::endl;
   {
+    ScopedStepTimer timer("start monitor");
     const std::string cmd = std::format(
         R"({} -T ws -gu {} -gp {} runProgramInGuest {} -noWait  {} {} {}{})",
         vmRunPath, std::string(GUEST_USER), std::string(GUEST_PASS),
@@ -272,6 +392,7 @@ int main(int argc, char *argv[]) {
 
   std::cout << "[3.1/7] Start Process Runner in guest" << std::endl;
   {
+    ScopedStepTimer timer("start process runner");
     const std::string cmd = std::format(
         R"({} -T ws -gu {} -gp {} runProgramInGuest  {} -noWait {} {} {} {})",
         vmRunPath,
@@ -291,10 +412,14 @@ int main(int argc, char *argv[]) {
   }
 
   std::cout << "[4/7] Let payload run for " << runTimeSec << "s" << std::endl;
-  std::this_thread::sleep_for(std::chrono::seconds(runTimeSec));
+  {
+    ScopedStepTimer timer("payload runtime window");
+    std::this_thread::sleep_for(std::chrono::seconds(runTimeSec));
+  }
 
   std::cout << "[5/7] Copy log guest->host" << std::endl;
   {
+    ScopedStepTimer timer("verify shared log availability");
     std::cout << "\tExpected guest DB path: " << guestLogPath << std::endl;
     std::cout << "\tExpected host  DB path: " << hostLogPath << std::endl;
 
@@ -308,12 +433,22 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  if (bool rs = Utills::closeVM(vmRunPath, sandboxVmx, sandboxId); !rs) {
-    std::wcerr << "Something went wrong with stop." << std::endl;
-    Utills::printBanner(true);
-    return EXIT_FAILURE;
+  std::cout << "[6/7] Shutdown VM" << std::endl;
+  {
+    ScopedStepTimer timer("shutdown VM");
+    if (!Utills::closeVM(vmRunPath, sandboxVmx, sandboxId)) {
+      std::wcerr << "Something went wrong with stop." << std::endl;
+      Utills::printBanner(true);
+      return EXIT_FAILURE;
+    }
   }
 
+  const auto totalElapsedMs =
+      std::chrono::duration_cast<std::chrono::milliseconds>(
+          std::chrono::steady_clock::now() - totalStart);
+  std::cout << "[7/7] Total VM workflow time: "
+            << totalElapsedMs.count() << "ms" << std::endl;
   std::cout << "Done." << std::endl;
   Utills::printBanner(true);
+  return EXIT_SUCCESS;
 }

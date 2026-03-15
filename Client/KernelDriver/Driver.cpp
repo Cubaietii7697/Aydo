@@ -60,7 +60,8 @@ extern "C" NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING Reg
        IoDeleteSymbolicLink(&symlinkName), IoDeleteDevice(DeviceObject)),
       "Failed to initialize process notifications (0x%X)", status);
 
-#if defined(DBG) || true // TODO: remove this
+  // Only allow unloading in debug mode
+#if defined(DBG) // TODO: remove this
   DriverObject->DriverUnload = DriverUnload;
   LOG_INFO("Driver loaded successfully (debug mode - unloading allowed)");
 #else
