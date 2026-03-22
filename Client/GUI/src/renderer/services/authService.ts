@@ -226,6 +226,12 @@ class AuthService {
     this.persist();
 
     await antivirusService.init();
+    const currentSettings = antivirusService.getState().settings;
+    await antivirusService.updateSettings({
+      ...currentSettings,
+      accessToken: "",
+      refreshToken: "",
+    });
     await antivirusService.connect();
 
     return { ok: true };
