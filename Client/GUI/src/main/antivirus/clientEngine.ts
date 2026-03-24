@@ -33,6 +33,7 @@ const MAX_RUNTIME = 100;
 // Heartbeat ping generation
 const PING_BASE_MS = 10; // base ping
 const PING_VARIANCE_MS = 12; // additional random variance
+const STATUS_COMMAND_PAYLOAD = `${JSON.stringify({ command: "status" })}\n`;
 
 const ENGINE_VERSION = "client-1.0.0";
 
@@ -150,6 +151,7 @@ export class ClientEngine extends EventEmitter implements AntivirusEngine {
           state: "connected",
         });
         this.startHeartbeat();
+        socket.write(STATUS_COMMAND_PAYLOAD);
 
         // Setup line reader
         const rl = createInterface({ input: socket });
@@ -255,6 +257,9 @@ export class ClientEngine extends EventEmitter implements AntivirusEngine {
     const normalized = normalizeSettings(settings);
     this.settings = { ...normalized };
     ensureConfig(this.workingDir, this.settings);
+    if (this.connected && this.socket) {
+      this.socket.write(STATUS_COMMAND_PAYLOAD);
+    }
     this.emitEvent("info", "low", "Client engine settings updated", {
       settings: this.settings,
     });

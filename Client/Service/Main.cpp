@@ -222,6 +222,10 @@ static void pipeServerLoop(ProcessMonitor *monitor) {
               sendEvent(Protocol::Event(
                   Protocol::EventType::Heartbeat, "low", "PONG"));
             } else if (type == "status") {
+              auto &config = UserConfig::getInstance();
+              config.load();
+              ServerCommunications::initialize(
+                  config.serverUrl, config.accessToken, config.refreshToken);
               monitor->printStatus();
               sendEvent(Protocol::Event(
                   Protocol::EventType::CapabilitiesUpdate,
