@@ -115,7 +115,10 @@ export class AntivirusBridge {
 
     this.unsubscribe = this.engine.onEvent((event) => this.handleEvent(event));
     this.settings = this.engine.getSettings();
-    this.watchdogTimer = setInterval(() => this.monitorHeartbeat(), WATCHDOG_INTERVAL_MS);
+    this.watchdogTimer = setInterval(
+      () => this.monitorHeartbeat(),
+      WATCHDOG_INTERVAL_MS,
+    );
   }
 
   async connect(): Promise<{ ok: boolean; message: string }> {
@@ -229,7 +232,9 @@ export class AntivirusBridge {
   private handleEvent(event: AvEvent): void {
     if (event.type === "heartbeat") {
       this.lastHeartbeatAt = Date.now();
-      const activityValue = ACTIVITY_INCREMENT_BASE + Math.round(Math.random() * ACTIVITY_INCREMENT_VARIANCE);
+      const activityValue =
+        ACTIVITY_INCREMENT_BASE +
+        Math.round(Math.random() * ACTIVITY_INCREMENT_VARIANCE);
       this.bumpActivity(activityValue);
       this.stats.dailyActivity += 1; // Increment on each heartbeat check
       this.setStatus("connected", "Live protection active");
@@ -244,7 +249,9 @@ export class AntivirusBridge {
         typeof event.data?.target === "string"
           ? event.data?.target
           : this.scan.target;
-      this.bumpActivity(BUMP_ACTIVITY_MIN + Math.round(Math.random() * BUMP_ACTIVITY_VARIANCE));
+      this.bumpActivity(
+        BUMP_ACTIVITY_MIN + Math.round(Math.random() * BUMP_ACTIVITY_VARIANCE),
+      );
     }
 
     if (event.type === "threat_detected" || event.type === "quarantine") {
@@ -261,6 +268,7 @@ export class AntivirusBridge {
     if (event.type === "scan_complete") {
       this.scan.inProgress = false;
       this.scan.progress = MAX_PROGRESS;
+      this.scan.target = null;
       this.stats.lastScanAt = event.timestamp;
       this.stats.lastScanDurationSec =
         typeof event.data?.durationSec === "number"
@@ -375,8 +383,8 @@ export class AntivirusBridge {
 function seedActivity(): AvActivityPoint[] {
   const now = Date.now();
   const points: AvActivityPoint[] = [];
-    for (let i = MAX_POINTS - 1; i >= 0; i -= 1) {
-      const time = new Date(now - i * ACTIVITY_INTERVAL_MS);
+  for (let i = MAX_POINTS - 1; i >= 0; i -= 1) {
+    const time = new Date(now - i * ACTIVITY_INTERVAL_MS);
     points.push({
       time: time.toLocaleTimeString([], {
         hour: "2-digit",

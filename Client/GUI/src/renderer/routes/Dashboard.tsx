@@ -68,9 +68,13 @@ const Dashboard = () => {
     setPickerOpen(true);
   };
 
-  const handlePickerSelect = async (path: string, recursive?: boolean) => {
+  const handlePickerSelect = async (
+    path: string,
+    recursive?: boolean,
+    deepScan?: boolean,
+  ) => {
     const result = await antivirusService.startScan({
-      depth: antivirus.settings.scanDepth,
+      depth: deepScan ? "deep" : antivirus.settings.scanDepth,
       paths: [path],
       recursive,
     });
