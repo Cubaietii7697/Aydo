@@ -174,7 +174,8 @@ bool startVm(const std::string &sandboxId,
     return false;
   }
 
-  const auto childEnvironment = buildEnvironmentBlock(config.toEnvironment());
+  std::vector<wchar_t> childEnvironment =
+      buildEnvironmentBlock(config.toEnvironment());
   std::vector<wchar_t> commandLine = buildCommandLine(
       resolvedVmRunnerPath,
       {sandboxId, resolvedPayloadPath.string(), std::to_string(runtimeSeconds)});
