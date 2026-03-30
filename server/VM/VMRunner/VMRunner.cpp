@@ -612,7 +612,7 @@ int main(int argc, char *argv[]) {
                          const std::string &hostPath,
                          const std::string &guestPath) -> bool {
     std::cout << label << std::endl;
-    ScopedStepTimer timer(std::string(label));
+    ScopedStepTimer timer{std::string(label)};
     return requireCommand(
         "copy",
         std::format(

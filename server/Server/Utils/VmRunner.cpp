@@ -1,7 +1,9 @@
+#define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
-#include "VmRunner.hpp"
-
+#include <WinSock2.h>
 #include <Windows.h>
+
+#include "VmRunner.hpp"
 
 #include <algorithm>
 #include <cstdlib>

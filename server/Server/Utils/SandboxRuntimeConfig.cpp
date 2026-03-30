@@ -239,7 +239,8 @@ LoadResult load(const Json::Value &customConfig) {
 bool runSelfTests(std::string *failure) {
   const Json::Value customConfig = buildValidSandboxConfig();
   const LoadResult loadResult = load(customConfig);
-  if (!reportSelfTest(loadResult, "sandbox config resolves successfully", failure)) {
+  if (!reportSelfTest(static_cast<bool>(loadResult),
+                      "sandbox config resolves successfully", failure)) {
     return false;
   }
 
