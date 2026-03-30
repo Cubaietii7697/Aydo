@@ -17,6 +17,7 @@
 #include "../Constants.hpp"
 
 #include "Generic.hpp"
+#include "SandboxRuntimeConfig.hpp"
 
 namespace Utils::ScanProcessingCron {
 struct SigmaQuery {
@@ -123,6 +124,14 @@ const std::vector<SigmaQuery> &getSigmaQueries(bool &loadedSuccessfully) {
 DynamicScanOutcome runDynamicScan(const Models::Scan &scan) {
   LOG_DEBUG << "[DynamicScan] Scanning fileHash=" << scan.getFileHash();
 
+  const auto sandboxConfigResult =
+      Utils::SandboxRuntimeConfig::load(drogon::app().getCustomConfig());
+  if (!sandboxConfigResult) {
+    LOG_ERROR << "Sandbox config error while processing dynamic scan: "
+              << sandboxConfigResult.error;
+    return {Models::ScanStatus::Failed, Models::VirusType::Unknown, 0};
+  }
+
   bool queriesLoaded = false;
   const auto &queries = getSigmaQueries(queriesLoaded);
   if (!queriesLoaded || queries.empty()) {
@@ -130,10 +139,8 @@ DynamicScanOutcome runDynamicScan(const Models::Scan &scan) {
     return {Models::ScanStatus::Failed, Models::VirusType::Unknown, 0};
   }
 
-  // <SANDBOXES_DIRECTORY_PATH>/<fileHash>/shared/log.sqlite
   const std::filesystem::path logDbPath =
-      std::filesystem::path(Constants::SANDBOXES_DIRECTORY_PATH) /
-      scan.getFileHash() / "shared" / "log.sqlite";
+      sandboxConfigResult.config->sharedLogDbPath(scan.getFileHash());
   const std::string logDbPathStr = logDbPath.string();
 
   sqlite3 *db = nullptr;

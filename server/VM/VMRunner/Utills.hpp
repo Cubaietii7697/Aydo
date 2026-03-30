@@ -7,6 +7,12 @@
 namespace Utills {
 
 using CommandExecutor = std::function<int(const std::string &cmd)>;
+enum class VmPowerState {
+  Running,
+  Stopped,
+  Unknown
+};
+using VmPowerStateProvider = std::function<VmPowerState()>;
 
 void printBanner(bool isClosing = false);
 
@@ -20,6 +26,19 @@ bool waitForTools(const std::string &vmRunPath,
                   const std::string &sandboxPath,
                   int maxRetries = 60,
                   int sleepMs = 5000);
+
+VmPowerState getVmPowerState(const std::string &vmRunPath,
+                             const std::string &sandboxVmx);
+
+bool waitForVmPowerState(const VmPowerStateProvider &provider,
+                         VmPowerState desiredState,
+                         int maxRetries,
+                         int sleepMs);
+
+bool waitForVmToStart(const std::string &vmRunPath,
+                      const std::string &sandboxVmx,
+                      int maxRetries = 60,
+                      int sleepMs = 2000);
 
 std::string ensureQuoted(const std::string &s);
 
