@@ -24,7 +24,7 @@ const MAX_EVENTS = 120;
 
 const SERVER_DEFAULT_URL = "http://192.168.56.1";
 const DEFAULT_KILL_THRESHOLD = 150;
-const DEFAULT_ENTROPY_THRESHOLD = 6.0;
+const DEFAULT_ENTROPY_THRESHOLD = 7.0;
 const DEFAULT_RUNTIME = 60;
 const DEFAULT_SCAN_TARGET = "System";
 const WATCHDOG_INTERVAL_MS = 6000;
@@ -262,6 +262,12 @@ export class AntivirusBridge {
       this.incrementBreakdown(action);
       if (isQuarantine) {
         this.stats.quarantined += 1;
+      }
+      if (event.type === "threat_detected") {
+        this.scan.inProgress = false;
+        this.scan.progress = MAX_PROGRESS;
+        this.scan.target = null;
+        this.stats.lastScanAt = event.timestamp;
       }
     }
 

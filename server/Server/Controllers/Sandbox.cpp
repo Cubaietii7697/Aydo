@@ -12,7 +12,6 @@
 #include "../Utils/Responses.hpp"
 #include "../Utils/ScanProcessingCron.hpp"
 #include "../Utils/Validation.hpp"
-#include "../Utils/VmRunner.hpp"
 
 namespace fs = std::filesystem;
 
@@ -24,6 +23,7 @@ void API::Sandbox::_requestFileScan(
   auto jsonBody = req->getJsonObject();
 
   if (!jsonBody) {
+    LOG_ERROR << "Invalid JSON in request";
     return callback(jsonError("Invalid JSON"));
   }
 
@@ -33,10 +33,12 @@ void API::Sandbox::_requestFileScan(
       jsonBody.get(), "runtime", Utils::Validation::FieldType::Runtime);
 
   if (!fileHash) {
+    LOG_ERROR << "Invalid or missing fileHash in request";
     return callback(jsonError("Invalid or missing fileHash"));
   }
 
   if (!runtime) {
+    LOG_ERROR << "Invalid or missing runtime in request";
     return callback(jsonError("Invalid or missing runtime"));
   }
 
@@ -47,39 +49,15 @@ void API::Sandbox::_requestFileScan(
     auto existingScan = Models::Scan::getByFileHash(dbClient, *fileHash);
 
     if (existingScan.has_value()) {
-      bool shouldRetry = false;
-      if (existingScan->getStatus() == Models::ScanStatus::Failed) {
-        auto now = trantor::Date::now();
-        auto lastUpdated = existingScan->getUpdatedAt();
-        if (now.secondsSinceEpoch() - lastUpdated.secondsSinceEpoch() >= Constants::RETRY_SCAN_IF_FAILED_SECONDS) {
-          shouldRetry = true;
-        }
-      }
-
-      if (!shouldRetry) {
-        // Return existing scan status
-        Json::Value resp;
-        resp["message"] = "Scan found";
-        resp["status"] = Models::Scan::statusToString(existingScan->getStatus());
-        resp["virusType"] =
-            Models::Scan::virusTypeToString(existingScan->getVirusType());
-        resp["runtime"] = existingScan->getRuntime();
-        resp["score"] = existingScan->getScore();
-
-        return callback(jsonOk(resp));
-      }
-
-      // If shouldRetry is true, we update the existing scan to Pending
-      Models::Scan::resetScan(dbClient, *fileHash, std::stoi(*runtime));
       Json::Value resp;
-      resp["message"] = "Scan retrying";
-      resp["status"] = Models::Scan::statusToString(Models::ScanStatus::Pending);
+      resp["message"] = "Scan status";
+      resp["status"] = Models::Scan::statusToString(existingScan->getStatus());
       resp["virusType"] =
-          Models::Scan::virusTypeToString(Models::VirusType::Clean);
-      resp["runtime"] = std::stoi(*runtime);
-      resp["score"] = 0;
+          Models::Scan::virusTypeToString(existingScan->getVirusType());
+      resp["runtime"] = existingScan->getRuntime();
+      resp["score"] = existingScan->getScore();
 
-      return callback(jsonOk(resp, drogon::HttpStatusCode::k201Created));
+      return callback(jsonOk(resp));
     }
 
     // Create new scan
@@ -175,23 +153,12 @@ void API::Sandbox::_uploadFile(
     // Update scan status to InProgress
     Models::Scan::updateStatus(dbClient, fileHash, Models::ScanStatus::InProgress);
 
-    // Launch VMRunner in a separate thread (blocking operation)
+    // Run fake dynamic scan in a separate thread (blocking operation)
     const int runtime = existingScan->getRuntime();
-    const std::string sandboxId = fileHash;
-    std::thread vmThread([dbClient, fileHash, sandboxId, runtime, filePath]() {
-      const bool success =
-          Utils::VmRunner::startVm(sandboxId, filePath, runtime);
-      if (!success) {
-        LOG_WARN << "VMRunner execution failed (sandboxId=" << sandboxId
-                 << ")";
-        Models::Scan::updateResult(dbClient, fileHash,
-                                   Models::ScanStatus::Failed,
-                                   Models::VirusType::Unknown, 0);
-        return;
-      }
-
+    std::thread vmThread([dbClient, fileHash, runtime]() {
       Models::Scan scanForProcessing;
       scanForProcessing.setFileHash(fileHash);
+      scanForProcessing.setRuntime(runtime);
       const auto outcome =
           Utils::ScanProcessingCron::runDynamicScan(scanForProcessing);
       Models::Scan::updateResult(dbClient, fileHash, outcome.status,

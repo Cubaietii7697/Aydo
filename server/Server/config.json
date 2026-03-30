@@ -27,6 +27,7 @@
   ],
   "custom_config": {
     "jwtSecret": "secret-shhhh-dont-tell",
-    "maxUploadBytes": 52428800
+    "maxUploadBytes": 52428800,
+    "dynamicScanFakeResultFile": "dynamic_scan_result.txt"
   }
 }

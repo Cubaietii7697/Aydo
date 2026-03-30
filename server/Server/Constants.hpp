@@ -8,6 +8,8 @@ constexpr std::string_view CONFIG_FILE = "config.json";
 constexpr std::string_view JWT_SECRET_JSON_KEY = "jwtSecret";
 constexpr std::string_view PROCESSING_CRON_INTERVAL_KEY =
     "processingCronIntervalSeconds";
+constexpr std::string_view DYNAMIC_SCAN_FAKE_RESULT_FILE_KEY =
+    "dynamicScanFakeResultFile";
 
 // Authentication - JWT Token TTLs
 constexpr long long ACCESS_TOKEN_TTL_SECONDS = 15 * 60;              // 15 minutes
@@ -28,6 +30,8 @@ constexpr std::string_view VMRUNNER_PATH = R"(C:\Dev\Magshii\Project\DDDDDDDD\ay
 constexpr std::string_view SANDBOXES_DIRECTORY_PATH = R"(D:\veeeertoooaaalll)";
 
 constexpr double DEFAULT_SCAN_CHECK_INTERVAL_S = 5.0;
+constexpr std::string_view DEFAULT_DYNAMIC_SCAN_FAKE_RESULT_FILE =
+    "dynamic_scan_result.txt";
 
 inline constexpr std::array<const char *, 1> SIGMA_QUERY_PATHS = {
     R"(C:\Dev\Magshii\Project\DDDDDDDD\aydo\data\sigma_queries.json)",

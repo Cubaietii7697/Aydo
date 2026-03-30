@@ -51,6 +51,7 @@ const Topbar = ({ title, subtitle }: { title: string; subtitle?: string }) => {
   };
 
   const isConnected = antivirus.connectionState === "connected";
+  const isScanInProgress = antivirus.scan.inProgress;
 
   return (
     <>
@@ -95,7 +96,8 @@ const Topbar = ({ title, subtitle }: { title: string; subtitle?: string }) => {
             className="bg-accent text-white font-semibold shadow-md shadow-accent/20"
             startContent={<Play size={14} />}
             onClick={() => openPicker("file")}
-            isDisabled={!isConnected}
+            isDisabled={!isConnected || isScanInProgress}
+            isLoading={isScanInProgress}
           >
             Scan File
           </Button>

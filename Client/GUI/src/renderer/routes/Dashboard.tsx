@@ -91,7 +91,7 @@ const Dashboard = () => {
         });
       }
       if (event.type === "scan_complete") {
-        toast.success("Scan completed", { description: "No action required." });
+        toast.success("Scan completed", { description: "No action required - file is safe." });
       }
       if (event.type === "status" && event.severity !== "low") {
         toast.message(event.message);
