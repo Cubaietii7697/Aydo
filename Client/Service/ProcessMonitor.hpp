@@ -62,7 +62,8 @@ public:
   nlohmann::json getCapabilities();
 
   bool isMonitoring() const;
-  bool scanFile(const std::string &path);
+  bool scanFile(const std::string &path,
+                const std::string &scanDepth = "standard");
 
   bool isThreat(const std::string &path);
   void setBlockingActive(bool active);
@@ -72,7 +73,8 @@ private:
   void monitorLoop();
 
   FastScanOutcome fastScan(const std::string &path);
-  bool deepScan(const std::string &path, const std::string &hash);
+  bool deepScan(const std::string &path, const std::string &hash,
+                bool forceCloud = false);
   bool dynamicScan(const std::string &path, const std::string &hash,
                    const std::chrono::steady_clock::time_point &outerStart);
   void notify(Protocol::EventType, std::string, std::string,

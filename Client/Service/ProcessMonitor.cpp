@@ -2,6 +2,7 @@
 
 #include <windows.h>
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cstdint>
@@ -110,7 +111,8 @@ nlohmann::json ProcessMonitor::getCapabilities() {
 
 // ─── Public scan API ─────────────────────────────────────────────────────────
 
-bool ProcessMonitor::scanFile(const std::string &path) {
+bool ProcessMonitor::scanFile(const std::string &path,
+                              const std::string &scanDepth) {
   const auto start = std::chrono::steady_clock::now();
   log("[SCAN] path=" + path);
 
@@ -142,7 +144,17 @@ bool ProcessMonitor::scanFile(const std::string &path) {
          {{"target", path}});
 
   try {
-    const bool threat = isThreat(path);
+    bool threat = false;
+    if (scanDepth == "deep") {
+      const std::string hash = Utils::computeSHA256(path);
+      if (hash.empty()) {
+        FileLogger::error("[SCAN] SHA-256 failed for deep scan: " + path);
+        return false;
+      }
+      threat = deepScan(path, hash, true);
+    } else {
+      threat = isThreat(path);
+    }
     log("[SCAN] Done threat=" + std::string(boolStr(threat)) +
         " totalMs=" + std::to_string(msElapsed(start)));
     applyFileVerdict(path, threat);
@@ -285,7 +297,7 @@ ProcessMonitor::FastScanOutcome ProcessMonitor::fastScan(const std::string &path
   return {FastScanResult::NeedsDeepScan, hash};
 }
 
-bool ProcessMonitor::deepScan(const std::string &path, const std::string &hash) {
+bool ProcessMonitor::deepScan(const std::string &path, const std::string &hash, bool forceCloud) {
   const auto scanStart = std::chrono::steady_clock::now();
   const std::string pfx = hash.substr(0, 12);
 
@@ -354,7 +366,7 @@ bool ProcessMonitor::deepScan(const std::string &path, const std::string &hash) 
       " threshold=" + std::to_string(config.entropyThreshold) +
       " ms=" + std::to_string(msElapsed(entropyStart)));
 
-  if (entropy > config.entropyThreshold) {
+  if (forceCloud || entropy > config.entropyThreshold) {
     const bool threat = dynamicScan(path, hash, scanStart);
     if (threat)
       return true;
@@ -371,9 +383,21 @@ bool ProcessMonitor::dynamicScan(const std::string &path,
   const auto &config = UserConfig::getInstance();
   auto &server = ServerCommunications::getInstance();
 
+  const int runtimeSeconds = (std::max)(config.runtime, 0);
+  const auto runtimeWait =
+      std::chrono::duration_cast<std::chrono::milliseconds>(
+          std::chrono::seconds(runtimeSeconds));
+  const auto minWait =
+      std::chrono::milliseconds(Constants::DYNAMIC_SCAN_MIN_WAIT_MS);
+  const auto configuredWait =
+      std::chrono::milliseconds(Constants::DYNAMIC_SCAN_MAX_WAIT_MS);
+  const auto resultWaitBuffer =
+      std::chrono::milliseconds(Constants::DYNAMIC_SCAN_RESULT_WAIT_BUFFER_MS);
+  const auto maxWait =
+      (std::max)(minWait, (std::max)(configuredWait, runtimeWait + resultWaitBuffer));
+
   bool fileUploaded = false;
   int pollCount = 0;
-  const auto maxWait = std::chrono::milliseconds(Constants::DYNAMIC_SCAN_MAX_WAIT_MS);
   const auto dynStart = std::chrono::steady_clock::now();
 
   while (std::chrono::steady_clock::now() - dynStart < maxWait) {
@@ -665,6 +689,8 @@ void ProcessMonitor::applyFileVerdict(const std::string &path, bool threat) {
     return;
   }
 
+  notify(Protocol::EventType::ThreatDetected, "high",
+         "MALICIOUS: " + path, {{"target", path}});
   const auto &config = UserConfig::getInstance();
   if (config.infectedFileAction == Constants::INFECTED_FILE_ACTION_QUARANTINE) {
     if (Utils::quarantineFile(path))

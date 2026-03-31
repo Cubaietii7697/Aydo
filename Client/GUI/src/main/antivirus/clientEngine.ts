@@ -23,7 +23,7 @@ const CONNECT_TIMEOUT_MS = 2200;
 // Configurable defaults and thresholds
 const SERVER_DEFAULT_URL = "http://192.168.56.1";
 const DEFAULT_KILL_THRESHOLD = 150;
-const DEFAULT_ENTROPY_THRESHOLD = 6.0;
+const DEFAULT_ENTROPY_THRESHOLD = 7.0;
 const DEFAULT_RUNTIME = 60;
 const MIN_KILL_THRESHOLD = 120;
 const MAX_KILL_THRESHOLD = 190;
@@ -250,7 +250,13 @@ export class ClientEngine extends EventEmitter implements AntivirusEngine {
       target,
     });
 
-    this.socket.write(JSON.stringify({ command: "scan", path: target }) + "\n");
+    this.socket.write(
+      JSON.stringify({
+        command: "scan",
+        path: target,
+        depth: request.depth,
+      }) + "\n",
+    );
   }
 
   setSettings(settings: AvSettings): void {
@@ -327,8 +333,8 @@ export class ClientEngine extends EventEmitter implements AntivirusEngine {
           if (!this.manualScanStartedAt) this.manualScanStartedAt = Date.now();
         }
 
-        // Map complete/error to reset state
-        if (type === "scan_complete") {
+        // Map complete/threat to reset state
+        if (type === "scan_complete" || type === "threat_detected") {
           this.manualScanStartedAt = null;
           this.manualScanTarget = null;
         }

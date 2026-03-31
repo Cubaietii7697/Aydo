@@ -31,7 +31,7 @@ interface FilePickerProps {
   open: boolean;
   mode: PickerMode;
   onClose: () => void;
-  onSelect: (path: string, recursive?: boolean) => void;
+  onSelect: (path: string, recursive?: boolean, deepScan?: boolean) => void;
 }
 
 /* ── Helpers ───────────────────────────────────────────── */
@@ -123,6 +123,7 @@ const FilePicker = ({ open, mode, onClose, onSelect }: FilePickerProps) => {
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [recursive, setRecursive] = useState(false);
+  const [deepScan, setDeepScan] = useState(false);
   const [history, setHistory] = useState<string[]>([]);
   const [isEditingPath, setIsEditingPath] = useState(false);
   const [pathInput, setPathInput] = useState(currentPath);
@@ -210,6 +211,7 @@ const FilePicker = ({ open, mode, onClose, onSelect }: FilePickerProps) => {
       setHistory([]);
       setSelectedPath(null);
       setRecursive(false);
+      setDeepScan(false);
       setSearchQuery("");
       readDirectory(currentPath);
     }
@@ -270,7 +272,7 @@ const FilePicker = ({ open, mode, onClose, onSelect }: FilePickerProps) => {
   const handleConfirm = () => {
     const target = selectedPath ?? (mode === "directory" ? currentPath : null);
     if (target) {
-      onSelect(target, mode === "directory" ? recursive : undefined);
+      onSelect(target, mode === "directory" ? recursive : undefined, deepScan);
       onClose();
     }
   };
@@ -562,6 +564,31 @@ const FilePicker = ({ open, mode, onClose, onSelect }: FilePickerProps) => {
 
             {/* ── Footer ── */}
             <div className="border-t border-white/10 px-6 py-4">
+              {/* Deep scan toggle (always visible) */}
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Search size={14} className="text-white/40" />
+                  <span className="text-xs text-white/60">
+                    Deep scan (sandbox/dynamic analysis)
+                  </span>
+                </div>
+                <button
+                  onClick={() => setDeepScan(!deepScan)}
+                  className={`flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium transition ${
+                    deepScan
+                      ? "bg-accent/15 text-accent border border-accent/30"
+                      : "bg-white/5 text-white/40 border border-white/10 hover:border-white/20"
+                  }`}
+                >
+                  {deepScan ? (
+                    <ToggleRight size={16} className="text-accent" />
+                  ) : (
+                    <ToggleLeft size={16} />
+                  )}
+                  {deepScan ? "Enabled" : "Disabled"}
+                </button>
+              </div>
+
               {/* Recursive toggle (directory mode only) */}
               {mode === "directory" && (
                 <div className="flex items-center justify-between mb-3">

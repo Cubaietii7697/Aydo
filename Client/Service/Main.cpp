@@ -234,13 +234,14 @@ static void pipeServerLoop(ProcessMonitor *monitor) {
                   monitor->getCapabilities()));
             } else if (type == "scan") {
               std::string path = j.value("path", "");
+              std::string depth = j.value("depth", "standard");
               if (path.empty()) {
                 sendEvent(Protocol::Event(
                     Protocol::EventType::Info,
                     "medium",
                     "Scan command missing path"));
               } else {
-                monitor->scanFile(path);
+                monitor->scanFile(path, depth);
               }
             } else {
               sendEvent(Protocol::Event(
