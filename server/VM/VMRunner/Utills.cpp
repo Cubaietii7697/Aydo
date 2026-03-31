@@ -229,6 +229,16 @@ bool guestPathExists(const std::string &vmRunPath,
 
 static std::string normalizeVmPathForComparison(std::string path) {
   path = dequote(std::move(path));
+  const auto isNotSpace = [](unsigned char ch) {
+    return !std::isspace(ch);
+  };
+  const auto first = std::find_if(path.begin(), path.end(), isNotSpace);
+  if (first == path.end()) {
+    return {};
+  }
+  const auto last =
+      std::find_if(path.rbegin(), path.rend(), isNotSpace).base();
+  path = std::string(first, last);
   std::replace(path.begin(), path.end(), '/', '\\');
   for (size_t i = 1; i < path.size(); ++i) {
     if (path[i] == '\\' && path[i - 1] == '\\')
