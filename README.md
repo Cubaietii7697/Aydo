@@ -15,6 +15,8 @@ Remember to change the following constants in the config.json file:
 
 To your own constants!
 
+Use [server/Server/config.example.json](server/Server/config.example.json) as the reference for the latest server config shape. The live file still needs machine-specific paths, credentials, and database values.
+
 
 ### Standard error message
 
@@ -99,6 +101,8 @@ VMRunner is a simple tool that allows you to run a virtual machine in a sandbox 
 Do not edit source constants per machine.
 
 Configure the sandbox runtime in [server/Server/config.json](server/Server/config.json) under `custom_config.sandbox`. Dynamic scanning now reads the VMware paths, guest credentials, shared-folder settings, and timeout values from that config and passes them into `VMRunner.exe` at launch.
+
+An up-to-date example is available at [server/Server/config.example.json](server/Server/config.example.json).
 
 The required keys are:
 
