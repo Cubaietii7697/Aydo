@@ -100,6 +100,55 @@ std::string describeCommandResult(const CommandResult &result) {
   return std::format("rc={} output={}", result.rc, output);
 }
 
+std::string trimCopy(std::string value) {
+  const auto isNotSpace = [](unsigned char ch) {
+    return !std::isspace(ch);
+  };
+
+  const auto first = std::find_if(value.begin(), value.end(), isNotSpace);
+  if (first == value.end()) {
+    return {};
+  }
+
+  const auto last = std::find_if(value.rbegin(), value.rend(), isNotSpace).base();
+  return std::string(first, last);
+}
+
+std::string singleLineForLog(std::string value, size_t maxLen = 320) {
+  std::replace(value.begin(), value.end(), '\r', ' ');
+  std::replace(value.begin(), value.end(), '\n', ' ');
+  value = trimCopy(std::move(value));
+  if (value.size() <= maxLen) {
+    return value;
+  }
+  return value.substr(0, maxLen) + "...";
+}
+
+std::string describePowerStateProbe(const Utills::VmPowerStateDetails &details) {
+  std::string description = std::format(
+      "state={} vmrunListRc={}",
+      Utills::vmPowerStateToString(details.state),
+      details.rc);
+
+  const std::string output = singleLineForLog(
+      details.out.empty() ? details.err : combinedOutput({details.rc, details.out, details.err}));
+  if (!output.empty()) {
+    description += std::format(" vmrunListOutput={}", output);
+  }
+
+  return description;
+}
+
+std::string buildPowerOnTimeoutHint(const Utills::VmPowerStateDetails &details) {
+  if (details.rc != 0) {
+    return "vmrun list failed while polling power state; verify VM_RUN_PATH, VMware installation, and permissions on this machine";
+  }
+  if (details.state == Utills::VmPowerState::Stopped) {
+    return "vmrun start returned without error, but the sandbox VM never appeared in 'vmrun list'; check VMware UI for pending prompts, locked VM files, or increase vmPowerOnMaxRetries on slower machines";
+  }
+  return "VM power state stayed unknown; inspect vmrun output above and the VMware logs for this sandbox clone";
+}
+
 bool isVmNotPoweredOnError(const CommandResult &result) {
   const std::string output = toLowerCopy(combinedOutput(result));
   return output.find("not powered on") != std::string::npos ||
@@ -161,7 +210,7 @@ StartupStageResult startVmAndConfigureSharedFolder(
     const std::filesystem::path &hostShared,
     int powerOnMaxRetries,
     int powerOnSleepMs,
-    const Utills::VmPowerStateProvider &powerStateProvider,
+    const std::function<Utills::VmPowerStateDetails()> &powerStateProbe,
     const CommandRunner &commandRunner) {
   const std::string quotedVmRunPath = Utills::winQuote(Utills::dequote(vmRunPath));
   const std::string startCmd = std::format(
@@ -175,13 +224,41 @@ StartupStageResult startVmAndConfigureSharedFolder(
             std::format("start failed: {}", describeCommandResult(startResult))};
   }
 
-  if (!Utills::waitForVmPowerState(powerStateProvider,
-                                   Utills::VmPowerState::Running,
-                                   powerOnMaxRetries,
-                                   powerOnSleepMs)) {
+  const std::string startOutput = singleLineForLog(combinedOutput(startResult));
+  if (!startOutput.empty()) {
+    std::cout << "    [startup] vmrun start output: " << startOutput
+              << std::endl;
+  }
+
+  Utills::VmPowerStateDetails lastProbe;
+  bool reachedRunning = false;
+  for (int attempt = 0; attempt < powerOnMaxRetries; ++attempt) {
+    lastProbe = powerStateProbe();
+    std::cout << "    [startup] power-state probe " << (attempt + 1) << '/'
+              << powerOnMaxRetries << ": "
+              << describePowerStateProbe(lastProbe) << std::endl;
+    if (lastProbe.state == Utills::VmPowerState::Running) {
+      reachedRunning = true;
+      break;
+    }
+
+    if (attempt + 1 < powerOnMaxRetries) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(powerOnSleepMs));
+    }
+  }
+
+  if (!reachedRunning) {
+    const long long totalWaitMs =
+        static_cast<long long>(powerOnMaxRetries) * powerOnSleepMs;
     return {StartupStageFailure::VmPowerOnTimeout,
-            std::format("VM did not reach the running state after {} retries x {}ms",
-                        powerOnMaxRetries, powerOnSleepMs)};
+            std::format(
+                "VM did not reach the running state after {} retries x {}ms ({}ms total). startResult={} lastProbe={} hint={}",
+                powerOnMaxRetries,
+                powerOnSleepMs,
+                totalWaitMs,
+                describeCommandResult(startResult),
+                describePowerStateProbe(lastProbe),
+                buildPowerOnTimeoutHint(lastProbe))};
   }
 
   if (sharedFolderName.empty()) {
@@ -277,6 +354,21 @@ int runSelfTests() {
     };
   };
 
+  auto makePowerStateProbeSequence = [](const std::vector<Utills::VmPowerState> &states) {
+    size_t nextState = 0;
+    return [states, nextState]() mutable {
+      const size_t index = std::min(nextState, states.size() - 1);
+      if (nextState + 1 < states.size()) {
+        ++nextState;
+      }
+      Utills::VmPowerStateDetails details;
+      details.state = states[index];
+      details.rc = 0;
+      details.command = "vmrun -T ws list";
+      return details;
+    };
+  };
+
   bool allPassed = true;
   allPassed &= runCloseVMCase("closeVM succeeds after a soft stop", {0}, true, 1);
   allPassed &= runCloseVMCase("closeVM falls back to a hard stop", {1, 0}, true, 2);
@@ -310,11 +402,6 @@ int runSelfTests() {
 
   {
     std::vector<std::string> commands;
-    std::vector<Utills::VmPowerState> states = {
-        Utills::VmPowerState::Stopped,
-        Utills::VmPowerState::Running,
-    };
-    size_t nextState = 0;
     const auto result = startVmAndConfigureSharedFolder(
         "vmrun",
         "\"sandbox.vmx\"",
@@ -323,13 +410,8 @@ int runSelfTests() {
         R"(D:\host shared)",
         3,
         0,
-        [&]() {
-          const size_t index = std::min(nextState, states.size() - 1);
-          if (nextState + 1 < states.size()) {
-            ++nextState;
-          }
-          return states[index];
-        },
+        makePowerStateProbeSequence(
+            {Utills::VmPowerState::Stopped, Utills::VmPowerState::Running}),
         makeCommandRunner({{0, {}, {}}, {0, {}, {}}, {0, {}, {}}}, commands));
     allPassed &= reportSelfTest(
         result.succeeded() && commands.size() == 3 &&
@@ -347,7 +429,8 @@ int runSelfTests() {
         R"(D:\host shared)",
         2,
         0,
-        []() { return Utills::VmPowerState::Stopped; },
+        makePowerStateProbeSequence(
+            {Utills::VmPowerState::Stopped, Utills::VmPowerState::Stopped}),
         makeCommandRunner({{0, {}, {}}}, commands));
     allPassed &= reportSelfTest(
         result.failure == StartupStageFailure::VmPowerOnTimeout &&
@@ -366,7 +449,7 @@ int runSelfTests() {
         R"(D:\host shared)",
         1,
         0,
-        []() { return Utills::VmPowerState::Running; },
+        makePowerStateProbeSequence({Utills::VmPowerState::Running}),
         makeCommandRunner({{0, {}, {}},
                            {1, {}, "The shared folder was not found"},
                            {0, {}, {}}},
@@ -386,7 +469,7 @@ int runSelfTests() {
         R"(D:\host shared)",
         1,
         0,
-        []() { return Utills::VmPowerState::Running; },
+        makePowerStateProbeSequence({Utills::VmPowerState::Running}),
         makeCommandRunner({{0, {}, {}},
                            {0, {}, {}},
                            {1, {}, "The virtual machine is not powered on"}},
@@ -485,6 +568,21 @@ int main(int argc, char *argv[]) {
       getEnvUIntOrDefaultLocal("VM_POWER_ON_SLEEP_MS", 2000);
   const std::string quotedVmRunPath = Utills::winQuote(Utills::dequote(vmRunPath));
   const auto totalStart = std::chrono::steady_clock::now();
+  const unsigned long long powerOnBudgetMs =
+      static_cast<unsigned long long>(vmPowerOnMaxRetries) * vmPowerOnSleepMs;
+
+  std::cout << "[config] Sandbox launch summary" << std::endl;
+  std::cout << "\tsandboxId: " << sandboxId << std::endl;
+  std::cout << "\tvmrun: " << vmRunExecutable.string() << std::endl;
+  std::cout << "\tbase VMX: " << baseVmxPath.string() << std::endl;
+  std::cout << "\tsandbox VMX: " << sandboxVmxPath.string() << std::endl;
+  std::cout << "\thost shared dir: " << hostShared.string() << std::endl;
+  std::cout << "\tguest shared dir: " << GUEST_SHARED_DIR << std::endl;
+  std::cout << "\tshared folder name: " << sharedFolderName << std::endl;
+  std::cout << "\tpayload host path: " << suspiciousHostAbs << std::endl;
+  std::cout << "\tpower-on timeout budget: " << powerOnBudgetMs << "ms ("
+            << vmPowerOnMaxRetries << " x " << vmPowerOnSleepMs << "ms)"
+            << std::endl;
 
   auto runCommand = [](const std::string &cmd) -> CommandResult {
     CommandResult result;
@@ -542,7 +640,7 @@ int main(int argc, char *argv[]) {
         hostShared,
         static_cast<int>(vmPowerOnMaxRetries),
         static_cast<int>(vmPowerOnSleepMs),
-        [&]() { return Utills::getVmPowerState(vmRunPath, sandboxVmx); },
+        [&]() { return Utills::probeVmPowerState(vmRunPath, sandboxVmx); },
         runCommand);
     if (!result.succeeded()) {
       return failWithOptionalShutdown(result.message, true);

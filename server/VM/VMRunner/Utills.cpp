@@ -239,34 +239,51 @@ static std::string normalizeVmPathForComparison(std::string path) {
   return path;
 }
 
-VmPowerState getVmPowerState(const std::string &vmRunPath,
-                             const std::string &sandboxVmx) {
-  std::string out;
-  std::string err;
-  const std::string cmd =
+std::string vmPowerStateToString(VmPowerState state) {
+  switch (state) {
+    case VmPowerState::Running:
+      return "Running";
+    case VmPowerState::Stopped:
+      return "Stopped";
+    case VmPowerState::Unknown:
+      return "Unknown";
+  }
+  return "Unknown";
+}
+
+VmPowerStateDetails probeVmPowerState(const std::string &vmRunPath,
+                                      const std::string &sandboxVmx) {
+  VmPowerStateDetails details;
+  details.command =
       std::format(R"({} -T ws list)", winQuote(dequote(vmRunPath)));
-  const int rc = executeAndWaitRC(
-      cmd,
-      &out,
-      &err,
+  details.rc = executeAndWaitRC(
+      details.command,
+      &details.out,
+      &details.err,
       std::chrono::seconds(10),
       false);
-  if (rc != 0) {
-    if (!err.empty()) {
-      std::cerr << err;
-    }
-    return VmPowerState::Unknown;
+  if (details.rc != 0) {
+    details.state = VmPowerState::Unknown;
+    return details;
   }
 
   const std::string expected = normalizeVmPathForComparison(sandboxVmx);
-  std::istringstream stream(out);
+  std::istringstream stream(details.out);
   std::string line;
   while (std::getline(stream, line)) {
     if (normalizeVmPathForComparison(line) == expected) {
-      return VmPowerState::Running;
+      details.state = VmPowerState::Running;
+      return details;
     }
   }
-  return VmPowerState::Stopped;
+
+  details.state = VmPowerState::Stopped;
+  return details;
+}
+
+VmPowerState getVmPowerState(const std::string &vmRunPath,
+                             const std::string &sandboxVmx) {
+  return probeVmPowerState(vmRunPath, sandboxVmx).state;
 }
 
 bool waitForVmPowerState(const VmPowerStateProvider &provider,

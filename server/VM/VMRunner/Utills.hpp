@@ -14,6 +14,14 @@ enum class VmPowerState {
 };
 using VmPowerStateProvider = std::function<VmPowerState()>;
 
+struct VmPowerStateDetails {
+  VmPowerState state = VmPowerState::Unknown;
+  int rc = -1;
+  std::string command;
+  std::string out;
+  std::string err;
+};
+
 void printBanner(bool isClosing = false);
 
 int executeAndWaitRC(const std::string &cmd,
@@ -26,6 +34,11 @@ bool waitForTools(const std::string &vmRunPath,
                   const std::string &sandboxPath,
                   int maxRetries = 60,
                   int sleepMs = 5000);
+
+std::string vmPowerStateToString(VmPowerState state);
+
+VmPowerStateDetails probeVmPowerState(const std::string &vmRunPath,
+                                      const std::string &sandboxVmx);
 
 VmPowerState getVmPowerState(const std::string &vmRunPath,
                              const std::string &sandboxVmx);

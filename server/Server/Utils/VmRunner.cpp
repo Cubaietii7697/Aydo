@@ -220,7 +220,11 @@ bool startVm(const std::string &sandboxId,
   const std::wstring workingDirectory = resolvedVmRunnerPath.parent_path().wstring();
 
   LOG_INFO << "Launching VMRunner: " << resolvedVmRunnerPath.string()
-           << " sandboxId=" << sandboxId;
+           << " sandboxId=" << sandboxId
+           << " runtimeSeconds=" << runtimeSeconds
+           << " payload=" << resolvedPayloadPath.string()
+           << " sandboxDir=" << config.sandboxDirectoryFor(sandboxId).string()
+           << " expectedLogDb=" << config.sharedLogDbPath(sandboxId).string();
   const BOOL processCreated = CreateProcessW(
       resolvedVmRunnerPath.c_str(),
       commandLine.data(),
