@@ -21,6 +21,33 @@
 
 namespace Utills {
 
+namespace {
+
+std::string trimCopy(std::string value) {
+  const auto isNotSpace = [](unsigned char ch) {
+    return !std::isspace(ch);
+  };
+  const auto first = std::find_if(value.begin(), value.end(), isNotSpace);
+  if (first == value.end()) {
+    return {};
+  }
+  const auto last =
+      std::find_if(value.rbegin(), value.rend(), isNotSpace).base();
+  return std::string(first, last);
+}
+
+std::string singleLineForLog(std::string value, size_t maxLen = 320) {
+  std::replace(value.begin(), value.end(), '\r', ' ');
+  std::replace(value.begin(), value.end(), '\n', ' ');
+  value = trimCopy(std::move(value));
+  if (value.size() <= maxLen) {
+    return value;
+  }
+  return value.substr(0, maxLen) + "...";
+}
+
+} // namespace
+
 void printBanner(bool isClosing) {
   std::string bannerStr(BANNER);
   std::vector<std::string> lines;
@@ -195,6 +222,15 @@ bool waitForTools(const std::string &vmRunPath,
     lower += error;
     std::transform(lower.begin(), lower.end(), lower.begin(),
                    [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+
+    const std::string summary = singleLineForLog(
+        output.empty() ? error : output + (error.empty() ? "" : " " + error));
+    std::cout << "    [tools] probe " << (i + 1) << '/' << maxRetries
+              << ": rc=" << rc;
+    if (!summary.empty()) {
+      std::cout << " output=" << summary;
+    }
+    std::cout << std::endl;
 
     if (rc == 0 && lower.find("not running") == std::string::npos &&
         lower.find("running") != std::string::npos) {

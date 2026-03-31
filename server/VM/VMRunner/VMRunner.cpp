@@ -775,7 +775,14 @@ int main(int argc, char *argv[]) {
   std::cout << "[4/7] Let payload run for " << runTimeSec << "s" << std::endl;
   {
     ScopedStepTimer timer("payload runtime window");
-    std::this_thread::sleep_for(std::chrono::seconds(runTimeSec));
+    int remainingSeconds = runTimeSec;
+    while (remainingSeconds > 0) {
+      const int sleepChunk = std::min(remainingSeconds, 5);
+      std::this_thread::sleep_for(std::chrono::seconds(sleepChunk));
+      remainingSeconds -= sleepChunk;
+      std::cout << "    [runtime] remaining " << remainingSeconds << "s"
+                << std::endl;
+    }
   }
 
   std::cout << "[5/7] Copy log guest->host" << std::endl;
