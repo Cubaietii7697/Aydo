@@ -1,93 +1,144 @@
-# AYDO
+# Aydo Endpoint Protection Platform
 
+Aydo is a Windows endpoint protection platform (EPP) that combines local
+prevention, endpoint telemetry, static and dynamic analysis, and a desktop
+management experience. The repository contains the endpoint service and kernel
+driver, an Electron desktop application, a C++ backend, and an isolated VMware
+sandbox pipeline.
 
+## Main Components
 
-## Getting started
+| Path | Component | Purpose |
+| --- | --- | --- |
+| `Client/KernelDriver` | Kernel driver | Process protection and kernel-to-service communication |
+| `Client/Service` | Endpoint service | Static scanning, real-time monitoring, server communication, and scan orchestration |
+| `Client/GUI` | Desktop application | Electron, React, and TypeScript user interface |
+| `server/Server` | Backend API | Drogon-based authentication, uploads, scan scheduling, and sandbox coordination |
+| `server/VM/VMRunner` | Sandbox runner | VMware lifecycle, warm-VM pooling, payload execution, and result collection |
+| `server/VM/ProcessMonitor` | VM telemetry | ETW collection, behavioral detections, and SQLite findings |
+| `server/VM/ProcessRunner*` | Payload runner | Guest-side process launch and injection support |
+| `Installer` | Windows installer | WiX installer and bootstrapper projects |
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+## Requirements
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+- Windows 10 or Windows 11, x64
+- Visual Studio 2022 with the Desktop development with C++ workload
+- Windows 10/11 SDK and WDK for the kernel driver
+- C++20-capable MSVC toolchain (`v143`)
+- VMware Workstation with `vmrun.exe` for dynamic analysis
+- PostgreSQL for the backend
+- Drogon and the native dependencies referenced by the Visual Studio projects
+- Bun 1.1 or newer for the desktop application
+- WiX Toolset 6 for installer builds
+- Python 3 for database and rule update scripts
 
-## Add your files
+Some project files currently contain machine-specific native include and
+library paths. Adjust them for your local vcpkg/SDK installation before building.
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+## Build the Native Solution
 
+Open `Aydo.sln` in Visual Studio, select `x64` and the required configuration,
+then build the solution. From a Visual Studio Developer PowerShell, the same can
+be done with:
+
+```powershell
+msbuild .\Aydo.sln /m /p:Configuration=Release /p:Platform=x64
 ```
-cd existing_repo
-git remote add origin https://gitlab.com/NRG-Wardog/aydo.git
-git branch -M main
-git push -uf origin main
+
+Build outputs are written under the solution's `x64/Release` or `x64/Debug`
+directories, with some VM projects retaining project-local output folders.
+
+## Desktop Application
+
+```powershell
+cd Client\GUI
+bun install
+bun run dev
 ```
 
-## Integrate with your tools
+Create a production bundle with `bun run build`, or package the application
+with `bun run package`. The desktop client automatically uses a native engine
+build when one is available and otherwise falls back to its simulator. See
+[`Client/GUI/README.md`](Client/GUI/README.md) for engine overrides and E2E test
+instructions.
 
-- [ ] [Set up project integrations](https://gitlab.com/NRG-Wardog/aydo/-/settings/integrations)
+## Backend Configuration
 
-## Collaborate with your team
+Copy the example configuration and replace every placeholder:
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+```powershell
+Copy-Item server\Server\config.example.json server\Server\config.json
+```
 
-## Test and Deploy
+Configure at least:
 
-Use the built-in continuous integration in GitLab.
+- the PostgreSQL connection
+- a strong JWT secret
+- upload and scan-processing limits
+- `custom_config.sandbox` paths and VMware guest settings
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+Do not commit production credentials or machine-specific secrets. The full
+sandbox configuration contract is documented in
+[`server/Server/config.example.json`](server/Server/config.example.json).
 
-***
+## Dynamic Analysis and Warm VM Pool
 
-# Editing this README
+The backend launches `VMRunner.exe` with sandbox settings supplied through the
+server configuration. VMRunner can preload reusable sandbox copies to reduce
+scan startup time:
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+```powershell
+.\x64\Release\VMRunner.exe --prepare-warm-pool
+```
 
-## Suggestions for a good README
+The server starts the preloader during startup and replenishes the pool after a
+scan. VM state is stored below the configured sandbox directory. Run the
+backend and VMware processes with only the permissions required by the target
+environment.
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+Available diagnostics include:
 
-## Name
-Choose a self-explaining name for your project.
+```powershell
+.\x64\Release\VMRunner.exe --self-test
+.\x64\Release\Server.exe --self-test
+```
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+The first command validates VM lifecycle and shared-folder behavior. The second
+validates sandbox configuration parsing and result-path resolution.
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+## Endpoint Data and Rules
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+Generated databases and rule sets belong in `data/` and are intentionally not
+stored in Git. Update them from the repository root:
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+```powershell
+python scripts\update_file_hashes_db.py -d -e -p
+python scripts\update_file_signatures_db.py -d -e -p
+python scripts\update_yara_rules.py
+python scripts\update_sigma_rules.py
+```
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+The hash/signature source may require a manual ClamAV database download when
+the upstream service blocks automated retrieval.
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+## Tests and Validation
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+- Build `Aydo.sln` for `x64` in Visual Studio or with MSBuild.
+- Run `VMRunner.exe --self-test` and `Server.exe --self-test`.
+- Run the ProcessMonitor deterministic and live tests described in
+  [`server/VM/ProcessMonitor/README.md`](server/VM/ProcessMonitor/README.md).
+- Run `bun run test:e2e` from `Client/GUI` for the desktop smoke tests.
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+VM integration tests require a configured VMware guest and cannot run safely
+without the paths and credentials from the local server configuration.
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+## Branch Promotion
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+Feature branches merge into `v4.0.0`, release changes are promoted to
+`develop`, and validated releases are then promoted to `production`. Keep the
+same tested commits throughout that sequence and do not force-push shared
+branches.
 
 ## License
-For open source projects, say how it is licensed.
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+This project is licensed under the MIT License. See [`LICENSE`](LICENSE).

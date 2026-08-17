@@ -1,0 +1,168 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Source Files\AhoCorasick">
+      <UniqueIdentifier>{146d4bd8-e12f-4101-afe5-93eae401b368}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\AhoCorasick">
+      <UniqueIdentifier>{c54e873a-69f9-48bd-98d4-706a0d21540a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Regex">
+      <UniqueIdentifier>{61d34d64-19b8-430b-a2b3-25a41f0ba1b2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Regex">
+      <UniqueIdentifier>{83304708-7888-4849-8b3a-f74456234c0f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Databases">
+      <UniqueIdentifier>{c26f1e4a-1a87-44f1-9557-0b6c669a1094}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Databases">
+      <UniqueIdentifier>{b99826c6-6e5b-4359-af35-81847fb375f0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\KernelCommunications">
+      <UniqueIdentifier>{1d38f1fa-6910-4e78-8018-533756b94d03}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\KernelCommunications">
+      <UniqueIdentifier>{b5d10b6a-63c0-45a5-9e9e-2b574ab1a3a4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Yara">
+      <UniqueIdentifier>{d4e7ea45-198f-472a-9f94-cc76502f3b4d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Yara">
+      <UniqueIdentifier>{b4e986c2-14c6-4d48-8a24-7f8c0507dcf7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\ServerCommunications">
+      <UniqueIdentifier>{8309ced8-00a5-4df0-9307-883277659592}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\ServerCommunications">
+      <UniqueIdentifier>{920a1b42-3da8-40d1-8fcd-0a833371e62f}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Utils.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="AhoCorasick\AhoCorasick.cpp">
+      <Filter>Source Files\AhoCorasick</Filter>
+    </ClCompile>
+    <ClCompile Include="AhoCorasick\ACUtils.cpp">
+      <Filter>Source Files\AhoCorasick</Filter>
+    </ClCompile>
+    <ClCompile Include="AhoCorasick\ACScanningEngine.cpp">
+      <Filter>Source Files\AhoCorasick</Filter>
+    </ClCompile>
+    <ClCompile Include="Regex\RScanningEngine.cpp">
+      <Filter>Source Files\Regex</Filter>
+    </ClCompile>
+    <ClCompile Include="AhoCorasick\SCAScanningEngine.cpp">
+      <Filter>Source Files\AhoCorasick</Filter>
+    </ClCompile>
+    <ClCompile Include="Databases\HashesDatabase.cpp">
+      <Filter>Source Files\Databases</Filter>
+    </ClCompile>
+    <ClCompile Include="Databases\SignaturesDatabase.cpp">
+      <Filter>Source Files\Databases</Filter>
+    </ClCompile>
+    <ClCompile Include="KernelCommunications\KernelCommunications.cpp">
+      <Filter>Source Files\KernelCommunications</Filter>
+    </ClCompile>
+    <ClCompile Include="ProcessMonitor.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Yara\YScanningEngine.cpp">
+      <Filter>Source Files\Yara</Filter>
+    </ClCompile>
+    <ClCompile Include="Yara\YaraScoringSystem.cpp">
+      <Filter>Source Files\Yara</Filter>
+    </ClCompile>
+    <ClCompile Include="ServerCommunications\ServerCommunications.cpp">
+      <Filter>Source Files\ServerCommunications</Filter>
+    </ClCompile>
+    <ClCompile Include="UserConfig.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="AhoCorasick\ACUtils.hpp">
+      <Filter>Header Files\AhoCorasick</Filter>
+    </ClInclude>
+    <ClInclude Include="AhoCorasick\AhoCorasick.hpp">
+      <Filter>Header Files\AhoCorasick</Filter>
+    </ClInclude>
+    <ClInclude Include="AhoCorasick\ACNode.hpp">
+      <Filter>Header Files\AhoCorasick</Filter>
+    </ClInclude>
+    <ClInclude Include="Errors.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="AhoCorasick\ACScanningEngine.hpp">
+      <Filter>Header Files\AhoCorasick</Filter>
+    </ClInclude>
+    <ClInclude Include="Regex\RScanningEngine.hpp">
+      <Filter>Header Files\Regex</Filter>
+    </ClInclude>
+    <ClInclude Include="IScanningEngine.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="AhoCorasick\SCAScanningEngine.hpp">
+      <Filter>Header Files\AhoCorasick</Filter>
+    </ClInclude>
+    <ClInclude Include="JsonTypes.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Utils.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Databases\HashesDatabase.hpp">
+      <Filter>Header Files\Databases</Filter>
+    </ClInclude>
+    <ClInclude Include="IOCTLs.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Databases\SignaturesDatabase.hpp">
+      <Filter>Header Files\Databases</Filter>
+    </ClInclude>
+    <ClInclude Include="Types.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="KernelCommunications\KernelCommunications.hpp">
+      <Filter>Header Files\KernelCommunications</Filter>
+    </ClInclude>
+    <ClInclude Include="ProcessMonitor.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Constants.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Yara\YScanningEngine.hpp">
+      <Filter>Header Files\Yara</Filter>
+    </ClInclude>
+    <ClInclude Include="Yara\YaraRuleConstants.hpp">
+      <Filter>Header Files\Yara</Filter>
+    </ClInclude>
+    <ClInclude Include="Yara\YaraScoringSystem.hpp">
+      <Filter>Header Files\Yara</Filter>
+    </ClInclude>
+    <ClInclude Include="ServerCommunications\ServerCommunications.hpp">
+      <Filter>Header Files\ServerCommunications</Filter>
+    </ClInclude>
+    <ClInclude Include="UserConfig.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>
