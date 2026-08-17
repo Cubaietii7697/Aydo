@@ -10,6 +10,7 @@
 #include "Controllers/Sandbox.hpp"
 #include "DatabaseSetup.hpp"
 #include "Utils/SandboxRuntimeConfig.hpp"
+#include "Utils/VmRunner.hpp"
 
 int main(int argc, char *argv[]) {
   if (argc == 2 && std::string_view(argv[1]) == "--self-test") {
@@ -67,6 +68,8 @@ int main(int argc, char *argv[]) {
 
       exit(EXIT_FAILURE);
     }
+
+    Utils::VmRunner::warmUpPoolAsync();
   });
 
   LOG_INFO << "Starting server with config from " << Constants::CONFIG_FILE;

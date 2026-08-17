@@ -12,6 +12,7 @@
 #include <format>
 #include <functional>
 #include <map>
+#include <mutex>
 #include <string>
 #include <thread>
 #include <vector>
@@ -284,7 +285,83 @@ bool startVm(const std::string &sandboxId,
   }
 
   LOG_INFO << "VMRunner completed successfully (sandboxId=" << sandboxId << ")";
+  warmUpPoolAsync();
   return true;
+}
+
+void warmUpPoolAsync() {
+  static std::mutex warmupMutex;
+  static bool warmupRunning = false;
+
+  {
+    const std::lock_guard<std::mutex> lock(warmupMutex);
+    if (warmupRunning) {
+      return;
+    }
+    warmupRunning = true;
+  }
+
+  std::thread([]() {
+    const auto finish = []() {
+      const std::lock_guard<std::mutex> lock(warmupMutex);
+      warmupRunning = false;
+    };
+
+    const auto configResult =
+        Utils::SandboxRuntimeConfig::load(drogon::app().getCustomConfig());
+    if (!configResult) {
+      LOG_ERROR << "Sandbox config error while warming VM pool: "
+                << configResult.error;
+      finish();
+      return;
+    }
+
+    const auto &config = *configResult.config;
+    const std::filesystem::path vmRunnerPath =
+        config.vmRunnerPath.is_absolute()
+            ? config.vmRunnerPath
+            : std::filesystem::absolute(config.vmRunnerPath);
+    if (!std::filesystem::exists(vmRunnerPath)) {
+      LOG_ERROR << "VMRunner path does not exist: " << vmRunnerPath.string();
+      finish();
+      return;
+    }
+
+    std::vector<wchar_t> childEnvironment =
+        buildEnvironmentBlock(config.toEnvironment());
+    std::vector<wchar_t> commandLine =
+        buildCommandLine(vmRunnerPath, {"--prepare-warm-pool"});
+    STARTUPINFOW startupInfo{};
+    startupInfo.cb = sizeof(startupInfo);
+    PROCESS_INFORMATION processInfo{};
+    const std::wstring workingDirectory = vmRunnerPath.parent_path().wstring();
+
+    LOG_INFO << "Launching warm sandbox preloader: " << vmRunnerPath.string();
+    const BOOL processCreated = CreateProcessW(
+        vmRunnerPath.c_str(), commandLine.data(), nullptr, nullptr, FALSE,
+        CREATE_NO_WINDOW | CREATE_UNICODE_ENVIRONMENT,
+        childEnvironment.empty() ? nullptr : childEnvironment.data(),
+        workingDirectory.empty() ? nullptr : workingDirectory.c_str(),
+        &startupInfo, &processInfo);
+    if (!processCreated) {
+      LOG_ERROR << "CreateProcessW failed for warm sandbox preloader: "
+                << GetLastError();
+      finish();
+      return;
+    }
+
+    WaitForSingleObject(processInfo.hProcess, INFINITE);
+    DWORD processExitCode = EXIT_FAILURE;
+    (void)GetExitCodeProcess(processInfo.hProcess, &processExitCode);
+    CloseHandle(processInfo.hThread);
+    CloseHandle(processInfo.hProcess);
+
+    if (processExitCode != EXIT_SUCCESS) {
+      LOG_WARN << "Warm sandbox preloader exited with code "
+               << processExitCode;
+    }
+    finish();
+  }).detach();
 }
 
 } // namespace Utils::VmRunner
