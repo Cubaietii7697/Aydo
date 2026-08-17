@@ -12,7 +12,7 @@ constexpr size_t BYTES_PER_MIB = BYTES_PER_KIB * BYTES_PER_KIB;
 const std::vector<std::string> YARA_RULES_FILES = {
     "aaa.yrc",
 };
-constexpr double ENTROPY_THRESHOLD = 0.8;
+constexpr double ENTROPY_THRESHOLD = 7.0;
 constexpr unsigned int ALPHABET_SIZE = 256;
 constexpr unsigned int IDLE_SLEEP_TIME_MS = 1000;
 constexpr size_t YARA_CHUNK_SIZE = BYTES_PER_MIB;
@@ -22,6 +22,8 @@ constexpr std::string_view HASHES_DB_PATH = "file_hashes.db";
 constexpr std::string_view SERVER_URL = "http://127.0.0.1";
 constexpr int DYNAMIC_SCAN_POLL_INTERVAL = 5;
 constexpr DWORD DYNAMIC_SCAN_MAX_WAIT_MS = 2000;
+constexpr DWORD DYNAMIC_SCAN_RESULT_WAIT_BUFFER_MS = 5000;
+constexpr DWORD DYNAMIC_SCAN_MIN_WAIT_MS = 2000;
 constexpr DWORD DYNAMIC_SCAN_CLIENT_POLL_MS = 200;
 constexpr std::chrono::milliseconds SERVER_REACHABILITY_POLL_INTERVAL{std::chrono::seconds{5}};
 constexpr std::string_view AYDO_GUI_PIPE_NAME = R"(\\.\pipe\AydoServicePipe)";
@@ -38,4 +40,5 @@ constexpr int INFECTED_FILE_ACTION_QUARANTINE = 1;
 constexpr int INFECTED_FILE_ACTION_DELETE = 2;
 constexpr int SCAN_PROGRESS_PERCENTAGE_MAX = 100;
 constexpr std::chrono::milliseconds REQUEST_TIMEOUT_DURATION{std::chrono::seconds{2}};
+constexpr int SLOW_SCAN_RESUME_TIMEOUT_S = 15;
 }; // namespace Constants

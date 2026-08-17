@@ -31,19 +31,19 @@ const profilePresets: Record<
     label: "Low",
     desc: "Lower sensitivity, fewer false positives. Best for trusted endpoints.",
     killThreshold: 200,
-    entropyThreshold: 7.2,
+    entropyThreshold: 7.8,
   },
   balanced: {
     label: "Balanced",
     desc: "Recommended default. Balanced detection and noise.",
     killThreshold: 150,
-    entropyThreshold: 6.0,
+    entropyThreshold: 7.0,
   },
   aggressive: {
     label: "Aggressive",
     desc: "Higher sensitivity and stricter blocking at the cost of more alerts.",
     killThreshold: 110,
-    entropyThreshold: 5.2,
+    entropyThreshold: 6.5,
   },
 };
 

@@ -1,164 +1,144 @@
-# Aydo
+# Aydo Endpoint Protection Platform
 
-The best anti virus, ever!!
+Aydo is a Windows endpoint protection platform (EPP) that combines local
+prevention, endpoint telemetry, static and dynamic analysis, and a desktop
+management experience. The repository contains the endpoint service and kernel
+driver, an Electron desktop application, a C++ backend, and an isolated VMware
+sandbox pipeline.
 
-## Server
+## Main Components
 
-The server is a simple C++ server that uses [drogon](https://github.com/drogonframework/drogon) to handle HTTP requests.
+| Path | Component | Purpose |
+| --- | --- | --- |
+| `Client/KernelDriver` | Kernel driver | Process protection and kernel-to-service communication |
+| `Client/Service` | Endpoint service | Static scanning, real-time monitoring, server communication, and scan orchestration |
+| `Client/GUI` | Desktop application | Electron, React, and TypeScript user interface |
+| `server/Server` | Backend API | Drogon-based authentication, uploads, scan scheduling, and sandbox coordination |
+| `server/VM/VMRunner` | Sandbox runner | VMware lifecycle, warm-VM pooling, payload execution, and result collection |
+| `server/VM/ProcessMonitor` | VM telemetry | ETW collection, behavioral detections, and SQLite findings |
+| `server/VM/ProcessRunner*` | Payload runner | Guest-side process launch and injection support |
+| `Installer` | Windows installer | WiX installer and bootstrapper projects |
 
-### Note about the server
+## Requirements
 
-Remember to change the following constants in the config.json file:
+- Windows 10 or Windows 11, x64
+- Visual Studio 2022 with the Desktop development with C++ workload
+- Windows 10/11 SDK and WDK for the kernel driver
+- C++20-capable MSVC toolchain (`v143`)
+- VMware Workstation with `vmrun.exe` for dynamic analysis
+- PostgreSQL for the backend
+- Drogon and the native dependencies referenced by the Visual Studio projects
+- Bun 1.1 or newer for the desktop application
+- WiX Toolset 6 for installer builds
+- Python 3 for database and rule update scripts
 
-- Database
-- JWT Secret
+Some project files currently contain machine-specific native include and
+library paths. Adjust them for your local vcpkg/SDK installation before building.
 
-To your own constants!
+## Build the Native Solution
 
+Open `Aydo.sln` in Visual Studio, select `x64` and the required configuration,
+then build the solution. From a Visual Studio Developer PowerShell, the same can
+be done with:
 
-### Standard error message
-
-```json
-{
-    "message": "Error message"
-}
+```powershell
+msbuild .\Aydo.sln /m /p:Configuration=Release /p:Platform=x64
 ```
 
-Along with a status code (e.g. 400 Bad Request).
+Build outputs are written under the solution's `x64/Release` or `x64/Debug`
+directories, with some VM projects retaining project-local output folders.
 
-### Routes
+## Desktop Application
 
-| Route | Method | Description |
-|-------|--------|-------------|
-| /api/auth/register | POST | Register a new user |
-| /api/auth/login | POST | Login a user |
-| /api/auth/refresh-token | POST | Refresh a user's access token |
-| /api/auth/me | GET | Get the current user |
-
-#### /api/auth/register
-
-Expects a JSON body with the following fields:
-
-- email
-- nickname
-- password
-
-Returns a JSON body with the following fields:
-
-- message
-- accessToken
-- refreshToken
-
-or **standard error message**
-
-#### /api/auth/login
-
-Expects a JSON body with the following fields:
-
-- email
-- password
-
-Returns a JSON body with the following fields:
-
-- message
-- accessToken
-- refreshToken
-
-or **standard error message**
-
-#### /api/auth/refresh-token
-
-Expects a JSON body with the following fields:
-
-- refreshToken
-
-Returns a JSON body with the following fields:
-
-- accessToken
-
-or **standard error message**
-
-#### /api/auth/me
-
-Expects a header with the following fields:
-
-- Authorization: Bearer `<accessToken>`
-
-Returns a JSON body with the following fields:
-
-- nickname
-
-or **standard error message**
-
-## VMRunner
-
-VMRunner is a simple tool that allows you to run a virtual machine in a sandbox environment.
-
-### Note about the VMRunner
-
-Remember to change the following constants in the VMRunner.cpp file:
-
-- VM_RUN_PATH
-- ANALYSIS_VM_PATH
-- SANDBOXES_DIRECTORY_PATH
-
-To your own constants!
-
-## Data
-
-The data folder contains the file hashes database and the signatures database. It is not included with the repository, because the database is updated daily and is huge.
-
-To update the database, run the following commands:
-
-```bash
-python scripts/update_file_hashes_db.py -d -e -p
-python scripts/update_file_signatures_db.py -d -e -p
+```powershell
+cd Client\GUI
+bun install
+bun run dev
 ```
 
-### Script Arguments
+Create a production bundle with `bun run build`, or package the application
+with `bun run package`. The desktop client automatically uses a native engine
+build when one is available and otherwise falls back to its simulator. See
+[`Client/GUI/README.md`](Client/GUI/README.md) for engine overrides and E2E test
+instructions.
 
-| Script | Argument | Short | Long | Description |
-|--------|----------|-------|------|-------------|
-| Both | Download | `-d` | `--download` | Download new database from URL |
-| Both | Extract | `-e` | `--extract` | Extract the database file |
-| Both | Parse | `-p` | `--parse` | Parse CSV to SQLite database |
-| Both | Remove files | `-r` | `--remove_files` | Remove the leftover files (if exists) (zip, csv) |
-| update_file_hashes_db.py | Custom CSV | | `--csv` | Custom CSV file name (default: file_hashes.csv) |
-| update_file_hashes_db.py | Custom ZIP | | `--zip` | Custom ZIP file name (default: file_hashes.zip) |
-| update_file_hashes_db.py | Custom DB | | `--db` | Custom SQLite database file name (default: file_hashes.db) |
+## Backend Configuration
 
-### Data formats
+Copy the example configuration and replace every placeholder:
 
-#### File hashes
-
-The database is organized in a table named "file_hashes" with the following columns:
-
-| sha256 | name |
-|--------|------|
-| 0e306925a2ce33cb034c072708b5c39e0e306925a2ce33cb034c072708b5c39e | RansomwareExample |
-
-#### In-file signatures
-
-The in-file signatures are formatted this way (in a JSON file):
-
-```json
-{
-    "AABB??BB": "RansomwareExample" // Meaning, AABB??BB is the signature, and RansomwareExample is the name
-}
+```powershell
+Copy-Item server\Server\config.example.json server\Server\config.json
 ```
 
-### Note about the database
+Configure at least:
 
-Because CalmAV has blocked the option to download the database using a script (they added a captcha), you will need to download the database manually from the following URL:
+- the PostgreSQL connection
+- a strong JWT secret
+- upload and scan-processing limits
+- `custom_config.sandbox` paths and VMware guest settings
 
-<https://database.clamav.net/main.cvd>
+Do not commit production credentials or machine-specific secrets. The full
+sandbox configuration contract is documented in
+[`server/Server/config.example.json`](server/Server/config.example.json).
 
-Also, you have to download [clamav](https://github.com/Cisco-Talos/clamav) to extract the database file using their sigtool.exe (**just download the _zip_ file, and extract it to a folder, and then paste the sigtool.exe path into the script.**)
+## Dynamic Analysis and Warm VM Pool
+
+The backend launches `VMRunner.exe` with sandbox settings supplied through the
+server configuration. VMRunner can preload reusable sandbox copies to reduce
+scan startup time:
+
+```powershell
+.\x64\Release\VMRunner.exe --prepare-warm-pool
+```
+
+The server starts the preloader during startup and replenishes the pool after a
+scan. VM state is stored below the configured sandbox directory. Run the
+backend and VMware processes with only the permissions required by the target
+environment.
+
+Available diagnostics include:
+
+```powershell
+.\x64\Release\VMRunner.exe --self-test
+.\x64\Release\Server.exe --self-test
+```
+
+The first command validates VM lifecycle and shared-folder behavior. The second
+validates sandbox configuration parsing and result-path resolution.
+
+## Endpoint Data and Rules
+
+Generated databases and rule sets belong in `data/` and are intentionally not
+stored in Git. Update them from the repository root:
+
+```powershell
+python scripts\update_file_hashes_db.py -d -e -p
+python scripts\update_file_signatures_db.py -d -e -p
+python scripts\update_yara_rules.py
+python scripts\update_sigma_rules.py
+```
+
+The hash/signature source may require a manual ClamAV database download when
+the upstream service blocks automated retrieval.
+
+## Tests and Validation
+
+- Build `Aydo.sln` for `x64` in Visual Studio or with MSBuild.
+- Run `VMRunner.exe --self-test` and `Server.exe --self-test`.
+- Run the ProcessMonitor deterministic and live tests described in
+  [`server/VM/ProcessMonitor/README.md`](server/VM/ProcessMonitor/README.md).
+- Run `bun run test:e2e` from `Client/GUI` for the desktop smoke tests.
+
+VM integration tests require a configured VMware guest and cannot run safely
+without the paths and credentials from the local server configuration.
+
+## Branch Promotion
+
+Feature branches merge into `v4.0.0`, release changes are promoted to
+`develop`, and validated releases are then promoted to `production`. Keep the
+same tested commits throughout that sequence and do not force-push shared
+branches.
 
 ## License
 
-MIT
-
-## Desktop App (Electron)
-
-The desktop console lives in `apps/desktop`. See `apps/desktop/README.md` for Bun-only run, build, and packaging instructions.
+This project is licensed under the MIT License. See [`LICENSE`](LICENSE).

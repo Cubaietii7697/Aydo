@@ -68,9 +68,13 @@ const Dashboard = () => {
     setPickerOpen(true);
   };
 
-  const handlePickerSelect = async (path: string, recursive?: boolean) => {
+  const handlePickerSelect = async (
+    path: string,
+    recursive?: boolean,
+    deepScan?: boolean,
+  ) => {
     const result = await antivirusService.startScan({
-      depth: antivirus.settings.scanDepth,
+      depth: deepScan ? "deep" : antivirus.settings.scanDepth,
       paths: [path],
       recursive,
     });
@@ -87,7 +91,7 @@ const Dashboard = () => {
         });
       }
       if (event.type === "scan_complete") {
-        toast.success("Scan completed", { description: "No action required." });
+        toast.success("Scan completed", { description: "No action required - file is safe." });
       }
       if (event.type === "status" && event.severity !== "low") {
         toast.message(event.message);
